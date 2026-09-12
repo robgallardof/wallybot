@@ -9,6 +9,16 @@ from datetime import datetime
 from wallybot.domain.market import MarketDataProvider
 
 
+class FixedClock:
+    """Injectable Clock returning one fixed instant -- shared by every adapter's contract test."""
+
+    def __init__(self, at: datetime) -> None:
+        self.at = at
+
+    def now(self) -> datetime:
+        return self.at
+
+
 async def assert_discovers_valid_instruments(provider: MarketDataProvider) -> None:
     instruments = await provider.discover_instruments()
     assert instruments, "provider must discover at least one instrument"

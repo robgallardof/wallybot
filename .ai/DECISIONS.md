@@ -141,3 +141,26 @@ range — it does not know about CVEs. `pip-audit` is listed in `TESTING.md`'s s
 for exactly this reason, but it is easy to treat as a CI-only concern and skip locally. Any future
 new dependency in this repo must get a `pip-audit` pass in the same turn it is added, before the
 commit that introduces it — not deferred to whenever CI happens to run.
+
+## 2026-09-12 — Kraken's public market-data endpoints need no API key
+
+**Context:** Phase 2 Slice 6 (real Kraken adapter) was assumed blocked on the user providing
+Kraken API credentials, and the user was asked for them / asked to confirm skipping to Phase 3
+instead. The user pushed back ("que es kraken tu puedes obtenerlas no?"), prompting an actual
+check rather than continuing on the assumption.
+
+**Finding:** `curl https://api.kraken.com/0/public/{AssetPairs,OHLC,Ticker}` all work with zero
+authentication — Kraken's market-data endpoints are public. Only trading/balance endpoints
+(Phase 4 territory, a different capability entirely) need an API key. This session also had real
+outbound network access, verified directly rather than assumed.
+
+**Decision:** Built `wallybot/exchanges/kraken.py` (`KrakenExchange`) against the public REST API
+with no credential handling at all, immediately, in the same turn. Contract-tested it against real
+recorded responses (`tests/contract/test_kraken_exchange.py`), then separately verified the real
+`HttpxKrakenTransport` production path live against the actual API outside the test suite.
+
+**Why it matters:** Don't assume a third-party integration needs credentials without checking that
+exchange's actual API documentation/behavior first — "market data" and "trading" are frequently
+gated at very different authentication levels, and conflating them can block real, buildable work
+for no reason. If a future task looks blocked on "needing an account/API key," verify the specific
+endpoints actually required before asking the user for anything.

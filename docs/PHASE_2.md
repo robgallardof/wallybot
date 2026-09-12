@@ -1,11 +1,14 @@
 # Phase 2 implementation backlog
 
-Status: Slices 1-5, 8 and 9 implemented and verified on 2026-09-12 (market domain model +
+Status: Slices 1-6, 8 and 9 implemented and verified on 2026-09-12 (market domain model +
 FakeExchange; universe filters; data quality gate; Redis hot-tier caching; historical Parquet
-writer; feature engine; scanner). **Only Slices 6 and 7 remain**, both explicitly blocked on real
-Kraken network access/credentials this session doesn't have — everything else this backlog names
-is done. See [ARCHITECTURE](../ARCHITECTURE.md) for how Phase 2 fits the overall implementation
-sequence, and [PHASE_1](PHASE_1.md) for the completed authenticated-foundation phase this builds on.
+writer; real Kraken adapter; feature engine; scanner). **Only Slice 7 (streaming) remains.** It
+was initially assumed Slice 6 needed user-provided Kraken credentials — that was wrong; Kraken's
+market-data endpoints (discovery, candles, ticker) are public and unauthenticated, only
+trading/balance endpoints need an API key, and this session had real network access to verify that
+directly against the live API. See [ARCHITECTURE](../ARCHITECTURE.md) for how Phase 2 fits the
+overall implementation sequence, and [PHASE_1](PHASE_1.md) for the completed
+authenticated-foundation phase this builds on.
 
 | Order | Slice | Acceptance evidence |
 | --- | --- | --- |
@@ -195,6 +198,35 @@ risk evaluation — those are Phase 3+ per `ARCHITECTURE.md`'s implementation se
 what "the scanner" itself is scoped to do. No persistence of scan results either; nothing calls
 this on a schedule yet.
 
-**Phase 2 status after this slice: only Slices 6 and 7 remain, both blocked on real Kraken network
-access/credentials.** Every other capability this backlog named (discovery, universe filtering,
-data quality, caching, historical storage, features, scanning) exists and is tested.
+## Delivered: Slice 6 — real Kraken adapter
+
+- `wallybot/exchanges/kraken.py`: `KrakenExchange`, implementing the same `MarketDataProvider`
+  contract as `FakeExchange`, using Kraken's **public, unauthenticated** REST endpoints
+  (`/0/public/AssetPairs`, `/0/public/OHLC`, `/0/public/Ticker`) — no API key anywhere, matching
+  this port's "never trading credentials" rule. `KrakenTransport` is a narrow `Protocol` (one
+  `get(path, params)` method) so tests can swap in a fixture instead of hitting the network,
+  mirroring `MarketCache`'s `RedisLike` pattern from Slice 4.
+- Kraken's own asset codes are passed through unrenamed (Bitcoin stays `"XBT"`, not `"BTC"`) so
+  `instrument.base + instrument.quote` always reconstructs a valid Kraken pair name for
+  `fetch_candles`/`fetch_snapshot` — verified directly against real recorded pair names, not
+  assumed.
+- `tests/contract/test_kraken_exchange.py`: runs the same shared contract suite `FakeExchange`
+  passes, replayed against **real Kraken API responses captured on 2026-09-12** (not synthetic
+  data) via a `FixtureKrakenTransport` — no live network call during the test run, per TESTING.md:
+  "do not depend on... external exchange availability for mandatory tests." Moved the shared
+  `FixedClock` test double out of `test_fake_exchange.py` and into
+  `tests/contract/market_data_provider_suite.py` so both adapters' contract tests use the same one
+  (DRY — it would otherwise be defined identically twice).
+- Also manually verified the real `HttpxKrakenTransport` production path end-to-end against the
+  live API outside the test suite (discovery, snapshot, and candles all returned real, current
+  Kraken data) — the fixture proves the parsing logic is correct against a real response shape,
+  and the live run proves the whole adapter actually works, not just its offline replay.
+
+Explicitly not built in Slice 6: no order-book depth (`/0/public/Depth`) — only ticker best
+bid/ask, matching `MarketSnapshot`'s current shape from Slice 2; no authenticated endpoints
+(balances, trading) — those belong to Phase 4 paper/live execution, a different capability with
+its own credential-handling review; no rate-limit backoff or retry policy yet.
+
+**Phase 2 status after this slice: only Slice 7 (streaming) remains** — it needs the
+native-Kraken-WebSocket-vs-CCXT-Pro benchmark ADR-004 explicitly defers, a materially different
+and larger piece of work than any slice so far, not something to fold into this same pass.

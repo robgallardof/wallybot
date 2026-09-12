@@ -1,19 +1,12 @@
 from datetime import UTC, datetime, timedelta
 
 from tests.contract.market_data_provider_suite import (
+    FixedClock,
     assert_discovers_valid_instruments,
     assert_fetches_candles_respecting_since_and_limit,
     assert_fetches_valid_snapshot,
 )
 from wallybot.exchanges.fake import FakeExchange
-
-
-class FixedClock:
-    def __init__(self, at: datetime) -> None:
-        self.at = at
-
-    def now(self) -> datetime:
-        return self.at
 
 
 def make_provider() -> FakeExchange:
