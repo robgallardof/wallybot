@@ -1,12 +1,11 @@
 # Phase 2 implementation backlog
 
-Status: Slices 1-5 and 8 implemented and verified on 2026-09-12 (market domain model + FakeExchange;
-universe filters; data quality gate; Redis hot-tier caching; historical Parquet writer; feature
-engine). Slices 6, 7 and 9 remain a documented backlog — 6 (real Kraken adapter) and 7 (streaming)
-need real Kraken network access/credentials this session doesn't have, so 8 was taken out of order;
-9 (the scanner) is next since it only needs `FakeExchange`. See [ARCHITECTURE](../ARCHITECTURE.md)
-for how Phase 2 fits the overall implementation sequence, and [PHASE_1](PHASE_1.md) for the
-completed authenticated-foundation phase this builds on.
+Status: Slices 1-5, 8 and 9 implemented and verified on 2026-09-12 (market domain model +
+FakeExchange; universe filters; data quality gate; Redis hot-tier caching; historical Parquet
+writer; feature engine; scanner). **Only Slices 6 and 7 remain**, both explicitly blocked on real
+Kraken network access/credentials this session doesn't have — everything else this backlog names
+is done. See [ARCHITECTURE](../ARCHITECTURE.md) for how Phase 2 fits the overall implementation
+sequence, and [PHASE_1](PHASE_1.md) for the completed authenticated-foundation phase this builds on.
 
 | Order | Slice | Acceptance evidence |
 | --- | --- | --- |
@@ -165,3 +164,37 @@ Explicitly not built in Slice 8: no volatility/realized-vol feature (adds `Decim
 complexity for no consumer yet), no feature versioning migration path (only `version=1` exists —
 a real second version arrives when an actual formula changes), no wiring into a scanner or
 strategy yet (Slice 9 is next).
+
+## Delivered: Slice 9 — the scanner
+
+- `wallybot/scoring/simple.py` (new package — explicitly named in `ARCHITECTURE.md`'s planned
+  layout): `Score` (instrument id, version, value, the `FeatureVector` it came from) and
+  `score_momentum` — the simplest possible deterministic, versioned score (just reads the
+  momentum feature back out). No ML, no randomness: the same feature vector always produces the
+  same score.
+- `wallybot/application/scanner.py` (new package — also explicitly named:
+  "application/ # use cases and transaction orchestration"): `scan_universe`, the first capability
+  in this repo that composes multiple other capability packages into one use case rather than
+  standing alone. Filters the universe (Slice 2), computes features for every eligible instrument
+  (Slice 8), scores them (this slice), ranks by score descending, and returns the top
+  `max_finalists` plus the list of rejected instrument IDs — matching `ARCHITECTURE.md`'s decision
+  flow: "universe filters reject... Versioned scoring ranks finalists."
+- Documented (not enforced) precondition: `universe_config.min_history_candles` should be `>=
+  feature_window`, or an eligible instrument could still have too little history for the feature
+  engine. That mismatch is a caller configuration error and is left to raise loudly (an unhandled
+  `ValueError` from `SimpleFeatureEngine.compute`) rather than being silently skipped — consistent
+  with this repo's "no silent failures" pattern (`LookaheadError` not being swallowed, etc.).
+- `tests/unit/test_scoring.py` and `tests/unit/test_scanner.py`: a three-instrument scenario (one
+  strong uptrend, one weak downtrend, one with insufficient history) confirms ranking order,
+  `max_finalists` truncation, the ineligible instrument appearing in `rejected_instrument_ids`
+  instead of finalists, an empty-finalists result when nothing is eligible, and rejection of a
+  nonpositive `max_finalists`.
+
+Explicitly not built in Slice 9: no regime classification, no AI advisory step, no allocation or
+risk evaluation — those are Phase 3+ per `ARCHITECTURE.md`'s implementation sequence, well past
+what "the scanner" itself is scoped to do. No persistence of scan results either; nothing calls
+this on a schedule yet.
+
+**Phase 2 status after this slice: only Slices 6 and 7 remain, both blocked on real Kraken network
+access/credentials.** Every other capability this backlog named (discovery, universe filtering,
+data quality, caching, historical storage, features, scanning) exists and is tested.
