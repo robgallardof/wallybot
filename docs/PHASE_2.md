@@ -1,10 +1,12 @@
 # Phase 2 implementation backlog
 
-Status: Slices 1-5 (market domain model + FakeExchange; universe filters; data quality gate; Redis
-hot-tier caching; historical Parquet writer) implemented and verified on 2026-09-12. Slices 6-9 are
-a documented backlog only — not started. See [ARCHITECTURE](../ARCHITECTURE.md) for how Phase 2
-fits the overall implementation sequence, and [PHASE_1](PHASE_1.md) for the completed
-authenticated-foundation phase this builds on.
+Status: Slices 1-5 and 8 implemented and verified on 2026-09-12 (market domain model + FakeExchange;
+universe filters; data quality gate; Redis hot-tier caching; historical Parquet writer; feature
+engine). Slices 6, 7 and 9 remain a documented backlog — 6 (real Kraken adapter) and 7 (streaming)
+need real Kraken network access/credentials this session doesn't have, so 8 was taken out of order;
+9 (the scanner) is next since it only needs `FakeExchange`. See [ARCHITECTURE](../ARCHITECTURE.md)
+for how Phase 2 fits the overall implementation sequence, and [PHASE_1](PHASE_1.md) for the
+completed authenticated-foundation phase this builds on.
 
 | Order | Slice | Acceptance evidence |
 | --- | --- | --- |
@@ -141,3 +143,25 @@ Explicitly not built in Slice 5: no per-partition-directory aggregate catalog (D
 this slice's manifest is a per-part sidecar, not a repo-wide index); no DuckDB read path yet (that
 consumes what this slice produces, but nothing calls this writer on a real schedule yet either);
 no compaction/retention policy.
+
+## Delivered: Slice 8 — feature engine (taken out of order; see status note above)
+
+- `wallybot/domain/features.py`: `FeatureVector` (instrument, timeframe, as_of, version,
+  named values), `LookaheadError` (a distinct exception type, not a generic `ValueError`, so a
+  caller can specifically catch "this would have leaked the future" separately from other
+  validation failures), and the `FeatureEngine` protocol — per `ARCHITECTURE.md`'s Contracts
+  table: "Versioned features from validated as-of data; no future observations."
+- `wallybot/features/simple.py`: `SimpleFeatureEngine` — plain-Python SMA and momentum over a
+  trailing window, no NumPy/Pandas/TA-Lib (`ARCHITECTURE.md`'s Technology decisions defer those to
+  the research extra "before adoption" evaluation; nothing here needed them yet). Every candle
+  passed in is checked against `as_of`: one closing later raises `LookaheadError` rather than
+  being silently dropped, so a caller's bug surfaces immediately instead of quietly producing a
+  feature that peeked at the future.
+- `tests/unit/test_features.py`: hand-calculated SMA/momentum values, confirms only the trailing
+  window is used (older candles beyond the window don't affect the result), the lookahead
+  rejection, insufficient-history and mixed-instrument rejections.
+
+Explicitly not built in Slice 8: no volatility/realized-vol feature (adds `Decimal.sqrt()`
+complexity for no consumer yet), no feature versioning migration path (only `version=1` exists —
+a real second version arrives when an actual formula changes), no wiring into a scanner or
+strategy yet (Slice 9 is next).
