@@ -1,6 +1,6 @@
 # WallyBot architecture
 
-Status: design baseline with a Phase 1 foundation implemented on 2026-09-10. Authentication, controls, processes and deployment exist; quantitative, financial and exchange capabilities below remain planned. See [verification status](docs/stats/testing.md).
+Status: design baseline with a Phase 1 foundation implemented on 2026-09-10, refactored on 2026-09-12 for explicit DTOs and single-responsibility layering (frontend and backend) without changing behavior. Authentication, controls, processes and deployment exist; quantitative, financial and exchange capabilities below remain planned. See [verification status](docs/stats/testing.md).
 
 ## Boundaries and deployment shape
 
@@ -32,7 +32,7 @@ Create modules when a real capability needs them; avoid empty placeholder classe
 
 ## Contracts
 
-All identifiers are stable IDs; all timestamps are aware UTC; monetary values use decimal types. Transport schemas use Pydantic v2 with explicit bounds, schema versions, and forbidden unknown fields where input controls behavior. Domain models are independent of transport schemas.
+All identifiers are stable IDs; all timestamps are aware UTC; monetary values use decimal types. Transport schemas use Pydantic v2 with explicit bounds, schema versions, and forbidden unknown fields where input controls behavior. Domain models are independent of transport schemas. API responses are explicit Pydantic output DTOs (`apps/api/dto.py`), declared via `response_model`, kept separate from request input schemas (`apps/api/schemas.py`) since input and output validation change for different reasons.
 
 | Port / value | Responsibility and restrictions |
 | --- | --- |

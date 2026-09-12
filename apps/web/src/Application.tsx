@@ -7,7 +7,8 @@ import {
   useQuery,
 } from "@tanstack/react-query";
 import { z } from "zod";
-import { api, meSchema, setCsrf } from "./lib/api";
+import { api, setCsrf } from "./lib/api-client";
+import { meSchema } from "./lib/dto";
 import { Auth } from "./components/Auth";
 import { Dashboard } from "./components/Dashboard";
 

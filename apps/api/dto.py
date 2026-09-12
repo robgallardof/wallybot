@@ -1,0 +1,83 @@
+"""Explicit response DTOs for the API boundary.
+
+Kept separate from `apps/api/schemas.py` (request/input DTOs) because input and output
+validation change for different reasons: an input DTO tightens what a client may send, an
+output DTO documents and locks the wire contract a client can rely on.
+"""
+
+from typing import Literal
+
+from pydantic import BaseModel
+
+from wallybot.domain.control import Status
+
+
+class SetupStatusView(BaseModel):
+    setup_required: bool
+
+
+class SetupStartView(BaseModel):
+    challenge: str
+    secret: str
+    uri: str
+
+
+class SetupFinishView(BaseModel):
+    recovery_codes: list[str]
+    csrf: str
+
+
+class ChallengeView(BaseModel):
+    challenge: str
+
+
+class CsrfView(BaseModel):
+    csrf: str
+
+
+class MeView(BaseModel):
+    username: str
+    role: Literal["ADMIN", "VIEWER"]
+    csrf: str
+
+
+class LogoutView(BaseModel):
+    ok: bool
+
+
+class DashboardView(BaseModel):
+    environment: Literal["PAPER"]
+    status: Status
+    trading_available: Literal[False]
+    exchange: str
+    equity: None
+    positions: list[object]
+    phase: int
+
+
+class ServiceStatusView(BaseModel):
+    age_seconds: int | None
+    status: str
+
+
+class SystemView(BaseModel):
+    api: str
+    database: str
+    redis: str
+    services: dict[str, ServiceStatusView]
+    exchange: str
+    ai: str
+    telegram: str
+    live_available: Literal[False]
+
+
+class EventView(BaseModel):
+    id: str
+    timestamp: int
+    event: str
+    message: str
+
+
+class ControlView(BaseModel):
+    status: Status
+    environment: Literal["PAPER"]

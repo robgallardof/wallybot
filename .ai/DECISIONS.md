@@ -83,3 +83,44 @@ for exactly this case.
 **Why it matters:** Any future library that injects its own inline `<script>`/`<style>` under this
 strict per-request-nonce CSP will need the same treatment — check whether it accepts a `nonce`
 prop before assuming Next.js's automatic propagation covers it.
+
+## 2026-09-12 — Repo-wide DTO/DRY/SOLID/KISS/Clean Architecture refactor pass
+
+**Context:** User explicitly requested applying these principles across `apps/web` and the backend.
+Before planning, read the actual backend (`wallybot/security/auth.py`, `wallybot/domain/control.py`,
+`apps/api/*.py`) and frontend (`Application.tsx`, `lib/api.ts`, `Auth.tsx`, `Dashboard.tsx`) to find
+real gaps rather than inventing structure — see the approved plan at commit history around this
+entry for the full reasoning.
+
+**Decision — what changed:**
+- Backend: added `apps/api/dto.py` (explicit Pydantic **response** DTOs, `response_model=` on every
+  route), separate from `apps/api/schemas.py` (request DTOs) — input/output validation change for
+  different reasons, so they're different files. Added `apps/api/cookies.py` (`set_cookie`/
+  `clear_cookie`) to remove a duplicated inline `response.delete_cookie(...)` in `logout`.
+- Frontend: split `lib/api.ts` into `lib/dto.ts` (Zod schemas, matching the backend DTO naming) and
+  `lib/api-client.ts` (pure transport: `api()`, `ApiError`, `setCsrf`). Split `Dashboard.tsx` (543
+  lines mixing data-fetching + a 6-view state machine + presentation) into
+  `hooks/useDashboardData.ts` + `components/dashboard/{DashboardShell,Service,EventList,pages/*}.tsx`.
+  Split `Auth.tsx` (338 lines, same pattern) into `hooks/useAuthFlow.ts` +
+  `components/auth/{CredentialsForm,MfaForm,RecoveryCodes}.tsx`. No visual, copy, or DOM-structure
+  changes — same classNames/i18n keys throughout.
+
+**Decision — what deliberately did NOT change, and why:** `wallybot/security/auth.py`
+(`AuthService`), `crypto.py`, `throttle.py`, `wallybot/domain/control.py` were left untouched.
+`AuthService`'s methods are already SRP-cohesive (one bounded context: auth-flow transactions, all
+changing for the same reason) — splitting it into multiple service classes or adding a
+repository/UnitOfWork abstraction would be over-engineering that contradicts KISS and
+`ARCHITECTURE.md`'s own "create modules when a real capability needs them" rule, while adding real
+regression risk to tested Argon2id/TOTP/session/CSRF logic with no concrete defect being fixed.
+
+**Verification:** `uv run pytest tests/unit tests/integration tests/property` (23 passed, unchanged
+response shapes just now validated) + `pnpm lint` + `pnpm build` + full `pnpm test:e2e` (the
+existing `foundation.spec.ts`, covering setup→MFA→dashboard→pause/resume→activity→system→mobile→
+logout→recovery-login end to end against a disposable testcontainers stack) — all green, confirming
+byte-identical behavior after the split.
+
+**Why it matters:** A git safety checkpoint (`b15a0dc`, this repo's first commit) was made
+specifically before this refactor so it's fully reversible if something surfaces later. If asked to
+extend DTOs/layering further, follow the same rule: only split what's genuinely doing more than one
+job, and always re-run the full verification chain above (not just `pytest` or just `pnpm build`
+alone) before considering it done.
