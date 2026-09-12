@@ -1,0 +1,60 @@
+name: Foundation checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: corepack enable && corepack prepare pnpm@10.11.0 --activate
+      - run: uv sync --frozen
+      - run: pnpm --dir apps/web install --frozen-lockfile
+      - run: uv run ruff check apps wallybot migrations scripts tests
+      - run: uv run ruff format --check apps/api apps/worker apps/scheduler apps/research_worker wallybot migrations scripts tests
+      - run: uv run pyright
+      - run: uv run pytest tests --cov --cov-report=term --cov-report=xml
+      - run: pnpm --dir apps/web lint && pnpm --dir apps/web build
+      - run: pnpm --dir apps/web exec playwright install --with-deps chromium
+      - run: pnpm --dir apps/web test:e2e
+      - run: uv run bandit -r apps/api wallybot -q
+      - run: uv run pip-audit --progress-spinner off
+      - run: pnpm --dir apps/web audit
+      - run: uv run python scripts/bootstrap.py && docker compose build
+      - run: docker compose up -d --wait --wait-timeout 120
+      - run: curl --fail http://localhost:3333/health/ready
+      - run: uv run python scripts/backup.py create && uv run python scripts/backup.py verify
+      - uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: wallybot-api:0.1.0
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+      - uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: wallybot-postgres:0.1.0
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+      - uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: wallybot-gateway:0.1.0
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+      - uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: wallybot-web:latest
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+      - uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: redis:7.4.11-alpine
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+      - if: always()
+        run: docker compose down

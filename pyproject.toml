@@ -1,0 +1,50 @@
+[project]
+name = "wallybot"
+version = "0.1.0"
+description = "WallyBot authenticated paper-first platform foundation"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+  "fastapi>=0.115,<1", "uvicorn>=0.34,<1", "pydantic-settings>=2.7,<3",
+  "sqlalchemy[asyncio]>=2.0.38,<2.1", "alembic>=1.14,<2",
+  "psycopg[binary]>=3.2,<4", "redis>=5.2,<7", "httpx>=0.28,<1",
+  "argon2-cffi>=23.1,<26", "cryptography>=50,<51", "pyotp>=2.9,<3",
+  "prometheus-client>=0.21,<1",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3,<10", "pytest-asyncio>=0.25,<2", "pytest-cov>=6,<8",
+  "hypothesis>=6.125,<7", "testcontainers[postgres,redis]>=4.9,<5",
+  "ruff>=0.11,<1", "pyright>=1.1.390,<2", "bandit>=1.8,<2", "pip-audit>=2.8,<3",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["wallybot", "apps"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = ["integration: requires real PostgreSQL and Redis via Docker"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = [".bootstrap", ".python-runtime", ".uv-cache", ".venv", "node_modules"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+include = ["apps", "wallybot"]
+exclude = ["apps/web"]
+venvPath = "."
+venv = ".venv"
+
+[tool.coverage.run]
+source = ["wallybot", "apps/api"]

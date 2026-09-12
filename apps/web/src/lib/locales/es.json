@@ -1,0 +1,21 @@
+{
+  "Invalid credentials": "Usuario, contraseña o token incorrectos.",
+  "Setup is disabled": "La configuración inicial ya está completada.",
+  "Invalid enrollment": "La configuración ha caducado. Vuelve a iniciarla.",
+  "Invalid or expired verification code": "El código de verificación es incorrecto o ha caducado.",
+  "Invalid or already used verification code": "El código de verificación es incorrecto o ya fue utilizado.",
+  "Session expired": "La sesión ha caducado.",
+  "Authentication required": "Inicia sesión para continuar.",
+  "Invalid CSRF token": "La sesión no es válida. Recarga la página.",
+  "Administrator required": "Esta acción requiere una cuenta administradora.",
+  "Sign in again with MFA to confirm this action": "Vuelve a iniciar sesión con tu autenticador para confirmar esta acción.",
+  "System not initialized": "El sistema aún no está configurado.",
+  "Service temporarily unavailable": "El servicio no está disponible temporalmente.",
+  "Invalid request fields": "Revisa los datos del formulario.",
+  "Too many attempts; try later": "Demasiados intentos. Vuelve a intentarlo más tarde.",
+  "Origin rejected": "Acceso rechazado desde esta dirección.",
+  "JSON required": "El formato de la solicitud no es válido.",
+  "Invalid content length": "El tamaño de la solicitud no es válido.",
+  "Content-Length required": "La solicitud está incompleta.",
+  "Request too large": "La solicitud es demasiado grande."
+}
