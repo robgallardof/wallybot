@@ -1,48 +1,38 @@
 # Current task
 
-**Task:** Finish the `apps/web` frontend migration off Vite onto Next.js App Router (Tailwind v4,
-Zod, React Hook Form, pnpm, i18next, next-themes) and get the local Docker stack serving it
-correctly. Requested by the user in Spanish: "migrar a next js tailwind, zod react forms... pnpm,
-i18n... next themes", followed by continuing toward the broader product roadmap.
+**Task:** Phase 2 kickoff — "el propósito de la aplicación... fases del mercado." Per
+`ARCHITECTURE.md`'s implementation sequence, Phase 1 (authenticated foundation) is done; Phase 2 is
+"Fake/Kraken market discovery, data quality, streaming, features and scanner" — a multi-slice scope
+tracked in `docs/PHASE_2.md` (mirrors `docs/PHASE_1.md`'s ordered-slice format).
 
-**Scope:** `apps/web` only (frontend). No backend/domain code touched.
+**Status: Slice 1 done and verified** (market domain model + seeded `FakeExchange` market-data
+adapter). Slices 2-9 (universe filters, data quality gate, Redis caching, Parquet history, real
+Kraken adapter, streaming, features, scanner) are a documented backlog only — not started, not
+scaffolded as empty placeholders (per `ARCHITECTURE.md`'s "create modules when a real capability
+needs them" rule).
 
-**Branch:** N/A — this directory still has no `.git` folder.
+**Delivered this session (in order):**
+1. Fixed the Vite→Next.js frontend migration (`apps/web` scripts were still calling uninstalled
+   `vite`), wired `next-themes`, fixed a stale-nginx-CSP-header bug and a missing `nonce` prop on
+   next-themes' injected script — see `.ai/DECISIONS.md` for both root causes.
+2. Initialized `.git` (previously absent) as an explicit safety checkpoint (commit `b15a0dc`)
+   before a requested repo-wide refactor.
+3. Refactor: explicit backend response DTOs (`apps/api/dto.py`) + cookie-helper DRY fix, frontend
+   `lib/api.ts` split into `lib/dto.ts`/`lib/api-client.ts`, `Dashboard.tsx`/`Auth.tsx` split into
+   hooks + focused components (commit `7e16332`). Deliberately left `AuthService`/`crypto`/
+   `throttle`/`domain/control.py` untouched — already SRP-cohesive, no concrete defect to fix.
+4. Phase 2 Slice 1: `wallybot/domain/{clock,market}.py` (pure domain: `Clock` protocol,
+   `Instrument`, `Candle`, `MarketDataProvider` protocol), `wallybot/exchanges/fake.py`
+   (`FakeExchange`, seeded/deterministic/network-free), `tests/contract/` (new test layer: shared
+   `MarketDataProvider` contract suite, run against `FakeExchange`), `tests/unit/test_market_domain.py`.
 
-**Progress:**
-- Found the App Router migration (layout.tsx, page.tsx, client.tsx, `[section]/page.tsx`,
-  Tailwind v4, Zod, react-hook-form, react-i18next, pnpm-lock.yaml) was already ~90% done in the
-  source tree, but `package.json` scripts still called `vite`/`tsc -b` (not even installed) —
-  fixed to `next dev` / `next build` / `next start`.
-- Fixed a real syntax bug in `Dashboard.tsx` (dangling comma broke the `page` const) that blocked
-  the build.
-- Installed `next-themes@0.4.6`, wired `ThemeProvider` into `src/app/layout.tsx`, added the
-  Tailwind v4 class-based dark variant (`@custom-variant dark (&:where(.dark, .dark *));`) to
-  `src/style.css`, and added a minimal `ThemeToggle` component next to `LanguageSelector` in
-  `Auth.tsx`/`Dashboard.tsx`.
-- **Dark mode is only wired at the mechanism level** (toggle works, persists, `dark` class
-  applies). The actual visual palette in `style.css` is still hardcoded light-only hex colors —
-  a real dark theme redesign is separate, larger follow-up work, not done here.
-- Removed the stale `apps/web/dist/` Vite build artifact.
-- Rebuilt the `wallybot-web` Docker image (`docker/web.Dockerfile` was already correctly written
-  for Next.js standalone output — it just needed a working `pnpm build`) and recreated the `web`
-  container.
-- Found and fixed a real production bug via actual browser testing (Playwright), not just build
-  success — see `.ai/DECISIONS.md` "Stale nginx config double-sent a CSP header" and "next-themes
-  needs an explicit nonce prop".
-- Verified end-to-end in a real browser against the live Docker stack: `/login` renders clean (0
-  console errors besides the expected pre-auth 401 on `/api/auth/me`), theme toggle flips
-  light/dark correctly.
-- Ran `graphify update .` after the code changes (AST-only, no LLM cost): 610 nodes, 1071 edges,
-  57 communities. Community labels are now stale (renamed by hub since membership shifted) —
-  run `/graphify --update` with an LLM key, or re-run `/graphify .` labeling step, before relying
-  on `GRAPH_REPORT.md` community names again.
+**Verified:** `uv run pytest tests/unit tests/integration tests/property tests/contract -q` → 36
+passed. `uv run ruff check` and `uv run pyright` on all new files → clean. Domain purity confirmed
+(zero FastAPI/SQLAlchemy/CCXT imports in `wallybot/domain/`).
 
-**Relevant files:** `apps/web/package.json`, `apps/web/src/app/layout.tsx`, `apps/web/src/style.css`,
-`apps/web/src/components/{Auth,Dashboard,ThemeToggle}.tsx`, `apps/web/src/lib/locales/en.json`,
-`docker/web.Dockerfile` (unchanged, already correct), `docker/gateway.conf` (unchanged, already
-correct — see decisions log for why it still needed a runtime reload).
+**Branch:** `master`. Commits so far: `b15a0dc` (pre-refactor safety snapshot) → `7e16332` (DTO/SRP
+refactor) → this session's Phase 2 Slice 1 commit (not yet made — do that before considering this
+task closed).
 
-**Immediate next actions:** User wants to continue toward the broader product roadmap after this
-frontend fix — no specific next feature named yet in this session. Check `docs/PHASE_1.md` and
-`docs/adr/` for the phase roadmap before picking the next piece of work.
+**Immediate next actions:** Confirm with the user before starting Phase 2 Slice 2 (instrument
+universe filters) — `docs/PHASE_2.md` has the full ordered backlog if they just say "keep going."
