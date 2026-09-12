@@ -35,3 +35,12 @@ async def assert_fetches_candles_respecting_since_and_limit(
         assert candle.open_time >= since
     for earlier, later in zip(candles, candles[1:], strict=False):
         assert later.open_time >= earlier.close_time, "candles must not overlap or go backwards"
+
+
+async def assert_fetches_valid_snapshot(provider: MarketDataProvider) -> None:
+    instrument = (await provider.discover_instruments())[0]
+    snapshot = await provider.fetch_snapshot(instrument)
+    assert snapshot.instrument == instrument
+    assert snapshot.bid > 0
+    assert snapshot.ask >= snapshot.bid
+    assert 0 <= snapshot.spread_ratio < 1

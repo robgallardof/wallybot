@@ -1,9 +1,9 @@
 # Phase 2 implementation backlog
 
-Status: Slice 1 (market domain model + FakeExchange) implemented and verified on 2026-09-12. All
-other slices are a documented backlog only — not started. See [ARCHITECTURE](../ARCHITECTURE.md)
-for how Phase 2 fits the overall implementation sequence, and [PHASE_1](PHASE_1.md) for the
-completed authenticated-foundation phase this builds on.
+Status: Slices 1-2 (market domain model + FakeExchange; universe filters) implemented and verified
+on 2026-09-12. Slices 3-9 are a documented backlog only — not started. See
+[ARCHITECTURE](../ARCHITECTURE.md) for how Phase 2 fits the overall implementation sequence, and
+[PHASE_1](PHASE_1.md) for the completed authenticated-foundation phase this builds on.
 
 | Order | Slice | Acceptance evidence |
 | --- | --- | --- |
@@ -42,3 +42,26 @@ required test layer (see [TESTING](../TESTING.md)).
 Explicitly not built in Slice 1: universe filters, data quality gating across a series (gaps,
 staleness, abnormal returns), Redis/Parquet wiring, any Kraken/CCXT adapter, streaming, features,
 the scanner. Each is a separate future slice above.
+
+## Delivered: Slice 2 — instrument universe filters
+
+- `wallybot/domain/market.py`: added `MarketSnapshot` (bid/ask, aware-UTC timestamp, rejects a
+  crossed market) and a `spread_ratio` property, and extended `MarketDataProvider` with
+  `fetch_snapshot` — `ARCHITECTURE.md`'s own port description already said "fetch candles/
+  snapshots"; Slice 1 just didn't need the snapshot half yet.
+- `wallybot/exchanges/fake.py`: `FakeExchange.fetch_snapshot` — deterministic seeded bid/ask around
+  the same base price used for candles.
+- `wallybot/market/universe.py` (new capability package, per `ARCHITECTURE.md`'s planned layout):
+  `UniverseFilterConfig` (versioned thresholds — min history, min average quote volume, max spread
+  ratio, per DATA.md's "Universe minimum history/liquidity and spread limits are versioned
+  configuration"), `evaluate_instrument`/`evaluate_universe` (return per-instrument eligibility +
+  reason codes: `insufficient_history`, `illiquid`, `unavailable`, `wide_spread`), and
+  `eligible_instruments` to extract the accepted list.
+- Contract suite extended with `assert_fetches_valid_snapshot`; `tests/unit/test_universe.py` for
+  the four rejection reasons plus the eligible case.
+
+Explicitly not built in Slice 2: the stateful, cross-candle data-quality gate (gaps, duplicates,
+staleness, abnormal returns, PASS/WARNING/FAILURE with evidence) — that is Slice 3, and conflating
+single-snapshot spread checks with a full quality gate here would make neither testable in
+isolation. No caching or persistence of evaluations yet either — nothing consumes them until a
+scanner or scheduler exists to call this on a cadence.

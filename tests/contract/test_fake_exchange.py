@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from tests.contract.market_data_provider_suite import (
     assert_discovers_valid_instruments,
     assert_fetches_candles_respecting_since_and_limit,
+    assert_fetches_valid_snapshot,
 )
 from wallybot.exchanges.fake import FakeExchange
 
@@ -26,6 +27,10 @@ async def test_discovers_valid_instruments() -> None:
 async def test_fetches_candles_respecting_since_and_limit() -> None:
     since = datetime(2026, 1, 1, tzinfo=UTC) - timedelta(hours=2)
     await assert_fetches_candles_respecting_since_and_limit(make_provider(), "1h", since, limit=2)
+
+
+async def test_fetches_valid_snapshot() -> None:
+    await assert_fetches_valid_snapshot(make_provider())
 
 
 async def test_rejects_unsupported_timeframe() -> None:

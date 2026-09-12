@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from wallybot.domain.clock import Clock
-from wallybot.domain.market import Candle, Instrument, MarketType
+from wallybot.domain.market import Candle, Instrument, MarketSnapshot, MarketType
 
 _TIMEFRAMES = {
     "1m": timedelta(minutes=1),
@@ -89,3 +89,16 @@ class FakeExchange:
             price = close_price
             open_time = close_time
         return candles
+
+    async def fetch_snapshot(self, instrument: Instrument) -> MarketSnapshot:
+        pair = f"{instrument.base}/{instrument.quote}"
+        mid = self._base_price.get(pair, Decimal("100"))
+        rng = random.Random(f"{self.seed}:{instrument.id}:snapshot:{self.clock.now().isoformat()}")
+        half_spread = mid * Decimal(rng.uniform(0.0001, 0.0015))
+        return MarketSnapshot(
+            instrument=instrument,
+            bid=(mid - half_spread).quantize(instrument.price_increment),
+            ask=(mid + half_spread).quantize(instrument.price_increment),
+            timestamp=self.clock.now(),
+            source="fake",
+        )

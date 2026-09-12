@@ -78,11 +78,39 @@ class Candle:
             raise ValueError("low/high must bound open and close")
 
 
+@dataclass(frozen=True)
+class MarketSnapshot:
+    """Best bid/ask at a point in time. Never a substitute for order-book depth."""
+
+    instrument: Instrument
+    bid: Decimal
+    ask: Decimal
+    timestamp: datetime
+    source: str
+
+    def __post_init__(self) -> None:
+        if not self.source:
+            raise ValueError("source is required")
+        _require_utc(self.timestamp, "timestamp")
+        if self.bid <= 0 or not self.bid.is_finite():
+            raise ValueError("bid must be a finite positive price")
+        if self.ask <= 0 or not self.ask.is_finite():
+            raise ValueError("ask must be a finite positive price")
+        if self.ask < self.bid:
+            raise ValueError("ask must not be below bid (crossed market)")
+
+    @property
+    def spread_ratio(self) -> Decimal:
+        return (self.ask - self.bid) / self.ask
+
+
 class MarketDataProvider(Protocol):
-    """Discovers instruments and fetches candles. Never holds trading credentials."""
+    """Discovers instruments and fetches candles/snapshots. Never holds trading credentials."""
 
     async def discover_instruments(self) -> list[Instrument]: ...
 
     async def fetch_candles(
         self, instrument: Instrument, timeframe: str, since: datetime, limit: int
     ) -> list[Candle]: ...
+
+    async def fetch_snapshot(self, instrument: Instrument) -> MarketSnapshot: ...
