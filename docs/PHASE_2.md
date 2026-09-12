@@ -1,9 +1,10 @@
 # Phase 2 implementation backlog
 
-Status: Slices 1-3 (market domain model + FakeExchange; universe filters; data quality gate)
-implemented and verified on 2026-09-12. Slices 4-9 are a documented backlog only — not started. See
-[ARCHITECTURE](../ARCHITECTURE.md) for how Phase 2 fits the overall implementation sequence, and
-[PHASE_1](PHASE_1.md) for the completed authenticated-foundation phase this builds on.
+Status: Slices 1-4 (market domain model + FakeExchange; universe filters; data quality gate; Redis
+hot-tier caching) implemented and verified on 2026-09-12. Slices 5-9 are a documented backlog only
+— not started. See [ARCHITECTURE](../ARCHITECTURE.md) for how Phase 2 fits the overall
+implementation sequence, and [PHASE_1](PHASE_1.md) for the completed authenticated-foundation phase
+this builds on.
 
 | Order | Slice | Acceptance evidence |
 | --- | --- | --- |
@@ -89,3 +90,26 @@ scanner or scheduler exists to call this on a cadence.
 Explicitly not built in Slice 3: no Redis caching of quality reports, no Parquet quarantine
 writing for FAILURE-graded data, no wiring into a scheduler that runs this on a cadence — that
 begins with Slice 4/5, once there's a caller that actually fetches live candles on a timer.
+
+## Delivered: Slice 4 — Redis hot-tier caching of validated snapshots
+
+- `wallybot/infrastructure/market_cache.py` (new, in `infrastructure/` since this is the first
+  real I/O adapter in Phase 2 — everything before this slice was pure domain/capability code):
+  `RedisLike` (a narrow `Protocol` for just the `get`/`set` calls this class needs, so tests can
+  pass a plain in-memory stub instead of depending on the concrete `redis.asyncio.Redis` type —
+  the same port-not-implementation discipline as `Clock`/`MarketDataProvider`) and `MarketCache`
+  (`set_snapshot`/`get_snapshot`, JSON-serialized, keyed by `instrument.id`).
+- Per ADR-003 ("cache expiry never implies valid fresh market data"), `MarketCache` deliberately
+  has no method that claims freshness — it stores and returns exactly what it was given, including
+  the original timestamp. A cache *hit* is not proof the data is current; callers still run the
+  Slice 3 quality gate or check `snapshot.timestamp` themselves.
+- `tests/integration/test_market_cache.py` (real Redis via testcontainers, reusing the existing
+  `dependencies` fixture from `tests/integration/conftest.py`): populate-then-read, miss returns
+  `None`, TTL actually expires (had to switch from `EX` to `PX` — Redis's `EX` only accepts
+  whole-second TTLs, which broke a sub-second test), and the key acceptance-criteria test:
+  a stale (but unexpired) snapshot comes back with its stale timestamp unchanged, proving the
+  cache never launders staleness into freshness.
+
+Explicitly not built in Slice 4: no caching of candles or quality reports (only snapshots, per this
+slice's row); no cache invalidation policy beyond TTL; no wiring into a scheduler yet — that is
+still downstream of a scanner or scheduler slice that doesn't exist.
