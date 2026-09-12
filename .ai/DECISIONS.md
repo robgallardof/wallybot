@@ -124,3 +124,20 @@ specifically before this refactor so it's fully reversible if something surfaces
 extend DTOs/layering further, follow the same rule: only split what's genuinely doing more than one
 job, and always re-run the full verification chain above (not just `pytest` or just `pnpm build`
 alone) before considering it done.
+
+## 2026-09-12 — Always run `pip-audit` right after adding a new Python dependency
+
+**Context:** Phase 2 Slice 5 needed a Parquet writer, so `pyarrow` was added
+(`user confirmed via AskUserQuestion, chose pyarrow over polars/deferring`). The first `uv sync`
+resolved `pyarrow==20.0.0`. Running `uv run pip-audit` immediately after (not as an afterthought)
+found a known CVE (`PYSEC-2026-113`) in that exact version, fixed in `23.0.1`.
+
+**Decision:** Tightened the `pyproject.toml` constraint to `pyarrow>=23.0.1,<26`, re-ran
+`uv sync` (resolved `25.0.1`), re-ran `pip-audit` (clean) and the full test suite (still green)
+before committing.
+
+**Why it matters:** `uv add`/editing `pyproject.toml` directly picks whatever satisfies the stated
+range — it does not know about CVEs. `pip-audit` is listed in `TESTING.md`'s static/security gate
+for exactly this reason, but it is easy to treat as a CI-only concern and skip locally. Any future
+new dependency in this repo must get a `pip-audit` pass in the same turn it is added, before the
+commit that introduces it — not deferred to whenever CI happens to run.

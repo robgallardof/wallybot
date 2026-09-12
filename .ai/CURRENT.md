@@ -5,49 +5,44 @@
 "Fake/Kraken market discovery, data quality, streaming, features and scanner" — a multi-slice scope
 tracked in `docs/PHASE_2.md` (mirrors `docs/PHASE_1.md`'s ordered-slice format).
 
-**Status: Slices 1-4 done and verified** (market domain model + seeded `FakeExchange`; instrument
-universe filters; data quality gate; Redis hot-tier caching). Slices 5-9 (Parquet history, real
-Kraken adapter, streaming, features, scanner) are a documented backlog only — not started, not
-scaffolded as empty placeholders (per `ARCHITECTURE.md`'s "create modules when a real capability
-needs them" rule).
+**Status: Slices 1-5 done and verified** (market domain model + seeded `FakeExchange`; instrument
+universe filters; data quality gate; Redis hot-tier caching; historical Parquet writer). Slices 6-9
+(real Kraken adapter, streaming, features, scanner) are a documented backlog only — not started.
 
 **Delivered this session (in order):**
 1. Fixed the Vite→Next.js frontend migration, wired `next-themes`, fixed a stale-nginx-CSP-header
    bug and a missing `nonce` prop on next-themes' injected script — see `.ai/DECISIONS.md`.
-2. Initialized `.git` (previously absent) as an explicit safety checkpoint (commit `b15a0dc`)
-   before a requested repo-wide refactor.
-3. Refactor: explicit backend response DTOs + cookie-helper DRY fix, frontend `lib/api.ts` split
-   into `lib/dto.ts`/`lib/api-client.ts`, `Dashboard.tsx`/`Auth.tsx` split into hooks + focused
-   components (commit `7e16332`). Deliberately left `AuthService`/`crypto`/`throttle`/
-   `domain/control.py` untouched — already SRP-cohesive, no concrete defect to fix.
-4. Phase 2 Slice 1 (commit `2d75de8`): `wallybot/domain/{clock,market}.py` (pure domain: `Clock`
-   protocol, `Instrument`, `Candle`, `MarketDataProvider` protocol), `wallybot/exchanges/fake.py`
+2. Initialized `.git` (previously absent) as a safety checkpoint (commit `b15a0dc`) before a
+   requested repo-wide refactor.
+3. Refactor: explicit backend response DTOs + cookie-helper DRY fix, frontend `lib/api.ts` split,
+   `Dashboard.tsx`/`Auth.tsx` split into hooks + focused components (commit `7e16332`).
+4. Phase 2 Slice 1 (`2d75de8`): `wallybot/domain/{clock,market}.py`, `wallybot/exchanges/fake.py`
    (`FakeExchange`), `tests/contract/` (new test layer), `tests/unit/test_market_domain.py`.
-5. Phase 2 Slice 2 (commit `fa2125b`): `MarketSnapshot` + `fetch_snapshot` on the port,
-   `wallybot/market/universe.py` (`UniverseFilterConfig`, `evaluate_universe`), extended
-   `FakeExchange` + contract suite, `tests/unit/test_universe.py`.
-6. Phase 2 Slice 3 (commit `40bf7f1`): `wallybot/data/quality.py` — stateful cross-candle quality
-   gate (`QualityStatus`/`QualityPolicy`/`evaluate_series_quality`, 7 blocking + 2 warning-only
-   reason codes per DATA.md). Extracted `TIMEFRAME_DURATIONS` into `domain/market.py` (DRY). Also
-   fixed a real `.gitignore` bug: a bare `data/` entry was silently excluding the new
-   `wallybot/data/` package from every `git status`/`add` — scoped to `/data/` (root only).
-7. Phase 2 Slice 4 (not yet committed): `wallybot/infrastructure/market_cache.py` — `MarketCache`
-   (Redis-backed hot tier for snapshots, ADR-003) typed against a narrow `RedisLike` Protocol
-   (not the concrete `redis.asyncio.Redis` class, so tests don't need a real client). Deliberately
-   has no "is this fresh" method — per ADR-003, cache expiry never implies valid fresh data; it
-   just stores/returns exactly what it was given. `tests/integration/test_market_cache.py` (real
-   Redis via testcontainers, reusing the existing `dependencies` fixture) — including the key test
-   that a stale-but-unexpired snapshot comes back with its stale timestamp unchanged.
+5. Phase 2 Slice 2 (`fa2125b`): `MarketSnapshot` + `fetch_snapshot`, `wallybot/market/universe.py`,
+   `tests/unit/test_universe.py`.
+6. Phase 2 Slice 3 (`40bf7f1`): `wallybot/data/quality.py` (stateful cross-candle quality gate).
+   Fixed a `.gitignore` bug (`data/` was silently excluding `wallybot/data/`).
+7. Phase 2 Slice 4 (`4f62804`): `wallybot/infrastructure/market_cache.py` (`MarketCache`, Redis
+   hot tier for snapshots, ADR-003 — never claims freshness).
+8. Phase 2 Slice 5 (not yet committed): added `pyarrow` dependency (user chose it over polars/
+   deferring via AskUserQuestion) — caught and fixed a real CVE in the first resolved version
+   before committing, see `.ai/DECISIONS.md`. Added `wallybot/domain/id_generator.py`
+   (`IdGenerator` protocol) and `wallybot/data/historical.py` (`HistoricalStore`,
+   `PartitionManifest`) — checksummed, atomically-published Parquet partitions with a sidecar
+   manifest, per ADR-005/DATA.md. OHLCV columns use `pyarrow.decimal128(18, 8)`, not float.
+   `tests/unit/test_historical.py` (uses `tmp_path`, no Docker needed).
 
-**Verified:** `uv run pytest tests/unit tests/integration tests/property tests/contract -q` → 61
-passed. `uv run ruff check` and `uv run pyright` on all new files → clean. Domain purity confirmed
-(zero FastAPI/SQLAlchemy/CCXT imports in `wallybot/domain/`, `wallybot/market/`, `wallybot/data/`).
+**Verified:** `uv run pytest tests/unit tests/integration tests/property tests/contract -q` → 68
+passed. `uv run ruff check`, `uv run pyright`, `uv run pip-audit` on all new files/dependencies →
+all clean. Domain purity confirmed for `wallybot/domain/` (zero framework imports).
 
 **Branch:** `master`. Commits so far: `b15a0dc` → `7e16332` → `2d75de8` → `fa2125b` → `40bf7f1` →
-this session's Slice 4 commit (not yet made — do that before considering this task closed).
+`4f62804` → this session's Slice 5 commit (not yet made — do that before considering this task
+closed).
 
-**Immediate next actions:** Confirm with the user before starting Phase 2 Slice 5 (historical
-Parquet writer + manifest, ADR-005) — `docs/PHASE_2.md` has the full ordered backlog if they just
-say "keep going." Slice 5 needs a filesystem-writing adapter (checksummed, atomic-publish
-partitions) — no existing pattern for that in this repo yet, worth designing carefully rather than
-copying an existing file.
+**Immediate next actions:** Confirm with the user before starting Phase 2 Slice 6 (real Kraken
+adapter via CCXT, passing the same contract suite `FakeExchange` already passes) — `docs/PHASE_2.md`
+has the full ordered backlog if they just say "keep going." Slice 6 will need real (or sandbox)
+Kraken credentials/network access to test against, unlike every slice so far which needed only
+`FakeExchange`, testcontainers, or `tmp_path` — worth flagging that dependency explicitly before
+starting.

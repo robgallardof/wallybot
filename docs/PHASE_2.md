@@ -1,10 +1,10 @@
 # Phase 2 implementation backlog
 
-Status: Slices 1-4 (market domain model + FakeExchange; universe filters; data quality gate; Redis
-hot-tier caching) implemented and verified on 2026-09-12. Slices 5-9 are a documented backlog only
-— not started. See [ARCHITECTURE](../ARCHITECTURE.md) for how Phase 2 fits the overall
-implementation sequence, and [PHASE_1](PHASE_1.md) for the completed authenticated-foundation phase
-this builds on.
+Status: Slices 1-5 (market domain model + FakeExchange; universe filters; data quality gate; Redis
+hot-tier caching; historical Parquet writer) implemented and verified on 2026-09-12. Slices 6-9 are
+a documented backlog only — not started. See [ARCHITECTURE](../ARCHITECTURE.md) for how Phase 2
+fits the overall implementation sequence, and [PHASE_1](PHASE_1.md) for the completed
+authenticated-foundation phase this builds on.
 
 | Order | Slice | Acceptance evidence |
 | --- | --- | --- |
@@ -113,3 +113,31 @@ begins with Slice 4/5, once there's a caller that actually fetches live candles 
 Explicitly not built in Slice 4: no caching of candles or quality reports (only snapshots, per this
 slice's row); no cache invalidation policy beyond TTL; no wiring into a scheduler yet — that is
 still downstream of a scanner or scheduler slice that doesn't exist.
+
+## Delivered: Slice 5 — historical Parquet writer + manifest
+
+- Added `pyarrow` as a new project dependency (pinned `>=23.0.1,<26` — 20.0.0, the version `uv`
+  first resolved, had a known CVE; `pip-audit` catches this and every future dependency addition
+  should be checked the same way before committing).
+- `wallybot/domain/id_generator.py`: `IdGenerator` protocol (injectable ID source, same
+  reproducible-tests discipline as `Clock`) — the first capability that needed one.
+- `wallybot/data/historical.py` (new): `PartitionManifest` and `HistoricalStore.write_partition`.
+  Writes `data/market/<venue>/<BASE>_<QUOTE>/<timeframe>/date=<date>/part-<id>.parquet` (matches
+  DATA.md's own example path), finalized via temp-file-then-`os.replace` for both the Parquet file
+  and its sidecar `.manifest.json` — atomic publish, never a half-written file visible at the final
+  path. OHLCV columns use `pyarrow.decimal128(18, 8)`, not float, so the "never use float for
+  money" rule holds all the way into the Parquet schema; pyarrow rejects a Decimal that overflows
+  that precision rather than silently truncating it. The manifest records schema version, source,
+  acquisition window (min open_time/max close_time), row count, the quality status from Slice 3's
+  gate, and a sha256 of the written file. A second write for the same instrument/timeframe/date
+  (a correction) gets a new `part_id` and a new file — it never overwrites a prior part.
+- `tests/unit/test_historical.py` (uses `tmp_path`, no Docker needed): partition path structure,
+  the manifest's sha256 actually matches the written bytes, no leftover `.tmp-*` files after a
+  write, rejects empty/mixed-instrument/mixed-date input, and confirms a correction produces two
+  distinct parts rather than an overwrite.
+
+Explicitly not built in Slice 5: no per-partition-directory aggregate catalog (DATA.md's
+`dataset_manifests` table is Postgres-owned metadata for the research phase, out of scope here —
+this slice's manifest is a per-part sidecar, not a repo-wide index); no DuckDB read path yet (that
+consumes what this slice produces, but nothing calls this writer on a real schedule yet either);
+no compaction/retention policy.
