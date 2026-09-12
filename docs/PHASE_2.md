@@ -1,7 +1,7 @@
 # Phase 2 implementation backlog
 
-Status: Slices 1-2 (market domain model + FakeExchange; universe filters) implemented and verified
-on 2026-09-12. Slices 3-9 are a documented backlog only — not started. See
+Status: Slices 1-3 (market domain model + FakeExchange; universe filters; data quality gate)
+implemented and verified on 2026-09-12. Slices 4-9 are a documented backlog only — not started. See
 [ARCHITECTURE](../ARCHITECTURE.md) for how Phase 2 fits the overall implementation sequence, and
 [PHASE_1](PHASE_1.md) for the completed authenticated-foundation phase this builds on.
 
@@ -65,3 +65,27 @@ staleness, abnormal returns, PASS/WARNING/FAILURE with evidence) — that is Sli
 single-snapshot spread checks with a full quality gate here would make neither testable in
 isolation. No caching or persistence of evaluations yet either — nothing consumes them until a
 scanner or scheduler exists to call this on a cadence.
+
+## Delivered: Slice 3 — data quality gate
+
+- `wallybot/domain/market.py`: extracted the timeframe→duration mapping (previously private to
+  `FakeExchange`) into a public `TIMEFRAME_DURATIONS` constant, so both the adapter and the quality
+  gate share one source of truth instead of duplicating it (DRY).
+- `wallybot/data/quality.py` (new capability package): `QualityStatus` (PASS/WARNING/FAILURE),
+  `QualityIssue` (reason code + evidence string + derived severity), `QualityReport`,
+  `QualityPolicy` (versioned thresholds: max stale age, max clock drift, max abnormal return, plus
+  the timeframe the series is expected to match), and `evaluate_series_quality` — checks ordering,
+  duplicate timestamps, timeframe-boundary alignment, gaps, staleness, clock drift (impossible vs.
+  merely delayed) and abnormal close-to-close returns, per DATA.md's "Market quality" section.
+  `wrong_timeframe`, `not_ordered`, `duplicate_timestamps`, `misaligned_timestamp`,
+  `gap_detected`, `stale` and `clock_drift_impossible` are always blocking (FAILURE) — DATA.md
+  names gaps, staleness and failed synchronization as blocking explicitly, and an unordered/
+  duplicated/misaligned series can't be trusted either. `clock_drift` (delayed but not impossible)
+  and `abnormal_return` are WARNING — structurally sound but statistically notable signals a
+  policy may choose to tolerate.
+- `tests/unit/test_quality.py`: one test per reason code, plus a clean-series PASS case and the
+  two WARNING-only cases (confirming they don't escalate to FAILURE on their own).
+
+Explicitly not built in Slice 3: no Redis caching of quality reports, no Parquet quarantine
+writing for FAILURE-graded data, no wiring into a scheduler that runs this on a cadence — that
+begins with Slice 4/5, once there's a caller that actually fetches live candles on a timer.

@@ -9,6 +9,14 @@ class MarketType(StrEnum):
     SPOT = "SPOT"
 
 
+TIMEFRAME_DURATIONS: dict[str, timedelta] = {
+    "1m": timedelta(minutes=1),
+    "5m": timedelta(minutes=5),
+    "1h": timedelta(hours=1),
+    "1d": timedelta(days=1),
+}
+
+
 def _require_utc(value: datetime, field: str) -> None:
     if value.tzinfo is None or value.tzinfo.utcoffset(value) != timedelta(0):
         raise ValueError(f"{field} must be an aware UTC datetime")

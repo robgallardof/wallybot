@@ -1,16 +1,15 @@
 import random
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 
 from wallybot.domain.clock import Clock
-from wallybot.domain.market import Candle, Instrument, MarketSnapshot, MarketType
-
-_TIMEFRAMES = {
-    "1m": timedelta(minutes=1),
-    "5m": timedelta(minutes=5),
-    "1h": timedelta(hours=1),
-    "1d": timedelta(days=1),
-}
+from wallybot.domain.market import (
+    TIMEFRAME_DURATIONS,
+    Candle,
+    Instrument,
+    MarketSnapshot,
+    MarketType,
+)
 
 
 class FakeExchange:
@@ -51,11 +50,11 @@ class FakeExchange:
     async def fetch_candles(
         self, instrument: Instrument, timeframe: str, since: datetime, limit: int
     ) -> list[Candle]:
-        if timeframe not in _TIMEFRAMES:
+        if timeframe not in TIMEFRAME_DURATIONS:
             raise ValueError(f"Unsupported timeframe: {timeframe}")
         if limit <= 0:
             raise ValueError("limit must be positive")
-        step = _TIMEFRAMES[timeframe]
+        step = TIMEFRAME_DURATIONS[timeframe]
         pair = f"{instrument.base}/{instrument.quote}"
         base_price = self._base_price.get(pair, Decimal("100"))
         now = self.clock.now()
