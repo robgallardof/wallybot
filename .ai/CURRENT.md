@@ -117,14 +117,39 @@ bug along the way: `apps/api/main.py`'s `/health/ready` hardcoded the Alembic he
 so this migration silently broke readiness (503) until bumped — left an inline comment flagging
 it as a known rough edge for a future dynamic fix. `tests/integration/test_execution_persistence.py`
 (Testcontainers/real Postgres) covers round-trips and both dedup constraints. Verified: full suite
-227 passed (222→227), ruff/pyright clean. Not yet committed.
+227 passed (222→227), ruff/pyright clean. Committed as `3f222b3`.
 
-**Next up:** Slice 5 (`ExecutionService` — durable claim, SUBMITTING before network call, UNKNOWN
-resolution, reconcile-before-retry per ADR-008) is the next backlog item — the piece that actually
-wires `OrderIntent`'s state machine, `ExchangeGateway` and this `UnitOfWork` together. It's the
-highest-stakes piece of Phase 4 so far (failure-injection tests: crash before/after SUBMITTING,
-ambiguous timeout, no duplicate fills) and deserves its own dedicated design pass, same discipline
-as `RiskEngine` got in Phase 3.
+**Phase 4 Slice 5 delivered** (`ExecutionService`) — see `docs/PHASE_4.md`'s "Delivered: Slice 5".
+`wallybot/application/execution_service.py`: `submit()` durably claims a `VALIDATED` intent
+(persist → commit `SUBMITTING` → *then* call the gateway, never holding a transaction across the
+network call) and never re-calls the gateway for anything already past `VALIDATED` — that single
+rule gives crash-safety for both "crash before the `SUBMITTING` commit" (resumes as a fresh
+attempt) and "crash after it" (resumes and waits for `reconcile()`, never re-submits).
+`reconcile()` is ADR-008's reconcile-before-retry: `SUBMITTING` found on resume first moves to
+`UNKNOWN` (the diagram's own "Timeout or crash" edge), then a gateway lookup either proves the
+order absent (safe retry back to `VALIDATED`) or resolves it forward via `can_transition`
+(raising `InvalidOrderTransition` on an impossible jump rather than accepting it). Fills are
+deduped via `UnitOfWork.fill_exists` before ever posting a ledger transaction.
+`wallybot/application/ledger_postings.py`: `build_fill_ledger_transaction` — the `Fill →
+LedgerTransaction` mapping Slice 3 deferred (cash/position legs offset by a `CLEARING` account per
+currency; fee netted into cash, not its own leg; non-quote fee currency raises rather than
+mis-booking). `UnitOfWork` gained `get_order_status`/`fill_exists` so `ExecutionService` never
+imports ORM rows directly — it only composes `ExchangeGateway` and `UnitOfWork`. Found and fixed a
+real design gap while writing the crash tests: `reconcile()` initially only accepted `NOT_FOUND`
+from `UNKNOWN`, but a crash-after-`SUBMITTING` resume legitimately finds `SUBMITTING` with a
+genuinely-never-called gateway — fixed by having `reconcile()` move `SUBMITTING` to `UNKNOWN`
+first, exactly matching the lifecycle diagram's own edge, before resolving further.
+`tests/integration/test_execution_service.py` (Testcontainers) covers this slice's full stated
+acceptance evidence: happy path with the exact expected transition sequence, rejected submission
+never re-attempted, `UNKNOWN` resolved only via `reconcile()`, repeated `reconcile()` never
+double-posts, both crash scenarios, and a scripted partial fill observed exactly once. Verified:
+full suite 237 passed (227→237), ruff/pyright clean. Not yet committed.
+
+**Phase 4 status: Slices 1-5 done.** Slice 6 (reconciliation: fetch/dedupe/compare exchange state
+against Postgres, persist discrepancies) is the last backlog item and the natural next step, but
+is lower-stakes than Slice 5 was — most of its machinery (`ExchangeGateway.lookup_order`/
+`list_fills`, `UnitOfWork.fill_exists`, `ExecutionService.reconcile`) already exists from Slice 5;
+what's missing is the batch/scheduled sweep across *all* open orders rather than one at a time.
 
 
 ## Activity inspection UI — 2026-09-12

@@ -79,6 +79,23 @@ class UnitOfWork:
             )
         )
 
+    async def get_order_status(self, client_order_id: str) -> OrderStatus | None:
+        row = await self.session.get(OrderIntentRow, client_order_id)
+        return OrderStatus(row.status) if row is not None else None
+
+    async def fill_exists(
+        self, venue: str, account_id: str, environment: str, fill_id: str
+    ) -> bool:
+        result = await self.session.execute(
+            select(FillRow.id).where(
+                FillRow.venue == venue,
+                FillRow.account_id == account_id,
+                FillRow.environment == environment,
+                FillRow.fill_id == fill_id,
+            )
+        )
+        return result.scalar_one_or_none() is not None
+
     def save_fill(self, fill: Fill, account_id: str, environment: str) -> None:
         self.session.add(
             FillRow(

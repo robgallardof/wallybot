@@ -1,9 +1,10 @@
 # Phase 4 implementation backlog
 
 Status: Slice 1 (order intent + lifecycle state machine), Slice 2 (`ExchangeGateway` port +
-`FakeExchange` paper execution), Slice 3 (balanced double-entry ledger value types) and Slice 4
-(real PostgreSQL schema + migration + `UnitOfWork`) implemented and verified on 2026-09-12/13.
-Slices 5+ are a documented backlog only — not started. See [ARCHITECTURE](../ARCHITECTURE.md) for
+`FakeExchange` paper execution), Slice 3 (balanced double-entry ledger value types), Slice 4
+(real PostgreSQL schema + migration + `UnitOfWork`) and Slice 5 (`ExecutionService`) implemented
+and verified on 2026-09-12/13.
+Slice 6 is a documented backlog only — not started. See [ARCHITECTURE](../ARCHITECTURE.md) for
 how Phase 4 fits the overall implementation sequence, [DATA](../DATA.md) for the ledger/
 reconciliation rules later slices must implement, and [PHASE_3](PHASE_3.md) for the completed
 signals/allocation/risk phase this builds on.
@@ -26,7 +27,7 @@ is actually designed, not committed to upfront.
 | 5 | `ExecutionService` (durable claim, SUBMITTING before network call, UNKNOWN resolution, reconcile-before-retry per ADR-008) | Failure-injection tests: crash before/after SUBMITTING, ambiguous timeout, no duplicate fills |
 | 6 | Reconciliation (fetch/dedupe/compare exchange state, persist discrepancies) | Integration tests against `FakeExchange`'s scripted outcomes (TESTING.md) |
 
-**This session implements Slices 1, 2, 3 and 4.**
+**This session implements Slices 1 through 5.**
 
 ## Delivered: Slice 1 — `OrderIntent` + lifecycle state machine
 
@@ -169,3 +170,53 @@ Explicitly not built in Slice 4: no `ExecutionService` wiring `OrderIntent`'s st
 reconciliations tables (DATA.md names these, but nothing in Slices 1-3 produces that data yet); no
 outbox table (Slice 5's territory per `ARCHITECTURE.md`'s decision flow); no dashboard/API routes
 reading any of this back.
+
+## Delivered: Slice 5 — `ExecutionService`
+
+- `wallybot/application/execution_service.py`: `ExecutionService.submit(intent)` durably claims an
+  already-`VALIDATED` `OrderIntent` — persists it, commits a `SUBMITTING` transition, **then**
+  calls the gateway, never holding a transaction open across the network call
+  (`ARCHITECTURE.md`'s decision flow). Crash-safety comes from one rule: `submit()` never calls
+  `gateway.submit_order` for an intent it finds anywhere past `VALIDATED` — it just returns the
+  status already recorded. Concretely: resuming after a crash *before* the `SUBMITTING` commit
+  finds `VALIDATED` and proceeds exactly like a first attempt (safe, nothing happened yet);
+  resuming *after* it finds `SUBMITTING` and returns immediately without touching the exchange —
+  the only way forward from there is `reconcile()`. A submission answered `UNKNOWN` is left at
+  `UNKNOWN`; `submit()` does not retry it.
+  `reconcile(intent)` is ADR-008's reconcile-before-retry, and the only method allowed to move an
+  order out of ambiguity: finding `SUBMITTING` first transitions it to `UNKNOWN` (the diagram's own
+  "Timeout or crash" edge — resuming into `SUBMITTING` *is* that ambiguity), then asks
+  `gateway.lookup_order` what it actually knows. A `NOT_FOUND` answer from `UNKNOWN` is the
+  diagram's "Proven absent and safe retry after risk" — the only case it's safe to move back to
+  `VALIDATED`; any other observed status transitions forward through `can_transition`, raising
+  `InvalidOrderTransition` rather than silently accepting an impossible jump a gateway
+  shouldn't be able to report. Fills are looked up and persisted through `UnitOfWork.fill_exists`
+  first, so repeated `reconcile()` calls never double-post a fill or its ledger transaction.
+- `wallybot/application/ledger_postings.py`: `build_fill_ledger_transaction(fill, account_id)` —
+  the `Fill → LedgerTransaction` mapping Slice 3 explicitly deferred. Two currencies' worth of
+  balanced legs per fill: the account's own cash/position moves, offset by a `CLEARING` account per
+  currency (DATA.md: "balanced BTC entries and balanced USD entries with clearing accounts").
+  Fee is netted into the cash leg rather than given its own posting — `fills.fee` already records
+  it for cost reporting, so a separate ledger leg has no consumer yet. A fee charged in a currency
+  other than the instrument's quote raises rather than being silently mis-booked; no such case
+  exists in this codebase yet (`FakeExchange` always charges quote-currency fees).
+- `wallybot/infrastructure/unit_of_work.py` gained `get_order_status` and `fill_exists` to support
+  the above without `ExecutionService` importing ORM row classes directly — it only ever composes
+  `ExchangeGateway` (a port) and `UnitOfWork` (Slice 4's persistence primitive).
+- `tests/unit/test_ledger_postings.py`: buy/sell leg signs and balance, non-quote fee rejection.
+- `tests/integration/test_execution_service.py` (Testcontainers, real Postgres) — exactly this
+  slice's stated acceptance evidence: a full market-order happy path with the expected transition
+  sequence and one balanced 4-posting ledger transaction; a rejected submission that `submit()`
+  never re-attempts; an `UNKNOWN` submission that stays `UNKNOWN` until `reconcile()` resolves it to
+  `FILLED`; `reconcile()` called twice never double-posts; **crash before the `SUBMITTING`
+  commit** (resuming from a freshly-persisted `VALIDATED` row behaves like a first attempt) and
+  **crash after it** (resuming from a pre-seeded `SUBMITTING` row never re-calls the gateway, and
+  `reconcile()` correctly resolves the gateway's genuine `NOT_FOUND` back to `VALIDATED`); a
+  scripted partial fill observed and persisted exactly once across repeated reconciliation.
+
+Explicitly not built in Slice 5: no cancellation orchestration (moving `PARTIALLY_FILLED`/
+`ACKNOWLEDGED` through `CANCEL_REQUESTED` is its own use case, not exercised here); no automatic
+scheduling of `reconcile()` for orders left at `UNKNOWN` (a future scheduler/reconciliation job,
+Slice 6's territory, decides when to call it — `ExecutionService` only provides the operation);
+no outbox events; no risk re-validation (an intent is assumed already `VALIDATED` by the time it
+reaches `submit()`).
