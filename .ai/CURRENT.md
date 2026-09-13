@@ -454,13 +454,24 @@ entry, no new routes needed). `tests/integration/test_whale_flow_route.py` +
 ruff/pyright/tsc/eslint/next-build clean, both containers rebuilt/redeployed, `/health/ready` →
 `ready`.
 
-**What's realistically left for a "finished product"**: Phase 12 Slices 3-4 (SHADOW wiring, real
-AI adapter -- needs an authorized model/API key decision), connecting the remaining Phase 10/11
+**Phase 12 Slice 3 delivered** (SHADOW mode) — see `docs/PHASE_12.md`'s "Delivered: Slice 3".
+`wallybot/application/shadow_decision_service.py`'s `ShadowDecisionService` runs a `TradeProposal`
+through the same `PortfolioAllocator`/`RiskEngine` gate `DecisionPipeline` uses, holding no
+reference to `ExecutionService`/`IdGenerator` at all -- structurally incapable of submitting an
+order. `ShadowDecisionRow`/migration `0014_shadow_decisions`/`ShadowDecisionRepository`
+(write-only, same reasoning as `TradeProposalRepository`). The integration test's actual proof:
+after a SHADOW evaluation, `order_intents` stays empty. Verified: full suite 452 passed
+(447→452), ruff/pyright clean, container redeployed, `/health/ready` → `ready`.
+
+**What's realistically left for a "finished product"**: Phase 12 Slice 4 (real AI adapter --
+needs an authorized model/API key decision) and an orchestrator that actually calls
+`ShadowDecisionService` on a schedule (none exists yet); connecting the remaining Phase 10/11
 OBSERVE-only signals (wallet activity feed itself, entity correlation graph, provider
-reliability/price consensus) the same way, Phases 5/7/8 (backtesting, research agents, Telegram),
-and Phase 9 (LIVE trading) -- which per RISK.md/SECURITY.md requires explicit human-authorized
-evidence gates and real exchange credentials and must never be rushed to "look done." Continuing
-sequentially, one verified slice at a time, same discipline as every slice above.
+reliability/price consensus) to the UI the same way Smart Money/whale flow/token risk were;
+Phases 5/7/8 (backtesting, research agents, Telegram); and Phase 9 (LIVE trading) -- which per
+RISK.md/SECURITY.md requires explicit human-authorized evidence gates and real exchange
+credentials and must never be rushed to "look done." Continuing sequentially, one verified slice
+at a time, same discipline as every slice above.
 
 
 ## Activity inspection UI — 2026-09-12

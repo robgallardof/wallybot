@@ -566,3 +566,31 @@ class TradeProposalRow(Base):
     model_id: Mapped[str] = mapped_column(String(64))
     prompt_version: Mapped[str] = mapped_column(String(32))
     as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class ShadowDecisionRow(Base):
+    """Persists `wallybot.application.shadow_decision_service.ShadowDecisionOutcome`.
+    Insert-only audit trail, same reasoning as `TradeProposalRow`: what the allocator/risk gate
+    would have decided for an AI proposal is a fact about a moment in time, never corrected in
+    place. No foreign key to `trade_proposals` -- an outcome is recorded whenever this service
+    runs, independent of whether/when the proposal that produced it was itself persisted."""
+
+    __tablename__ = "shadow_decisions"
+    __table_args__ = (
+        CheckConstraint(
+            "risk_decision IS NULL OR "
+            "risk_decision IN ('APPROVED', 'REJECTED', 'APPROVED_WITH_REDUCED_SIZE')"
+        ),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    proposal_id: Mapped[str] = mapped_column(String(64), index=True)
+    venue: Mapped[str] = mapped_column(String(32))
+    base: Mapped[str] = mapped_column(String(16))
+    quote: Mapped[str] = mapped_column(String(16))
+    allocation_approved: Mapped[bool] = mapped_column(Boolean)
+    allocation_reasons: Mapped[list] = mapped_column(JSONB)
+    risk_decision: Mapped[str | None] = mapped_column(String(32))
+    risk_final_notional: Mapped[Decimal | None] = mapped_column(Numeric)
+    risk_final_quantity: Mapped[Decimal | None] = mapped_column(Numeric)
+    risk_reasons: Mapped[list | None] = mapped_column(JSONB)
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)

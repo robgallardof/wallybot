@@ -1,6 +1,6 @@
 # Phase 12 implementation backlog: AI strategy engine and TradeProposal
 
-Status: Slices 1-2 delivered 2026-09-13. Per ARCHITECTURE.md's implementation sequence: "AI strategy
+Status: Slices 1-3 delivered 2026-09-13. Per ARCHITECTURE.md's implementation sequence: "AI strategy
 engine producing schema-validated `TradeProposal`s, wired into the existing
 `RiskEngine`/`PortfolioAllocator`/`ExecutionService` pipeline; SHADOW mode before any LIVE
 eligibility." Each slice gets its own design pass when started, same discipline as
@@ -16,7 +16,7 @@ open.
 | 3 | SHADOW mode + wiring `TradeProposal` → `RiskEngine` → recorded-but-not-submitted outcome | Integration tests: a SHADOW proposal never reaches `ExecutionService.submit`, its would-be `RiskAssessment` is still persisted |
 | 4 | Real `AIProvider` adapter (Anthropic/OpenAI) with typed read-only tool surface | Blocked: needs a provider API key with an explicit budget the user authorizes for this purpose — SECURITY.md's "Secret and agent isolation" boundary means this is not a decision to make silently |
 
-**This session implements Slices 1-2.**
+**This session implements Slices 1-3.**
 
 ## Delivered: Slice 1 — `TradeProposal` domain type + `AIProvider` port
 
@@ -97,3 +97,43 @@ happens to it.
 Verified: full suite 438 passed (341→438), ruff/pyright clean, migration applied and verified
 against the live `wallybot-api` container (rebuilt, redeployed, head `0011_trade_proposals`,
 `/health/ready` → `ready`). Committed.
+
+## Delivered: Slice 3 — SHADOW mode (allocation/risk evaluation, never execution)
+
+Per ARCHITECTURE.md: "SHADOW mode before any LIVE eligibility." `wallybot/application/
+shadow_decision_service.py`'s `ShadowDecisionService` runs a `TradeProposal` through the exact
+same `PortfolioAllocator.propose`/`RiskEngine.evaluate` gate `DecisionPipeline` uses for
+deterministic strategies — translating the proposal into the same `AggregatedSignal` shape
+(`contributing_signals` empty, since there's no underlying `StrategySignal`; the proposal's own
+`reasons` become `AggregatedSignal.reason`) so both paths run through identical, already-tested
+code rather than a second parallel implementation. **The service holds no reference to
+`ExecutionService` or an `IdGenerator` at all** — it is structurally incapable of submitting an
+order, not merely "chosen" not to. `TradeDirection.SHORT` is refused before allocation, same
+reasoning `DecisionPipeline` already applies to SELL (no position data to size a reduction
+against).
+
+`wallybot/infrastructure/models.py`'s `ShadowDecisionRow` + `migrations/versions/
+0014_shadow_decisions.py` + `wallybot/infrastructure/shadow_decision_repository.py`'s
+`ShadowDecisionRepository`: insert-only, **write-only** for the same reason
+`TradeProposalRepository` is (no full `Instrument` fidelity persisted to reconstruct a domain
+object from). No foreign key to `trade_proposals` — an outcome is recorded whenever this service
+runs, independent of whether the proposal itself was persisted.
+
+`tests/unit/test_shadow_decision_service.py`: clean approval, SHORT refused before allocation,
+a full bucket rejected at allocation before risk ever runs, and risk rejecting an
+allocation-approved proposal. `tests/integration/test_shadow_decision_persistence.py`
+(Testcontainers) is this slice's stated acceptance evidence: a SHADOW evaluation persists its
+full outcome, and asserts `order_intents` stays empty — the actual proof "never reaches
+`ExecutionService.submit`," not just an absence of a call in test code. Bumped
+`apps/api/main.py`'s hardcoded Alembic revision check to `"0014_shadow_decisions"`.
+
+**Explicitly not built**: any caller/orchestrator that actually runs `ShadowDecisionService`
+against fresh `TradeProposal`s on a schedule (no scheduler wiring exists for this yet, same as
+`ReconciliationService.sweep` needing its own future scheduler hookup); any UI surface reading
+`shadow_decisions` back; promotion logic from SHADOW to LIVE eligibility (RISK.md's evidence
+gates are a human-authorized decision, not something this slice automates).
+
+Verified: full suite 452 passed (447→452), ruff/pyright clean, `shadow_decision_service.py`
+imports only `wallybot.domain.*` and stdlib (no execution/persistence dependency, by construction
+rather than convention), migration applied and verified against the live `wallybot-api`
+container, `/health/ready` → `ready`.
