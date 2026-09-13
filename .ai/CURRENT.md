@@ -192,6 +192,35 @@ feeding real `PortfolioState`/`RiskEnvironment` inputs (a caller still has to su
 persisted `decisions` record (only the resulting `OrderIntent` is durable — a HOLD/REJECTED
 outcome today only lives in the returned `DecisionOutcome`, not in Postgres), no scheduling.
 
+## Architecture/objective expansion + Phase 10 kickoff — 2026-09-13
+
+User provided a large target-architecture spec (wallet/entity intelligence, Smart Money scoring/
+clustering, on-chain/whale/disclosure signals, an AI strategy layer producing `TradeProposal`s,
+OBSERVE/PAPER/SHADOW/LIVE per-strategy execution modes) and asked for it in the architecture and
+objective docs. Folded into `README.md` (objective) and `ARCHITECTURE.md` (new provider ports,
+"Multi-source intelligence and Smart Money" section, "AI strategy layer and TradeProposal"
+section reconciled against the *existing* decision flow rather than describing a competing one,
+portfolio-buckets naming note flagging Core/Tactical vs. shipped Core/Growth as a real open item,
+Phases 10-15 added to the implementation sequence). Documentation only, committed as `b1a2809`.
+
+User then said "continua con todo" — started Phase 10 ("Wallet/entity intelligence
+infrastructure ... OBSERVE mode only, no execution authority"), the lowest-risk starting point
+per its own description. See `docs/PHASE_10.md`. Delivered Slices 1-2:
+`wallybot/domain/entity.py` (`Entity`/`Attribution`/`EntityType`/`VerificationStatus`, provenance
+mandatory by construction) and `wallybot/domain/wallet.py` (`Wallet`/`WalletCluster`/
+`MonitoringMode`, defaults to `OBSERVE`); `wallybot/domain/validation.py` factored out shared
+aware-datetime/unit-interval checks. `migrations/versions/0003_intelligence.py` +
+`EntityRepository`/`WalletRepository` (upsert summary fields, append-only attributions deduped by
+`(parent, source, source_entity_id, observed_at)`, insert-only wallet clusters). Bumped
+`apps/api/main.py`'s hardcoded Alembic revision check again (same recurring rough edge as Phase 4
+Slice 4) to `"0003_intelligence"`. Verified: full suite 271 passed (243→265→271), ruff/pyright
+clean, domain purity confirmed, migration applied and verified against the live `wallybot-api`
+container. Not yet committed (Phase 10 files).
+
+**Next up:** Slice 3 (Entity Correlation Graph) or Slice 4 (first real provider adapter) —
+neither started; both still pure registry/plumbing work with no execution authority, per
+ARCHITECTURE.md's own scoping for this phase.
+
 
 ## Activity inspection UI — 2026-09-12
 

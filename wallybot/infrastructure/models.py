@@ -7,6 +7,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Integer,
     Numeric,
     String,
@@ -202,6 +203,135 @@ class LedgerTransactionRow(Base):
     reason: Mapped[str] = mapped_column(String(32))
     reference_id: Mapped[str] = mapped_column(String(100))
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class EntityRow(Base):
+    """Persists `wallybot.domain.entity.Entity`'s mutable summary fields. Attributions live in
+    `EntityAttributionRow`, append-only, never here."""
+
+    __tablename__ = "entities"
+    __table_args__ = (
+        CheckConstraint(
+            "entity_type IN ('PERSON', 'PUBLIC_FIGURE', 'POLITICIAN', 'FUND', 'COMPANY', "
+            "'EXCHANGE', 'INSTITUTION', 'WHALE', 'TRADER', 'WALLET_CLUSTER', "
+            "'ANONYMOUS_WALLET', 'DEVELOPER', 'MARKET_MAKER', 'PROTOCOL', 'ETF', "
+            "'GOVERNMENT', 'CUSTOM')"
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    entity_type: Mapped[str] = mapped_column(String(24))
+    aliases: Mapped[list] = mapped_column(JSONB)
+    description: Mapped[str] = mapped_column(Text)
+    enabled: Mapped[bool] = mapped_column(Boolean)
+    confidence: Mapped[Decimal] = mapped_column(Numeric)
+    trust_score: Mapped[Decimal] = mapped_column(Numeric)
+    risk_score: Mapped[Decimal] = mapped_column(Numeric)
+    influence_weight: Mapped[Decimal] = mapped_column(Numeric)
+    tags: Mapped[list] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class EntityAttributionRow(Base):
+    """Persists one `wallybot.domain.entity.Attribution` for an `Entity`. `(entity_id, source,
+    source_entity_id, observed_at)` is this table's dedup key -- re-saving the same claim never
+    duplicates it."""
+
+    __tablename__ = "entity_attributions"
+    __table_args__ = (
+        UniqueConstraint(
+            "entity_id",
+            "source",
+            "source_entity_id",
+            "observed_at",
+            name="uq_entity_attributions_dedup",
+        ),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    entity_id: Mapped[str] = mapped_column(String(64), ForeignKey("entities.id"), index=True)
+    source: Mapped[str] = mapped_column(String(64))
+    source_entity_id: Mapped[str | None] = mapped_column(String(100))
+    confidence: Mapped[Decimal] = mapped_column(Numeric)
+    evidence: Mapped[str] = mapped_column(Text)
+    verification_status: Mapped[str] = mapped_column(String(16))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class WalletRow(Base):
+    """Persists `wallybot.domain.wallet.Wallet`'s mutable summary fields, keyed the same way the
+    domain object identifies itself: `(chain, address)`."""
+
+    __tablename__ = "wallets"
+    __table_args__ = (CheckConstraint("monitoring_mode IN ('OBSERVE', 'AI_EVALUATED', 'MIRROR')"),)
+    chain: Mapped[str] = mapped_column(String(32), primary_key=True)
+    address: Mapped[str] = mapped_column(String(128), primary_key=True)
+    entity_id: Mapped[str | None] = mapped_column(String(64), ForeignKey("entities.id"), index=True)
+    alias: Mapped[str | None] = mapped_column(String(200))
+    labels: Mapped[list] = mapped_column(JSONB)
+    tags: Mapped[list] = mapped_column(JSONB)
+    confidence: Mapped[Decimal] = mapped_column(Numeric)
+    trust_score: Mapped[Decimal] = mapped_column(Numeric)
+    risk_score: Mapped[Decimal] = mapped_column(Numeric)
+    enabled: Mapped[bool] = mapped_column(Boolean)
+    monitoring_mode: Mapped[str] = mapped_column(String(16))
+    influence_weight: Mapped[Decimal] = mapped_column(Numeric)
+    max_signal_weight: Mapped[Decimal] = mapped_column(Numeric)
+    max_allocation: Mapped[Decimal | None] = mapped_column(Numeric)
+    min_transaction_value: Mapped[Decimal] = mapped_column(Numeric)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class WalletAttributionRow(Base):
+    """Persists one `Attribution` for a `Wallet`. `(chain, address, source, source_entity_id,
+    observed_at)` is this table's dedup key."""
+
+    __tablename__ = "wallet_attributions"
+    __table_args__ = (
+        ForeignKeyConstraint(["chain", "address"], ["wallets.chain", "wallets.address"]),
+        UniqueConstraint(
+            "chain",
+            "address",
+            "source",
+            "source_entity_id",
+            "observed_at",
+            name="uq_wallet_attributions_dedup",
+        ),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    chain: Mapped[str] = mapped_column(String(32), index=True)
+    address: Mapped[str] = mapped_column(String(128), index=True)
+    source: Mapped[str] = mapped_column(String(64))
+    source_entity_id: Mapped[str | None] = mapped_column(String(100))
+    confidence: Mapped[Decimal] = mapped_column(Numeric)
+    evidence: Mapped[str] = mapped_column(Text)
+    verification_status: Mapped[str] = mapped_column(String(16))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class WalletClusterRow(Base):
+    """Persists `wallybot.domain.wallet.WalletCluster`'s header. Members live in
+    `WalletClusterMemberRow`."""
+
+    __tablename__ = "wallet_clusters"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    entity_id: Mapped[str | None] = mapped_column(String(64), ForeignKey("entities.id"), index=True)
+    confidence: Mapped[Decimal] = mapped_column(Numeric)
+    evidence: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class WalletClusterMemberRow(Base):
+    __tablename__ = "wallet_cluster_members"
+    __table_args__ = (
+        ForeignKeyConstraint(["chain", "address"], ["wallets.chain", "wallets.address"]),
+    )
+    cluster_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("wallet_clusters.id"), primary_key=True
+    )
+    chain: Mapped[str] = mapped_column(String(32), primary_key=True)
+    address: Mapped[str] = mapped_column(String(128), primary_key=True)
 
 
 class LedgerPostingRow(Base):
