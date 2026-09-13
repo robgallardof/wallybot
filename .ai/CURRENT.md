@@ -365,6 +365,48 @@ Phase 12+ (AI strategy layer/`TradeProposal`, political/financial disclosure ing
 any of Phase 10/11's OBSERVE-only signals into the actual decision pipeline) is the natural next
 body of work — none started, each needs its own design pass.
 
+## Phase 12 kickoff (AI strategy engine / TradeProposal) — 2026-09-13
+
+User said "continua con las phases"; picked Phase 12 per ARCHITECTURE.md's implementation
+sequence ("AI strategy engine producing schema-validated TradeProposals, wired into the existing
+RiskEngine/PortfolioAllocator/ExecutionService pipeline; SHADOW mode before any LIVE
+eligibility"). Full slice plan in `docs/PHASE_12.md`.
+
+**Phase 12 Slice 1 delivered** (`TradeProposal` domain type + `AIProvider` port, pure, no
+persistence, no wiring) — see `docs/PHASE_12.md`'s "Delivered: Slice 1". `wallybot/domain/
+trade_proposal.py`: `TradeDirection`, `AIAnalysisContext` (same validated inputs `Strategy.
+evaluate` already consumes: instrument/features/regime/strategy signals), `TradeProposal` (every
+field ARCHITECTURE.md's Contracts entry names: direction, strategy, confidence, suggested
+allocation/entry/stop/take-profit, time horizon, signal TTL, reasons, risks, supporting signal
+IDs, invalidating conditions, source event IDs, model ID, prompt version) with `__post_init__`
+enforcing stop/take-profit ordering is correct for the given direction, all the usual range/
+positivity/non-empty-evidence checks. `AIProvider.analyze(context) -> TradeProposal | None` is
+async (like `WalletIntelligenceProvider`/`SecurityAnalysisProvider` — a real adapter makes a
+network call) and returns `None`, never a fabricated proposal, when the model has nothing
+actionable — callers must treat that as HOLD per RISK.md. `wallybot/intelligence/fake_ai.py`:
+`FakeAIProvider`, same seeded-fake pattern as the other intelligence fakes, no real LLM call.
+Verified: `uv run pytest tests/unit tests/property -q` → 341 passed (no persistence yet, so no
+integration/contract tests needed for this slice, same as Phase 4 Slice 1's pure-domain pattern).
+ruff/ruff-format/pyright clean on every new file, domain purity confirmed (imports only stdlib +
+existing domain modules).
+
+**Explicitly not built this slice** (see `docs/PHASE_12.md` for the full remaining backlog):
+persistence/audit trail (Slice 2), any wiring into `RiskEngine`/`PortfolioAllocator`/
+`ExecutionService`/`DecisionPipeline` (Slice 3, gated behind SHADOW mode — a `TradeProposal` today
+has zero ability to affect anything running), the typed read-only AI tool surface ARCHITECTURE.md
+names, any real model adapter or cost/budget accounting (Phase 6 was never built), and `SHADOW` as
+an actual mode value anywhere in the codebase.
+
+**Codex parallel UI task:** attempted to launch `codex exec` in the background to finish/commit
+its own already-uncommitted UI work (apps/web/* + docs/PENDING.md + docs/UI-DESIGN.md +
+.ai/HANDOFF.md draft + scripts/dev.py + scripts/e2e_server.py + .github/workflows/ci.yml, all
+dirty in the working tree from an earlier session) — blocked by Claude Code's own permission
+system ("Create Unsafe Agents": launching an external CLI agent with auto-approved
+shell/sandbox/commit authority is not allowed without explicit user permission). Did not attempt a
+workaround. User needs to either approve a Bash permission rule for this, run `codex exec`
+themselves, or say how they want Codex invoked. The dirty apps/web/* tree is untouched by this
+session — do not discard it.
+
 
 ## Activity inspection UI — 2026-09-12
 
