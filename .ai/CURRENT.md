@@ -82,3 +82,23 @@ container; loaded the login page live in a browser with no console errors. **Not
 authenticated browser session** — no login credentials available and none were fabricated/read
 from `.secrets`; the integration test is the strongest available proof the route+DTO+auth contract
 actually matches what the frontend expects. Not yet committed.
+
+**Phase 4 Slice 2 delivered** (`ExchangeGateway` port + `FakeExchange` paper execution) — see
+`docs/PHASE_4.md`'s "Delivered: Slice 2" section for the full design. Summary:
+`wallybot/domain/execution.py` (pure port + `SubmissionResult`/`OrderLookup`/`CancelResult`/`Fill`
+value types, keyed by `client_order_id` per DATA.md so accept-then-timeout ambiguity is resolvable
+via lookup without a venue order ID); `wallybot/exchanges/fake.py` extended to implement it
+(balances, fee rate, scripted submission/cancel/fill outcomes, unscripted MARKET fills
+immediately/fully, unscripted LIMIT never auto-fills). New tests:
+`tests/contract/exchange_gateway_suite.py` + `tests/contract/test_fake_exchange_gateway.py`
+(submit-then-lookup round-trip, cancel races, accept-then-timeout — this slice's stated acceptance
+evidence) and `tests/unit/test_fake_exchange_execution.py` (rejections, settlement, partial fills,
+partial-fill-vs-cancel race, unknown-ID safety). Verified: full suite 213 passed (199→213), ruff
+and pyright clean on every touched file, domain purity confirmed
+(`wallybot/domain/execution.py` imports only stdlib + `wallybot.domain.market`/`wallybot.domain.
+order`). Not yet committed.
+
+
+## Activity inspection UI — 2026-09-12
+
+Codex continued observability UI while Claude owns market/backend integration. EventsPage adds text search (message/code/id), type filter, newest/oldest sort, refresh, explicit failure/stale states and empty filter reset. EventList detailed mode exposes stable ID, original event code and full UTC timestamp. Filters are explicitly limited to the latest 100 API events; no claim of full-history search or live stream. No API/DB changes. Verified frontend lint, Next production build and 2 production E2E tests including filters, details, ES/EN and mobile no-overflow; activity mobile screenshot inspected. Web-only deployment. Next: backend history pagination contract with Claude, translated display labels, live stream only after authenticated server delivery exists.

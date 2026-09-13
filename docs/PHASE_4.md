@@ -1,7 +1,8 @@
 # Phase 4 implementation backlog
 
-Status: Slice 1 (order intent + lifecycle state machine) implemented and verified on 2026-09-12.
-Slices 2+ are a documented backlog only — not started. See [ARCHITECTURE](../ARCHITECTURE.md) for
+Status: Slice 1 (order intent + lifecycle state machine) and Slice 2 (`ExchangeGateway` port +
+`FakeExchange` paper execution) implemented and verified on 2026-09-12/13.
+Slices 3+ are a documented backlog only — not started. See [ARCHITECTURE](../ARCHITECTURE.md) for
 how Phase 4 fits the overall implementation sequence, [DATA](../DATA.md) for the ledger/
 reconciliation rules later slices must implement, and [PHASE_3](PHASE_3.md) for the completed
 signals/allocation/risk phase this builds on.
@@ -24,7 +25,7 @@ is actually designed, not committed to upfront.
 | 5 | `ExecutionService` (durable claim, SUBMITTING before network call, UNKNOWN resolution, reconcile-before-retry per ADR-008) | Failure-injection tests: crash before/after SUBMITTING, ambiguous timeout, no duplicate fills |
 | 6 | Reconciliation (fetch/dedupe/compare exchange state, persist discrepancies) | Integration tests against `FakeExchange`'s scripted outcomes (TESTING.md) |
 
-**This session implements Slice 1 only.**
+**This session implements Slices 1 and 2.**
 
 ## Delivered: Slice 1 — `OrderIntent` + lifecycle state machine
 
@@ -59,3 +60,44 @@ Explicitly not built in Slice 1: no `ExchangeGateway` calls, no persistence, no 
 orchestration, no ledger. `OrderIntent` is a value a future executor will create, transition and
 persist — this slice only guarantees the state machine itself cannot be driven into an
 impossible configuration.
+
+## Delivered: Slice 2 — `ExchangeGateway` port + `FakeExchange` paper execution
+
+- `wallybot/domain/execution.py` (pure): the `ExchangeGateway` Protocol
+  (`submit_order`/`cancel_order`/`lookup_order`/`list_fills`) per ARCHITECTURE.md's Contracts
+  table entry ("Capabilities, balances, order lookup/submission/cancellation and fills; no
+  withdrawal method") — no withdrawal method exists on it at all, not "guarded", simply absent,
+  per ADR-004. Lookups are keyed by `client_order_id`, never a venue-assigned ID, because
+  DATA.md says client order IDs are "deterministic within venue restrictions and mapped durably
+  before submission" — this is what makes an ambiguous submission resolvable at all:
+  `submit_order` can return `SubmissionOutcome.UNKNOWN` with no venue order ID, and a later
+  `lookup_order` by the same `client_order_id` still finds the order, matching ADR-008's
+  reconcile-before-retry and the order-lifecycle diagram's `UNKNOWN --> ACKNOWLEDGED: Lookup
+  resolves`. Value types: `SubmissionResult`, `OrderLookup`, `CancelResult`, `Fill` — each
+  validates its own shape (e.g. an `ACCEPTED` result must carry a `venue_order_id`, a `REJECTED`
+  one must carry a `reason`).
+- `wallybot/exchanges/fake.py`: `FakeExchange` now also implements `ExchangeGateway` alongside
+  its existing `MarketDataProvider` capability (one class, two Protocols, structural typing).
+  Per-currency `balances`, a configurable `fee_rate`, and three scripting dicts keyed by
+  `client_order_id` (`submission_script`, `cancel_script`, `fill_script`) so tests can drive
+  rejection, "accept-then-timeout" and partial fills deterministically, matching TESTING.md's
+  "Inject a clock and scripted outcomes." An unscripted MARKET order fills fully and immediately
+  at the current reference quote; an unscripted LIMIT order does not fill at all — there is no
+  matching engine here, that belongs to backtesting (Phase 5), not this simulator. Validates
+  quantity against `instrument.min_quantity` and balance sufficiency before accepting.
+- `tests/contract/exchange_gateway_suite.py` + `tests/contract/test_fake_exchange_gateway.py`:
+  shared contract suite mirroring `market_data_provider_suite.py`'s pattern, covering exactly this
+  slice's acceptance evidence — submit-then-lookup round-trips, cancel races (clean cancel and
+  fill-wins-the-race), accept-then-timeout resolved via lookup.
+- `tests/unit/test_fake_exchange_execution.py`: `FakeExchange`-specific behavior — minimum-quantity
+  and insufficient-balance rejection, balance settlement on a fill, unscripted limit orders never
+  auto-filling, scripted multi-step partial fills (with a correctly weighted average fill price),
+  a partial fill racing a cancel (the already-posted fill is retained, not erased), double-cancel
+  of an already-filled order, and safe no-op behavior for an unknown `client_order_id` on both
+  cancel and lookup.
+
+Explicitly not built in Slice 2: no persistence (orders/fills live only in `FakeExchange`'s
+in-memory dict for the lifetime of the test/process), no `ExecutionService` orchestration wiring
+`OrderIntent`'s state machine to this gateway, no ledger, no real Kraken execution adapter (PAPER
+mode never needs one — LIVE would get its own dedicated review, per `wallybot/exchanges/kraken.py`'s
+own docstring).
