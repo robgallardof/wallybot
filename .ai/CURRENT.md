@@ -229,9 +229,21 @@ recurring rough edge, still not fixed dynamically). Verified: full suite 281 pas
 (271→281), ruff/pyright clean, domain purity confirmed, migration applied and verified against
 the live `wallybot-api` container. Not yet committed.
 
-**Next up:** Slice 4 (first real provider adapter — e.g. one on-chain data provider) is the
-natural next step per `docs/PHASE_10.md`'s backlog, and the first place this phase actually
-touches a live external API rather than hand-built domain values in tests.
+**Phase 10 Slice 4 delivered (port + fake only)** — see `docs/PHASE_10.md`'s "Delivered: Slice 4".
+`wallybot/domain/wallet_activity.py`: `OnChainActionType` (all 12 spec'd), `WalletActivityEvent`
+(normalized observation, amount always positive, direction lives in `action`),
+`WalletIntelligenceProvider` port. `wallybot/intelligence/fake.py` (new capability package):
+`FakeWalletIntelligenceProvider` — returns only what it's seeded with, no random generator, since
+no real provider exists yet to imitate. Contract suite + test module mirror the established
+Kraken/FakeExchange pattern. Verified: full suite 297 passed (281→297), ruff/pyright clean,
+domain purity confirmed. Not yet committed.
+
+**Blocked: Slice 4b (a real vendor adapter — Arkham/Nansen/Helius/Birdeye/Whale Alert/Dune/...).**
+Every one of these needs an API key this session does not have (unlike Kraken's public
+market-data endpoints, verified credential-free in Phase 2). Building a real adapter without one
+would mean an untested or fabricated-fixture adapter, which this session's discipline treats as
+equivalent to not having verified it. Asked the user which provider (if any) they have API access
+to, to unblock this the same way Kraken was unblocked by checking its docs instead of assuming.
 
 
 ## Activity inspection UI — 2026-09-12

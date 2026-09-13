@@ -13,10 +13,12 @@ committed to upfront.
 | 1 | Entity/Wallet/WalletCluster domain model (pure, attribution-based provenance) | Unit tests: construction validation, mandatory attributions, unit-interval scores |
 | 2 | PostgreSQL schema + `EntityRepository`/`WalletRepository` | Integration tests: round-trip, upsert-without-duplicating-attributions, cluster insert-only semantics |
 | 3 | Entity Correlation Graph (typed relationships between wallet/entity/token/event) | Not started |
-| 4 | Provider ports + at least one real adapter (e.g. one on-chain data provider) | Not started |
+| 4 | `WalletIntelligenceProvider` port + `FakeWalletIntelligenceProvider` | Unit + contract tests |
+| 4b | A real vendor adapter for the above (Arkham/Nansen/Helius/Birdeye/Whale Alert/Dune/...) | Blocked on API credentials -- see "Delivered: Slice 4" below |
 | 5 | On-chain event ingestion (webhook/subscription preferred over polling) | Not started |
 
-**This session implements Slices 1, 2 and 3.**
+**This session implements Slices 1 through 4 (port + fake only; the real adapter needs
+credentials this session does not have -- see below).**
 
 ## Delivered: Slice 1 — Entity/Wallet/WalletCluster domain model
 
@@ -121,3 +123,41 @@ pattern needs them — possibly the trigger for actually introducing a graph dat
 ARCHITECTURE.md's own "later option if query patterns actually need one"). This is registry
 infrastructure only — nothing in these three slices can read a signal that influences a trade,
 let alone place one.
+
+## Delivered: Slice 4 — `WalletIntelligenceProvider` port + fake (real adapter blocked)
+
+- `wallybot/domain/wallet_activity.py` (pure): `OnChainActionType` (all 12 the spec's "On-chain
+  monitoring" list names: `BUY`, `SELL`, `SWAP`, `TRANSFER`, `MINT`, `BURN`, `ADD_LIQUIDITY`,
+  `REMOVE_LIQUIDITY`, `APPROVE`, `STAKE`, `UNSTAKE`, `BRIDGE`), `WalletActivityEvent` (wallet id,
+  chain, transaction hash, token, action, amount, optional value/price/liquidity in USD,
+  occurred-at, an `Attribution`). `amount` is always positive; direction lives entirely in
+  `action` — this is a normalized *observation*, never an interpretation: "do not interpret a
+  large transfer by itself as BUY or SELL... generate a signal and allow strategy intelligence to
+  interpret it in context" (ARCHITECTURE.md's whale-intelligence rule) applies to every wallet
+  event, not only whale-sized ones. `WalletIntelligenceProvider` Protocol:
+  `fetch_wallet_activity(chain, address, since)` and `fetch_wallet_labels(chain, address)`.
+- `wallybot/intelligence/fake.py`: `FakeWalletIntelligenceProvider`, a new capability package
+  (`wallybot/intelligence/`) alongside `exchanges/`, `risk/`, etc. Unlike `FakeExchange`'s candle
+  generator, this fake has no plausible-random-data generator — no real wallet-activity provider
+  exists yet to give a generator something to imitate — so it returns exactly what it was
+  constructed with, seeded explicitly per wallet, rather than inventing data with no real schema
+  to validate against.
+- `tests/unit/test_wallet_activity.py`, `tests/contract/wallet_intelligence_provider_suite.py` +
+  `test_fake_wallet_intelligence_provider.py` (mirrors `market_data_provider_suite.py`'s
+  established pattern: shared assertions, one test module per adapter).
+
+**Real vendor adapter blocked on credentials.** ARCHITECTURE.md's provider list (Arkham, Nansen,
+Helius, Birdeye, Whale Alert, Dune, ...) are the intended real implementations of this port, the
+same way `KrakenExchange` is `MarketDataProvider`'s real implementation. Unlike Kraken's public
+market-data endpoints (verified in Phase 2 to need no credentials at all), every wallet/entity
+intelligence vendor in that list requires an API key for any endpoint beyond a trivial free tier,
+and none is available in this environment. Building a real adapter now would mean either
+fabricating a fixture with no real captured response behind it (this codebase's contract tests are
+built specifically to avoid that — see `tests/contract/test_kraken_exchange.py`'s "real recorded
+API response" comment) or leaving it untested against anything real, which this session's own
+discipline treats as equivalent to not having verified it at all. This is a genuine, named
+blocker, not a scope decision — the operator needs to supply a key for at least one of these
+providers before Slice 4b can be completed the same way Kraken was.
+
+Verified: full suite 297 passed (281→297), ruff/pyright clean, domain purity confirmed
+(`wallet_activity.py` imports only stdlib + `wallybot.domain.entity`/`validation`).
