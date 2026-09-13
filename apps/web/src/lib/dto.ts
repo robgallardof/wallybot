@@ -53,3 +53,16 @@ export const marketsSchema = z.object({
   as_of: z.string(),
   rows: z.array(marketRowSchema),
 });
+export const smartMoneyRowSchema = z.object({
+  wallet_id: z.string(),
+  status: z.enum(["SCORED", "INSUFFICIENT_DATA"]),
+  score: z.string().nullable(),
+  trade_count: z.number(),
+  win_rate: z.string().nullable(),
+  realized_pnl_usd: z.string().nullable(),
+  computed_at: z.string(),
+  reasons: z.array(z.string()),
+});
+export const smartMoneySchema = z.object({
+  rows: z.array(smartMoneyRowSchema),
+});

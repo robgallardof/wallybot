@@ -199,5 +199,17 @@
   "Última señal hace {{seconds}} s": "Last heartbeat {{seconds}} s ago",
   "No se han recibido estados de procesos.": "No process statuses received.",
   "Integraciones": "Integrations",
-  "Estos estados son los informados por el sistema; no certifican acceso para operar.": "These statuses are reported by the system; they do not certify trading access."
+  "Estos estados son los informados por el sistema; no certifican acceso para operar.": "These statuses are reported by the system; they do not certify trading access.",
+  "Inteligencia": "Intelligence",
+  "Cargando puntajes de Smart Money…": "Loading Smart Money scores…",
+  "No se pudieron cargar los puntajes de Smart Money. El servicio puede no estar disponible.": "Could not load Smart Money scores. The service may be unavailable.",
+  "Wallets Smart Money": "Smart Money wallets",
+  "Puntaje 0-100 a partir de operaciones on-chain observadas: tasa de acierto y PnL realizado. Nunca clasifica una wallet como Smart Money por una sola operación ganadora.": "0-100 score from observed on-chain trades: win rate and realized PnL. Never classifies a wallet as Smart Money from a single winning trade.",
+  "Señal de observación, no una recomendación de inversión ni una orden de compra.": "An observation signal, not investment advice or a buy order.",
+  "No hay wallets monitoreadas con puntaje todavía.": "No monitored wallets have a score yet.",
+  "Operaciones": "Trades",
+  "Tasa de acierto": "Win rate",
+  "Evaluada": "Scored",
+  "Datos insuficientes": "Insufficient data",
+  "Sin motivos informados.": "No reasons reported."
 }

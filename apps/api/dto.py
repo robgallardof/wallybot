@@ -102,3 +102,18 @@ class MarketRowView(BaseModel):
 class MarketsView(BaseModel):
     as_of: str
     rows: list[MarketRowView]
+
+
+class SmartMoneyRowView(BaseModel):
+    wallet_id: str
+    status: Literal["SCORED", "INSUFFICIENT_DATA"]
+    score: str | None
+    trade_count: int
+    win_rate: str | None
+    realized_pnl_usd: str | None
+    computed_at: str
+    reasons: list[str]
+
+
+class SmartMoneyView(BaseModel):
+    rows: list[SmartMoneyRowView]

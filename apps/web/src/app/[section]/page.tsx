@@ -7,6 +7,7 @@ const sections = [
   "dashboard",
   "portfolio",
   "markets",
+  "intelligence",
   "research",
   "risk",
   "events",

@@ -16,6 +16,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from apps.api.auth_routes import router as auth_router
 from apps.api.dependencies import SignedIn
+from apps.api.intelligence_routes import router as intelligence_router
 from apps.api.market_routes import router as market_router
 from apps.api.system_routes import router as system_router
 from wallybot.application.market_overview import build_market_overview
@@ -150,7 +151,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     # Known rough edge: this must be bumped by hand on every new migration head.
                     # Resolving it dynamically via alembic's ScriptDirectory is a real improvement
                     # but out of scope for the migration that happens to need the bump.
-                    if revision != "0011_trade_proposals":
+                    if revision != "0012_smart_money_api_grant":
                         raise ValueError("Schema not ready")
                     if await db.scalar(text("SELECT id FROM control WHERE id = 1")) != 1:
                         raise ValueError("Control state not ready")
@@ -166,4 +167,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(system_router)
     app.include_router(market_router)
+    app.include_router(intelligence_router)
     return app

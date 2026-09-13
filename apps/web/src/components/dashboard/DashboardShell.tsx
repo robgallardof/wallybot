@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Activity,
+  Brain,
   FlaskConical,
   LayoutDashboard,
   LineChart,
@@ -20,6 +21,7 @@ const navigation = [
   ["dashboard", "Resumen", LayoutDashboard],
   ["portfolio", "Portafolio", Wallet],
   ["markets", "Mercados", LineChart],
+  ["intelligence", "Inteligencia", Brain],
   ["research", "Investigación", FlaskConical],
   ["risk", "Riesgo", ShieldCheck],
   ["events", "Actividad", Activity],

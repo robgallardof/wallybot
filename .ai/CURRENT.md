@@ -410,11 +410,34 @@ suite 438 passed (341→438), ruff/pyright clean, migration applied and verified
 
 **Codex parallel UI task:** launched `codex exec --approve-for-me` in the background (after the
 user approved a `.claude/settings.local.json` permission rule for `Bash(codex exec*)`, gitignored)
-to finish/commit its own already-uncommitted UI work (apps/web/* + docs/PENDING.md +
-docs/UI-DESIGN.md + .ai/HANDOFF.md draft + scripts/dev.py + scripts/e2e_server.py +
-.github/workflows/ci.yml, all dirty in the working tree from an earlier session). Still running as
-of this note — check its own commits/handoff update before assuming it finished or guessing what
-it did.
+to finish/commit its own already-uncommitted UI work. It hit its own ChatGPT usage limit mid-task
+(not a Claude Code permission issue) before reaching its commit step — its work stayed uncommitted
+but intact in the tree (nothing lost). User then said they weren't seeing progress and to "hazlas"
+(actually do them) — Claude verified (tsc/eslint/next build/full Playwright suite, all green) and
+committed Codex's pending UI work directly (`9e812da`): markets filters, grouped system panel,
+richer activity search, and a real dev.py bug fix (the web process was mislabeled "api" and given
+full backend credentials; now isolated to `WALLY_DEV_API` only).
+
+**Smart Money UI connected end-to-end** (2026-09-13) — the first Phase 10/11 intelligence
+capability made visible in the product, closing the "backend exists, nothing shows it" gap
+`docs/PENDING.md` flags. `wallybot/infrastructure/smart_money_repository.py` gained `list_latest()`
+(Postgres `DISTINCT ON` per wallet, newest-first) — the Smart Money repository previously only
+supported per-wallet `latest`/`history`, no cross-wallet listing. `apps/api/intelligence_routes.py`
+(`GET /api/intelligence/smart-money`, `SignedIn`-gated) + `apps/api/dto.py`'s
+`SmartMoneyRowView`/`SmartMoneyView`. **Found and fixed a real access-control gap while wiring
+this**: `wally_api` had never been granted `SELECT` on `smart_money_score_snapshots` (only
+`wally_worker`, which writes it, had any grant) — added `migrations/versions/
+0012_smart_money_api_grant.py` rather than widen the role's grants generically. Bumped
+`apps/api/main.py`'s hardcoded Alembic revision check to `"0012_smart_money_api_grant"` (same
+recurring rough edge). Frontend: `apps/web/src/lib/dto.ts`'s `smartMoneyRowSchema`/
+`smartMoneySchema`, `useSmartMoneyData.ts`, `SmartMoneyPage.tsx` (table: wallet/status/score/
+trades/win-rate/PnL/reasons, loading/error/empty states, ES/EN), a new "Inteligencia" nav entry in
+`DashboardShell.tsx` (between Markets and Research) and `/intelligence` route in
+`app/[section]/page.tsx`. `tests/integration/test_smart_money_route.py` (auth-required + seeded
+scored/insufficient-data rows via the real repository) and a new Playwright test in
+`observability.spec.ts` (loading → empty → populated → error, mocked). Verified: full suite 441
+passed (438→441), ruff/pyright/tsc/eslint/next-build all clean, `api` and `web` containers rebuilt
+and redeployed, `/health/ready` → `ready` at the new migration head, `/login` serving 200.
 
 
 ## Activity inspection UI — 2026-09-12

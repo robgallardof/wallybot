@@ -50,6 +50,31 @@ class SmartMoneyScoreRepository:
         ).scalar_one_or_none()
         return None if row is None else self._to_domain(row)
 
+    async def list_latest(self) -> tuple[SmartMoneyScoreSnapshot, ...]:
+        """One row per wallet: its most recent snapshot, newest-scored wallet first. Backs a
+        UI/API listing -- per-wallet history stays available via `history`."""
+        rows = (
+            (
+                await self.session.execute(
+                    select(SmartMoneyScoreSnapshotRow)
+                    .distinct(SmartMoneyScoreSnapshotRow.wallet_id)
+                    .order_by(
+                        SmartMoneyScoreSnapshotRow.wallet_id,
+                        SmartMoneyScoreSnapshotRow.computed_at.desc(),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return tuple(
+            sorted(
+                (self._to_domain(row) for row in rows),
+                key=lambda snapshot: snapshot.computed_at,
+                reverse=True,
+            )
+        )
+
     async def history(self, wallet_id: str) -> tuple[SmartMoneyScoreSnapshot, ...]:
         rows = (
             (

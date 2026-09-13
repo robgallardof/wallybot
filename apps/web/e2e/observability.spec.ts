@@ -67,6 +67,7 @@ async function shell(page: Page) {
       },
       "/api/system": system,
       "/api/events": [],
+      "/api/intelligence/smart-money": { rows: [] },
     };
     if (!(path in responses))
       throw new Error(`Unexpected API request: ${path}`);
@@ -228,4 +229,66 @@ test("activity empty/error states and translated search preserve original event 
   await expect(page.locator(".event-row strong")).toHaveText(
     "Instancia pausada",
   );
+});
+
+test("smart money direct route, loading, empty and populated states", async ({
+  page,
+}) => {
+  await shell(page);
+  let reply: "ok" | "error" | "empty" = "empty";
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const scored = {
+    rows: [
+      {
+        wallet_id: "solana:abc123",
+        status: "SCORED",
+        score: "72.5",
+        trade_count: 6,
+        win_rate: "0.83",
+        realized_pnl_usd: "450",
+        computed_at: "2026-01-10T00:00:00Z",
+        reasons: ["win_rate=0.83 over 6 completed trades"],
+      },
+      {
+        wallet_id: "solana:thin",
+        status: "INSUFFICIENT_DATA",
+        score: null,
+        trade_count: 2,
+        win_rate: null,
+        realized_pnl_usd: null,
+        computed_at: "2026-01-10T00:00:00Z",
+        reasons: ["only 2 completed round trip(s), need at least 5"],
+      },
+    ],
+  };
+  await page.route("**/api/intelligence/smart-money", async (route) => {
+    await gate;
+    await route.fulfill(
+      reply === "error"
+        ? { status: 503, json: { detail: "fixture unavailable" } }
+        : { json: reply === "empty" ? { rows: [] } : scored },
+    );
+  });
+  expect((await page.goto("/intelligence"))?.status()).toBe(200);
+  await expect(page.getByRole("status")).toContainText(
+    "Cargando puntajes de Smart Money",
+  );
+  release();
+  await expect(
+    page.getByText("No hay wallets monitoreadas con puntaje todavía."),
+  ).toBeVisible();
+  reply = "ok";
+  await page.getByRole("button", { name: "Actualizar", exact: true }).click();
+  await expect(page.getByRole("table").getByRole("row")).toHaveCount(3);
+  await expect(page.getByText("solana:abc123")).toBeVisible();
+  await expect(page.getByText("Datos insuficientes")).toBeVisible();
+  reply = "error";
+  await page.getByRole("button", { name: "Actualizar", exact: true }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "No se pudo actualizar",
+  );
+  await expect(page.getByRole("table")).toBeVisible();
 });
