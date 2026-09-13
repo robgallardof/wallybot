@@ -1,11 +1,12 @@
 # Phase 10 implementation backlog: wallet/entity intelligence infrastructure
 
-Status: Slice 1 (Entity/Wallet domain model) and Slice 2 (persistence) delivered and verified
-2026-09-13. Per ARCHITECTURE.md's implementation sequence: "Wallet/entity intelligence
-infrastructure -- Entity/Wallet Registry, correlation graph, on-chain event ingestion; OBSERVE
-mode only, no execution authority, buildable in parallel with earlier phases." This backlog is
-provisional past Slice 2, same discipline as `docs/PHASE_4.md`: each further slice gets its own
-design pass when actually started, not committed to upfront.
+Status: Slice 1 (Entity/Wallet domain model), Slice 2 (persistence) and Slice 3 (Entity
+Correlation Graph) delivered and verified 2026-09-13. Per ARCHITECTURE.md's implementation
+sequence: "Wallet/entity intelligence infrastructure -- Entity/Wallet Registry, correlation
+graph, on-chain event ingestion; OBSERVE mode only, no execution authority, buildable in parallel
+with earlier phases." This backlog is provisional past Slice 3, same discipline as
+`docs/PHASE_4.md`: each further slice gets its own design pass when actually started, not
+committed to upfront.
 
 | Order | Slice | Acceptance evidence |
 | --- | --- | --- |
@@ -15,7 +16,7 @@ design pass when actually started, not committed to upfront.
 | 4 | Provider ports + at least one real adapter (e.g. one on-chain data provider) | Not started |
 | 5 | On-chain event ingestion (webhook/subscription preferred over polling) | Not started |
 
-**This session implements Slices 1 and 2.**
+**This session implements Slices 1, 2 and 3.**
 
 ## Delivered: Slice 1 — Entity/Wallet/WalletCluster domain model
 
@@ -79,8 +80,44 @@ on every touched file, domain purity confirmed (`entity.py`/`wallet.py`/`validat
 only stdlib). Migration applied and verified against the live `wallybot-api` container
 (`/health/ready` returns `{"status":"ready"}` at head `0003_intelligence`).
 
-Explicitly not built in Slices 1-2: no Entity Correlation Graph (relationships between wallet/
-entity/token/event — Slice 3), no provider adapters or any real external data source (every test
-uses hand-built domain values, never a live API call), no on-chain event ingestion, no Smart
-Money scoring (Phase 11), no admin UI. This is registry infrastructure only — nothing in these
-two slices can read a signal that influences a trade, let alone place one.
+## Delivered: Slice 3 — Entity Correlation Graph
+
+- `wallybot/domain/relationship.py` (pure): `NodeReferenceType` (`WALLET`/`ENTITY`/`TOKEN`/
+  `EVENT`/`TRANSACTION`), `NodeReference` (a typed id pointing at any of those), `RelationshipType`
+  (all 12 the spec names: `OWNS`, `CONTROLS`, `FUNDS`, `TRADED`, `TRANSFERRED_TO`,
+  `TRANSFERRED_FROM`, `DEPLOYED`, `HOLDS`, `INVESTED_IN`, `RELATED_TO`, `DISCLOSED_TRADE`,
+  `INSIDER_OF`), `Relationship` (a flat, generic edge — source `NodeReference`, type, target
+  `NodeReference`, an `Attribution` reused directly from `entity.py` rather than inventing a
+  second provenance shape, created-at). `Company`/`Person`/`Fund`/`Exchange` from the wider spec's
+  own node-kind list all collapse to `ENTITY` here — `Entity.entity_type` already distinguishes
+  them, so a relationship endpoint does not need to repeat that distinction. A `Relationship`
+  cannot reference the same node as both source and target. Unlike `Entity`/`Wallet`, a
+  `Relationship` is one claim, not an accumulating identity: two independent sources reporting the
+  same real-world relationship are two rows, each with its own `Attribution`, not one row
+  gathering multiple attributions.
+- `migrations/versions/0004_relationships.py` + `RelationshipRow` in
+  `wallybot/infrastructure/models.py`: one table, `source_type`/`source_id`/`relationship_type`/
+  `target_type`/`target_id` plus the attribution fields embedded directly (no separate join
+  table, since a relationship carries exactly one attribution) — "the existing relational schema
+  models this initially, a graph database is a later option," per ARCHITECTURE.md.
+  `wallybot/infrastructure/relationship_repository.py`: `save` (insert-only — a caller re-saving
+  the same id is an error, not a silent merge), `get`, and `find_by_node` (every relationship
+  touching a node on either side — the one traversal a correlation graph needs at this stage).
+- `tests/unit/test_relationship.py` + `tests/integration/test_relationship_persistence.py`
+  (Testcontainers): construction validation (no self-referencing edges, mandatory id, aware
+  datetimes), round-trip, duplicate-id rejection, and `find_by_node` returning matches from
+  either side while ignoring unrelated nodes.
+
+Verified: full suite 281 passed (271→281), ruff/pyright clean, domain purity confirmed
+(`relationship.py` imports only stdlib + `wallybot.domain.entity`/`validation`), migration applied
+and verified against the live `wallybot-api` container (head `0004_relationships`,
+`/health/ready` returns `{"status":"ready"}`).
+
+Explicitly not built in Slices 1-3: no provider adapters or any real external data source (every
+test uses hand-built domain values, never a live API call), no on-chain event ingestion, no Smart
+Money scoring (Phase 11), no admin UI, no graph-traversal beyond one-hop `find_by_node` (multi-hop
+queries, e.g. "every wallet within two hops of this entity," are left for whenever a real query
+pattern needs them — possibly the trigger for actually introducing a graph database, per
+ARCHITECTURE.md's own "later option if query patterns actually need one"). This is registry
+infrastructure only — nothing in these three slices can read a signal that influences a trade,
+let alone place one.

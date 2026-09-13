@@ -215,11 +215,23 @@ aware-datetime/unit-interval checks. `migrations/versions/0003_intelligence.py` 
 `apps/api/main.py`'s hardcoded Alembic revision check again (same recurring rough edge as Phase 4
 Slice 4) to `"0003_intelligence"`. Verified: full suite 271 passed (243→265→271), ruff/pyright
 clean, domain purity confirmed, migration applied and verified against the live `wallybot-api`
-container. Not yet committed (Phase 10 files).
+container. Committed as `b7e22dc`.
 
-**Next up:** Slice 3 (Entity Correlation Graph) or Slice 4 (first real provider adapter) —
-neither started; both still pure registry/plumbing work with no execution authority, per
-ARCHITECTURE.md's own scoping for this phase.
+**Phase 10 Slice 3 delivered** (Entity Correlation Graph) — see `docs/PHASE_10.md`'s "Delivered:
+Slice 3". `wallybot/domain/relationship.py`: `NodeReference`/`NodeReferenceType`/
+`RelationshipType` (all 12 spec'd types)/`Relationship` — a flat generic edge reusing `Attribution`
+directly rather than a second provenance shape; `Company`/`Person`/`Fund`/`Exchange` all collapse
+to `ENTITY` (already distinguished by `Entity.entity_type`). `migrations/versions/
+0004_relationships.py` + `RelationshipRow` (one table, attribution fields embedded, no join
+table) + `RelationshipRepository` (insert-only `save`, `get`, one-hop `find_by_node`). Bumped
+`apps/api/main.py`'s hardcoded Alembic revision check again to `"0004_relationships"` (same
+recurring rough edge, still not fixed dynamically). Verified: full suite 281 passed
+(271→281), ruff/pyright clean, domain purity confirmed, migration applied and verified against
+the live `wallybot-api` container. Not yet committed.
+
+**Next up:** Slice 4 (first real provider adapter — e.g. one on-chain data provider) is the
+natural next step per `docs/PHASE_10.md`'s backlog, and the first place this phase actually
+touches a live external API rather than hand-built domain values in tests.
 
 
 ## Activity inspection UI — 2026-09-12

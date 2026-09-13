@@ -334,6 +334,37 @@ class WalletClusterMemberRow(Base):
     address: Mapped[str] = mapped_column(String(128), primary_key=True)
 
 
+class RelationshipRow(Base):
+    """Persists `wallybot.domain.relationship.Relationship` -- one flat, generic edge (typed
+    source/target node references) rather than a family of foreign-key columns per node kind, so
+    it stores today's relational schema cleanly and would translate directly to a graph edge
+    later without a data model change."""
+
+    __tablename__ = "relationships"
+    __table_args__ = (
+        CheckConstraint("source_type IN ('WALLET', 'ENTITY', 'TOKEN', 'EVENT', 'TRANSACTION')"),
+        CheckConstraint("target_type IN ('WALLET', 'ENTITY', 'TOKEN', 'EVENT', 'TRANSACTION')"),
+        CheckConstraint(
+            "relationship_type IN ('OWNS', 'CONTROLS', 'FUNDS', 'TRADED', 'TRANSFERRED_TO', "
+            "'TRANSFERRED_FROM', 'DEPLOYED', 'HOLDS', 'INVESTED_IN', 'RELATED_TO', "
+            "'DISCLOSED_TRADE', 'INSIDER_OF')"
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    source_type: Mapped[str] = mapped_column(String(16), index=True)
+    source_id: Mapped[str] = mapped_column(String(128), index=True)
+    relationship_type: Mapped[str] = mapped_column(String(24))
+    target_type: Mapped[str] = mapped_column(String(16), index=True)
+    target_id: Mapped[str] = mapped_column(String(128), index=True)
+    attribution_source: Mapped[str] = mapped_column(String(64))
+    attribution_source_entity_id: Mapped[str | None] = mapped_column(String(100))
+    attribution_confidence: Mapped[Decimal] = mapped_column(Numeric)
+    attribution_evidence: Mapped[str] = mapped_column(Text)
+    attribution_verification_status: Mapped[str] = mapped_column(String(16))
+    attribution_observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class LedgerPostingRow(Base):
     """Persists one `wallybot.domain.ledger.LedgerPosting` leg. Balance-per-currency is enforced
     by `LedgerTransaction.__post_init__` before anything reaches this table -- this row layer
