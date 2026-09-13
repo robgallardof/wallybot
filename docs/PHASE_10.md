@@ -1,26 +1,26 @@
 # Phase 10 implementation backlog: wallet/entity intelligence infrastructure
 
-Status: Slice 1 (Entity/Wallet domain model), Slice 2 (persistence) and Slice 3 (Entity
-Correlation Graph) delivered and verified 2026-09-13. Per ARCHITECTURE.md's implementation
-sequence: "Wallet/entity intelligence infrastructure -- Entity/Wallet Registry, correlation
-graph, on-chain event ingestion; OBSERVE mode only, no execution authority, buildable in parallel
-with earlier phases." This backlog is provisional past Slice 3, same discipline as
-`docs/PHASE_4.md`: each further slice gets its own design pass when actually started, not
-committed to upfront.
+Status: Slices 1-4c and Slice 5 (on-chain event ingestion, polling-based) delivered and verified
+2026-09-13. Per ARCHITECTURE.md's implementation sequence: "Wallet/entity intelligence
+infrastructure -- Entity/Wallet Registry, correlation graph, on-chain event ingestion; OBSERVE
+mode only, no execution authority, buildable in parallel with earlier phases." This backlog is
+provisional past Slice 5, same discipline as `docs/PHASE_4.md`: each further slice gets its own
+design pass when actually started, not committed to upfront.
 
 | Order | Slice | Acceptance evidence |
 | --- | --- | --- |
 | 1 | Entity/Wallet/WalletCluster domain model (pure, attribution-based provenance) | Unit tests: construction validation, mandatory attributions, unit-interval scores |
 | 2 | PostgreSQL schema + `EntityRepository`/`WalletRepository` | Integration tests: round-trip, upsert-without-duplicating-attributions, cluster insert-only semantics |
-| 3 | Entity Correlation Graph (typed relationships between wallet/entity/token/event) | Not started |
+| 3 | Entity Correlation Graph (typed relationships between wallet/entity/token/event) | Delivered — see "Delivered: Slice 3" below |
 | 4 | `WalletIntelligenceProvider` port + `FakeWalletIntelligenceProvider` | Unit + contract tests |
 | 4b | A real wallet/entity vendor adapter (Arkham/Nansen/Helius/Birdeye/Whale Alert/Dune/...) | Still blocked on API credentials -- see "Delivered: Slice 4" below |
 | 4c | `MarketMetadataProvider` port + real `CoinGeckoMarketMetadataProvider` adapter | Contract-tested against a real recorded response, verified live |
-| 5 | On-chain event ingestion (webhook/subscription preferred over polling) | Not started |
-
-**This session implements Slices 1 through 4c.** Slice 4b (a real *wallet/entity* intelligence
+| 5 | `WalletMonitoringService` (polling ingestion + dedup persistence) | Integration tests: new events persisted, overlapping re-sync deduped, one wallet's failure isolated |
+**This session implements Slices 1 through 5.** Slice 4b (a real *wallet/entity* intelligence
 adapter specifically) remains blocked on credentials; Slice 4c substitutes a real adapter for the
-market-metadata half of the provider list, which needs no key.
+market-metadata half of the provider list, which needs no key; Slice 5 ingests via polling rather
+than a webhook subscription, since no real wallet-intelligence provider is connected yet to offer
+one.
 
 ## Delivered: Slice 1 — Entity/Wallet/WalletCluster domain model
 
@@ -201,3 +201,43 @@ still Phase 11's `TokenRiskScore` territory), no historical/candle data from Coi
 remains `MarketDataProvider`'s job, already served by Kraken/Fake), no wiring of this provider
 into the decision pipeline or the scanner — this slice only proves the adapter itself works
 against the real service.
+
+## Delivered: Slice 5 — `WalletMonitoringService` (polling ingestion)
+
+ARCHITECTURE.md's own preference is "event/webhook subscriptions... preferred over polling," but
+nothing in this codebase has a webhook receiver endpoint yet, and no real wallet-intelligence
+vendor is connected (Slice 4b stays blocked). This slice delivers the polling fallback, which is
+the same operation a webhook-driven version would perform once triggered — "fetch activity since
+some point in time, persist anything new" — so switching to webhooks later changes only what
+*calls* `sync_wallet`, not `sync_wallet` itself.
+
+- `wallybot/infrastructure/models.py` + `migrations/versions/0005_wallet_activity.py`:
+  `WalletActivityEventRow` / `wallet_activity_events`, FK'd to `wallets(chain, address)` — an
+  event for a wallet the registry doesn't know about is a loud foreign-key error, not a silently
+  accepted orphan row. `(chain, address, transaction_hash, token, action)` is the dedup key: a
+  monitoring sync's `since` windows are expected to overlap, and re-observing the same transaction
+  is the normal case, not an error.
+- `wallybot/infrastructure/wallet_activity_repository.py`: `WalletActivityRepository.save`
+  returns whether the event was newly persisted (idempotent, never raises on a duplicate);
+  `list_for_wallet` reconstructs the domain events for one wallet.
+- `wallybot/infrastructure/wallet_repository.py` gained `list_enabled_wallets()` — monitoring
+  mode governs how collected data is *used* downstream, not whether it is collected at all
+  ("OBSERVE: collect data only" still means data gets collected), so this lists every *enabled*
+  wallet regardless of `monitoring_mode`.
+- `wallybot/application/wallet_monitoring_service.py`: `WalletMonitoringService.sync_wallet`
+  (one wallet) and `sync_all_enabled_wallets` (every enabled wallet, one bad wallet's exception
+  captured as its own `WalletSyncOutcome` rather than aborting the sync for the rest) — the same
+  shape as `ReconciliationService` from Phase 4 Slice 6.
+- `tests/integration/test_wallet_monitoring_service.py` (Testcontainers): new events persisted
+  and returned; re-syncing an overlapping window persists nothing new; enabled wallets are synced
+  and disabled ones are skipped; one wallet's provider exception is captured without stopping the
+  rest of the sweep.
+
+Verified: full suite 317 passed (314→317), ruff/pyright clean, migration applied and verified
+against the live `wallybot-api` container (head `0005_wallet_activity`).
+
+Explicitly not built in Slice 5: no webhook receiver endpoint, no scheduler actually calling
+`sync_all_enabled_wallets` periodically (a caller decides when — this slice only provides the
+operation, same as `ExecutionService.reconcile`/`ReconciliationService.sweep` only provided
+theirs), no wiring of ingested `WalletActivityEvent`s into Smart Money scoring or clustering
+signals (Phase 11's territory).

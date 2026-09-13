@@ -253,9 +253,21 @@ directly against the live API (real bitcoin/ethereum data, Ethereum's absent `ma
 correctly `None`, not a fabricated `0`). Verified: full suite 314 passed (297→314), ruff/pyright
 clean, domain purity confirmed. Not yet committed.
 
-**Next up:** either keep building Phase 10 (on-chain event ingestion, Slice 5) or pivot to Phase
-11 (Smart Money scoring) using fakes for now, since Slice 4b's real wallet-intelligence adapter
-stays blocked until the user supplies a key for one of the listed vendors.
+**Phase 10 Slice 5 delivered** (on-chain event ingestion, polling-based) — see `docs/PHASE_10.md`'s
+"Delivered: Slice 5". New `wallet_activity_events` table (FK'd to `wallets`, deduped on
+`(chain, address, transaction_hash, token, action)`), `WalletActivityRepository`,
+`WalletRepository.list_enabled_wallets()`, and `wallybot/application/wallet_monitoring_service.py`'s
+`WalletMonitoringService` (`sync_wallet`/`sync_all_enabled_wallets`, same per-item failure-isolation
+shape as `ReconciliationService`). Docker Desktop had stopped mid-session (needed to be relaunched
+and the full `docker compose up -d` stack brought back before verification could continue — noted
+here since it briefly blocked all Testcontainers-based integration tests, not just this slice's).
+Verified: full suite 317 passed (314→317), ruff/pyright clean, migration applied and verified
+against the live `wallybot-api` container. Not yet committed.
+
+**Phase 10 status: Slices 1-5 delivered.** Remaining backlog: Slice 4b (blocked on a real
+wallet/entity vendor API key), and beyond that, Phase 11 (Smart Money scoring/clustering) is the
+natural next major body of work — it can proceed now using `FakeWalletIntelligenceProvider` and
+the now-real `wallet_activity_events` log, without needing Slice 4b unblocked first.
 
 
 ## Activity inspection UI — 2026-09-12

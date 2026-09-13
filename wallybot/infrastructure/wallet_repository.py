@@ -120,6 +120,17 @@ class WalletRepository:
             updated_at=row.updated_at,
         )
 
+    async def list_enabled_wallets(self) -> tuple[tuple[str, str], ...]:
+        """`(chain, address)` for every enabled wallet -- what a monitoring sync iterates over.
+        Monitoring mode governs how collected data is *used* downstream, not whether it is
+        collected at all ("OBSERVE: collect data only" still means data gets collected)."""
+        rows = (
+            await self.session.execute(
+                select(WalletRow.chain, WalletRow.address).where(WalletRow.enabled)
+            )
+        ).all()
+        return tuple((row.chain, row.address) for row in rows)
+
     async def save_cluster(self, cluster: WalletCluster) -> None:
         existing = await self.session.get(WalletClusterRow, cluster.id)
         if existing is not None:

@@ -365,6 +365,47 @@ class RelationshipRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class WalletActivityEventRow(Base):
+    """Persists `wallybot.domain.wallet_activity.WalletActivityEvent`. `(chain, address,
+    transaction_hash, token, action)` is this table's dedup key -- a monitoring sync that re-fetches
+    overlapping history must not duplicate an event it already ingested."""
+
+    __tablename__ = "wallet_activity_events"
+    __table_args__ = (
+        ForeignKeyConstraint(["chain", "address"], ["wallets.chain", "wallets.address"]),
+        UniqueConstraint(
+            "chain",
+            "address",
+            "transaction_hash",
+            "token",
+            "action",
+            name="uq_wallet_activity_events_dedup",
+        ),
+        CheckConstraint(
+            "action IN ('BUY', 'SELL', 'SWAP', 'TRANSFER', 'MINT', 'BURN', 'ADD_LIQUIDITY', "
+            "'REMOVE_LIQUIDITY', 'APPROVE', 'STAKE', 'UNSTAKE', 'BRIDGE')"
+        ),
+        CheckConstraint("amount > 0"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    chain: Mapped[str] = mapped_column(String(32), index=True)
+    address: Mapped[str] = mapped_column(String(128), index=True)
+    transaction_hash: Mapped[str] = mapped_column(String(128))
+    token: Mapped[str] = mapped_column(String(64))
+    action: Mapped[str] = mapped_column(String(16))
+    amount: Mapped[Decimal] = mapped_column(Numeric)
+    value_usd: Mapped[Decimal | None] = mapped_column(Numeric)
+    price: Mapped[Decimal | None] = mapped_column(Numeric)
+    liquidity_usd: Mapped[Decimal | None] = mapped_column(Numeric)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    attribution_source: Mapped[str] = mapped_column(String(64))
+    attribution_source_entity_id: Mapped[str | None] = mapped_column(String(100))
+    attribution_confidence: Mapped[Decimal] = mapped_column(Numeric)
+    attribution_evidence: Mapped[str] = mapped_column(Text)
+    attribution_verification_status: Mapped[str] = mapped_column(String(16))
+    attribution_observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class LedgerPostingRow(Base):
     """Persists one `wallybot.domain.ledger.LedgerPosting` leg. Balance-per-currency is enforced
     by `LedgerTransaction.__post_init__` before anything reaches this table -- this row layer
