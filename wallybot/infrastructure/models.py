@@ -427,6 +427,27 @@ class SmartMoneyScoreSnapshotRow(Base):
     reasons: Mapped[list] = mapped_column(JSONB)
 
 
+class SmartMoneyClusterSignalRow(Base):
+    """Persists `wallybot.domain.smart_money_cluster.SmartMoneyClusterSignal`. Insert-only, same
+    reasoning as `SmartMoneyScoreSnapshotRow`: each detection run's output is a new fact about a
+    moment in time, never a correction of an earlier one."""
+
+    __tablename__ = "smart_money_cluster_signals"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    token: Mapped[str] = mapped_column(String(64), index=True)
+    chain: Mapped[str] = mapped_column(String(32), index=True)
+    action: Mapped[str] = mapped_column(String(24))
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    wallet_ids: Mapped[list] = mapped_column(JSONB)
+    independent_wallet_count: Mapped[int] = mapped_column(Integer)
+    total_value_usd: Mapped[Decimal] = mapped_column(Numeric)
+    average_entry_price: Mapped[Decimal] = mapped_column(Numeric)
+    independence_score: Mapped[Decimal] = mapped_column(Numeric)
+    confidence: Mapped[Decimal] = mapped_column(Numeric)
+    reasons: Mapped[list] = mapped_column(JSONB)
+
+
 class LedgerPostingRow(Base):
     """Persists one `wallybot.domain.ledger.LedgerPosting` leg. Balance-per-currency is enforced
     by `LedgerTransaction.__post_init__` before anything reaches this table -- this row layer

@@ -284,9 +284,29 @@ overwrite previous score snapshots"). Verified: full suite 331 passed (317→331
 clean, domain purity confirmed, migration applied and verified against the live `wallybot-api`
 container. Not yet committed.
 
-**Next up:** Phase 11 Slice 2 (Smart Money clustering — independent wallets converging on the
-same asset within a configurable window) is the natural next step and needs no new external data,
-only the wallet activity log and registry already built.
+**Phase 11 Slice 2 delivered** (Smart Money clustering) — see `docs/PHASE_11.md`'s "Delivered:
+Slice 2". `wallybot/domain/smart_money_cluster.py`: `SmartMoneyClusterSignal` (immutable,
+self-validating) + `detect_smart_money_clusters(events_by_wallet, entity_by_wallet, action, window,
+min_independent_wallets=3)` — a documented single left-to-right sweep per `(chain, token)` market
+that fires a signal when enough *independent* wallets (wallets sharing a known `entity_id` collapse
+to one participant) act on the same token within the window, jumping past every consumed event so
+no wallet is ever claimed by two signals. Same "honest partial evaluation" principle as Slice 1:
+liquidity/volume/holder change, price movement and market regime are named, by dimension, as "not
+evaluated" in every signal's `reasons` rather than folded into a fabricated confidence number.
+`SmartMoneyClusterSignalRow`/`migrations/versions/0007_smart_money_clusters.py`/
+`SmartMoneyClusterRepository` follow the exact insert-only pattern as Slice 1's score snapshots.
+Bumped `apps/api/main.py`'s hardcoded Alembic revision check again to
+`"0007_smart_money_clusters"` (same recurring rough edge, still not fixed dynamically). Verified:
+full suite 346 passed (331→346), ruff clean, pyright clean on every new/changed file (a
+pre-existing, unrelated pyright backlog in `test_security.py`/`auth_routes.py`/`system_routes.py`/
+`tests/integration/conftest.py` predates this slice), domain purity confirmed, migration applied
+and verified against the live `wallybot-api` container (head `0007_smart_money_clusters`,
+`/health/ready` → `ready`). Not yet committed.
+
+**Phase 11 status: Slices 1-2 delivered.** Remaining backlog: Slice 3 (token intelligence /
+`TokenRiskScore`), Slice 4 (whale intelligence), Slice 5 (provider reliability + price consensus)
+— none started, each needs its own design pass. Slice 4b (real wallet/entity vendor adapter) stays
+blocked on API credentials the user has not yet supplied.
 
 
 ## Activity inspection UI — 2026-09-12
