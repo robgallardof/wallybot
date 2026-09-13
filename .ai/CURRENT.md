@@ -463,7 +463,20 @@ order. `ShadowDecisionRow`/migration `0014_shadow_decisions`/`ShadowDecisionRepo
 after a SHADOW evaluation, `order_intents` stays empty. Verified: full suite 452 passed
 (447→452), ruff/pyright clean, container redeployed, `/health/ready` → `ready`.
 
-**What's realistically left for a "finished product"**: Phase 12 Slice 4 (real AI adapter --
+**Phase 5 kicked off** (datasets/backtests/evaluation) — see `docs/PHASE_5.md`. Slice 1 delivered:
+`wallybot/data/historical_query.py`'s `read_candles()`, a DuckDB reader over ADR-005's
+already-existing checksummed Parquet manifests (written since Phase 2 Slice 5, never read back
+until now). Two real bugs found and fixed via actual test execution: (1) an early draft
+fabricated `Instrument.price_increment`/etc. from Parquet columns that were never written —
+same mistake `TradeProposalRepository` already documents avoiding, fixed by having the caller
+supply the real `Instrument`; (2) DuckDB's Python client silently converts `TIMESTAMPTZ` to the
+host's local timezone on fetch — fixed with `SET TimeZone='UTC'`, caught only because the test
+suite actually ran on this machine and returned Mexico-City-shifted timestamps. Added `duckdb`
+and `pytz` as real dependencies. Verified: full suite 460 passed (452→460), ruff/pyright clean.
+Not yet committed as of this note.
+
+**What's realistically left for a "finished product"**: Phase 5 Slices 2-5 (backtest engine,
+walk-forward/Monte Carlo, experiment/registry persistence, UI), Phase 12 Slice 4 (real AI adapter --
 needs an authorized model/API key decision) and an orchestrator that actually calls
 `ShadowDecisionService` on a schedule (none exists yet); connecting the remaining Phase 10/11
 OBSERVE-only signals (wallet activity feed itself, entity correlation graph, provider
