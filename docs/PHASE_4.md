@@ -1,9 +1,9 @@
 # Phase 4 implementation backlog
 
 Status: Slice 1 (order intent + lifecycle state machine), Slice 2 (`ExchangeGateway` port +
-`FakeExchange` paper execution) and Slice 3 (balanced double-entry ledger value types) implemented
-and verified on 2026-09-12/13.
-Slices 4+ are a documented backlog only — not started. See [ARCHITECTURE](../ARCHITECTURE.md) for
+`FakeExchange` paper execution), Slice 3 (balanced double-entry ledger value types) and Slice 4
+(real PostgreSQL schema + migration + `UnitOfWork`) implemented and verified on 2026-09-12/13.
+Slices 5+ are a documented backlog only — not started. See [ARCHITECTURE](../ARCHITECTURE.md) for
 how Phase 4 fits the overall implementation sequence, [DATA](../DATA.md) for the ledger/
 reconciliation rules later slices must implement, and [PHASE_3](PHASE_3.md) for the completed
 signals/allocation/risk phase this builds on.
@@ -26,7 +26,7 @@ is actually designed, not committed to upfront.
 | 5 | `ExecutionService` (durable claim, SUBMITTING before network call, UNKNOWN resolution, reconcile-before-retry per ADR-008) | Failure-injection tests: crash before/after SUBMITTING, ambiguous timeout, no duplicate fills |
 | 6 | Reconciliation (fetch/dedupe/compare exchange state, persist discrepancies) | Integration tests against `FakeExchange`'s scripted outcomes (TESTING.md) |
 
-**This session implements Slices 1, 2 and 3.**
+**This session implements Slices 1, 2, 3 and 4.**
 
 ## Delivered: Slice 1 — `OrderIntent` + lifecycle state machine
 
@@ -130,3 +130,42 @@ Explicitly not built in Slice 3: no persistence, no builder that turns a `Fill` 
 `LedgerTransaction` automatically (that mapping — which accounts a given fill's cash/position/fee
 legs actually hit — belongs to the execution/reconciliation service Slices 4-6 that will also need
 Postgres), no position-lot or PnL calculation, no reversal/correction transactions.
+
+## Delivered: Slice 4 — real PostgreSQL schema + migration + `UnitOfWork`
+
+- `migrations/versions/0002_execution.py` (`down_revision = "0001_foundation"`) + matching ORM
+  rows in `wallybot/infrastructure/models.py`: `order_intents`, `order_transitions`, `fills`,
+  `ledger_accounts`, `ledger_transactions`, `ledger_postings` — mirrors Slices 1-3's value types
+  exactly, plus an `order_transitions` audit table (ADR-008 needs SUBMITTING, and every other
+  transition, persisted before/after calling an exchange). Two dedup unique constraints straight
+  from DATA.md's own wording: `order_intents(account_id, environment, idempotency_key)` and
+  `fills(venue, account_id, environment, fill_id)`. `ledger_transactions(account_id,
+  reference_id)` is this schema's own analogous dedup key (one transaction per fill, say). Money/
+  price/quantity columns are unconstrained `NUMERIC` (arbitrary precision, DATA.md: "reject
+  overflow rather than truncate"); all timestamps are `TIMESTAMPTZ`. Grants: only `wally_worker`
+  gets write access — the API process stays read-only here until a dashboard slice actually needs
+  orders/positions, matching least-privilege ("separate DB users and grants for migrations, API,
+  trading, scheduling and research").
+- `wallybot/infrastructure/unit_of_work.py`: `UnitOfWork` (save_order_intent, update_order_status,
+  save_fill, save_ledger_transaction — get-or-create for `LedgerAccount` rows so the same account
+  is never duplicated) plus a `unit_of_work(sessions)` async context manager built on this
+  codebase's existing `sessions.begin()` idiom (auto-commit on clean exit, rollback on exception).
+  This is purely a persistence primitive — it does not call any exchange or orchestrate the order
+  lifecycle; that orchestration is Slice 5's `ExecutionService`.
+- `tests/integration/test_execution_persistence.py` (Testcontainers, real Postgres): order-intent
+  round-trip + a recorded transition, both dedup unique constraints raising `IntegrityError` on a
+  duplicate, and a ledger-transaction round-trip that creates its accounts and balanced postings.
+  Needed a Windows-specific `event_loop_policy` fixture (psycopg's async driver rejects the default
+  ProactorEventLoop) since, unlike every other integration test, these talk to the database
+  directly rather than through `TestClient`'s own selector loop.
+- **Real bug found and fixed along the way:** `apps/api/main.py`'s `/health/ready` hardcodes the
+  expected Alembic head revision string (`"0001_foundation"`); adding this migration silently broke
+  it (readiness started returning 503) until bumped to `"0002_execution"`. Left an inline comment
+  flagging this as a rough edge — resolving the head dynamically via alembic's `ScriptDirectory` is
+  a real improvement but was out of scope for a migration that just needed the string bumped.
+
+Explicitly not built in Slice 4: no `ExecutionService` wiring `OrderIntent`'s state machine,
+`ExchangeGateway` and this `UnitOfWork` together; no reservations/position_lots/portfolio_snapshots/
+reconciliations tables (DATA.md names these, but nothing in Slices 1-3 produces that data yet); no
+outbox table (Slice 5's territory per `ARCHITECTURE.md`'s decision flow); no dashboard/API routes
+reading any of this back.

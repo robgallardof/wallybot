@@ -147,7 +147,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             async with asyncio.timeout(5):
                 async with request.app.state.sessions() as db:
                     revision = await db.scalar(text("SELECT version_num FROM alembic_version"))
-                    if revision != "0001_foundation":
+                    # Known rough edge: this must be bumped by hand on every new migration head.
+                    # Resolving it dynamically via alembic's ScriptDirectory is a real improvement
+                    # but out of scope for the migration that happens to need the bump.
+                    if revision != "0002_execution":
                         raise ValueError("Schema not ready")
                     if await db.scalar(text("SELECT id FROM control WHERE id = 1")) != 1:
                         raise ValueError("Control state not ready")

@@ -105,12 +105,26 @@ amounts)/`LedgerTransaction`, enforcing DATA.md's "debit/credit equality per ass
 units"). `tests/unit/test_ledger.py` + `tests/property/test_ledger_invariants.py` (Hypothesis:
 arbitrary balanced multi-currency posting sets always validate; any single unbalancing leg always
 fails). Verified: full suite 222 passed (213→222), ruff/pyright clean, domain purity confirmed
-(stdlib only). Not yet committed.
+(stdlib only). Committed as `0135a13`.
 
-**Next up:** Slice 4 (real PostgreSQL schema + Alembic migration for order/fill/ledger tables,
-`UnitOfWork`) is the next backlog item and a bigger jump — first real persistence for Phase 4,
-needs its own dedicated design pass per this session's established discipline, same as `RiskEngine`
-and Slice 2 got.
+**Phase 4 Slice 4 delivered** (real PostgreSQL schema + migration + `UnitOfWork`) — see
+`docs/PHASE_4.md`'s "Delivered: Slice 4". `migrations/versions/0002_execution.py` +
+`wallybot/infrastructure/models.py` ORM rows for order_intents/order_transitions/fills/
+ledger_accounts/ledger_transactions/ledger_postings, with DATA.md's two named dedup unique
+constraints. `wallybot/infrastructure/unit_of_work.py`: `UnitOfWork` + `unit_of_work()` context
+manager, pure persistence primitive (no orchestration — that's Slice 5). Found and fixed a real
+bug along the way: `apps/api/main.py`'s `/health/ready` hardcoded the Alembic head revision string,
+so this migration silently broke readiness (503) until bumped — left an inline comment flagging
+it as a known rough edge for a future dynamic fix. `tests/integration/test_execution_persistence.py`
+(Testcontainers/real Postgres) covers round-trips and both dedup constraints. Verified: full suite
+227 passed (222→227), ruff/pyright clean. Not yet committed.
+
+**Next up:** Slice 5 (`ExecutionService` — durable claim, SUBMITTING before network call, UNKNOWN
+resolution, reconcile-before-retry per ADR-008) is the next backlog item — the piece that actually
+wires `OrderIntent`'s state machine, `ExchangeGateway` and this `UnitOfWork` together. It's the
+highest-stakes piece of Phase 4 so far (failure-injection tests: crash before/after SUBMITTING,
+ambiguous timeout, no duplicate fills) and deserves its own dedicated design pass, same discipline
+as `RiskEngine` got in Phase 3.
 
 
 ## Activity inspection UI — 2026-09-12
