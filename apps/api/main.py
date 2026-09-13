@@ -150,7 +150,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     # Known rough edge: this must be bumped by hand on every new migration head.
                     # Resolving it dynamically via alembic's ScriptDirectory is a real improvement
                     # but out of scope for the migration that happens to need the bump.
-                    if revision != "0009_whale_transfers":
+                    if revision != "0010_provider_reliability":
                         raise ValueError("Schema not ready")
                     if await db.scalar(text("SELECT id FROM control WHERE id = 1")) != 1:
                         raise ValueError("Control state not ready")

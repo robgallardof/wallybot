@@ -484,6 +484,42 @@ class WhaleTransferSignalRow(Base):
     reasons: Mapped[list] = mapped_column(JSONB)
 
 
+class ProviderReliabilitySnapshotRow(Base):
+    """Persists `wallybot.domain.provider_reliability.ProviderReliabilitySnapshot`. Insert-only:
+    a provider's reliability changes over time, and history should show that, same reasoning as
+    every other score/signal snapshot table in this schema."""
+
+    __tablename__ = "provider_reliability_snapshots"
+    __table_args__ = (
+        CheckConstraint("status IN ('HEALTHY', 'DEGRADED', 'UNRELIABLE', 'INSUFFICIENT_DATA')"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    provider: Mapped[str] = mapped_column(String(64), index=True)
+    status: Mapped[str] = mapped_column(String(24))
+    call_count: Mapped[int] = mapped_column(Integer)
+    error_rate: Mapped[Decimal | None] = mapped_column(Numeric)
+    average_latency_ms: Mapped[Decimal | None] = mapped_column(Numeric)
+    seconds_since_last_success: Mapped[Decimal | None] = mapped_column(Numeric)
+    reasons: Mapped[list] = mapped_column(JSONB)
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class PriceConsensusResultRow(Base):
+    """Persists `wallybot.domain.price_consensus.PriceConsensusResult`. Insert-only, same
+    reasoning as every other snapshot table -- each computation is a fact about a moment in time."""
+
+    __tablename__ = "price_consensus_results"
+    __table_args__ = (CheckConstraint("status IN ('CONSENSUS', 'INSUFFICIENT_DATA')"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    instrument_id: Mapped[str] = mapped_column(String(64), index=True)
+    status: Mapped[str] = mapped_column(String(24))
+    consensus_price: Mapped[Decimal | None] = mapped_column(Numeric)
+    included_sources: Mapped[list] = mapped_column(JSONB)
+    excluded_sources: Mapped[list] = mapped_column(JSONB)
+    reasons: Mapped[list] = mapped_column(JSONB)
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
 class LedgerPostingRow(Base):
     """Persists one `wallybot.domain.ledger.LedgerPosting` leg. Balance-per-currency is enforced
     by `LedgerTransaction.__post_init__` before anything reaches this table -- this row layer

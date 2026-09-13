@@ -337,11 +337,33 @@ full suite 380 passed (368→380), ruff/pyright clean, domain purity confirmed, 
 and verified against the live `wallybot-api` container (head `0009_whale_transfers`,
 `/health/ready` → `ready`). Not yet committed.
 
-**Phase 11 status: Slices 1-4 delivered.** Remaining backlog: Slice 5 (provider reliability +
-price consensus) — not started, needs its own design pass. Slice 4b (real wallet/entity vendor
-adapter), Slice 3's real `SecurityAnalysisProvider` adapter, and Slice 4's exchange-flow
-classification (needs a `WalletActivityEvent` schema extension, not just a vendor key) all remain
-open items.
+**Phase 11 Slice 5 delivered** (provider reliability + price consensus) — see `docs/PHASE_11.md`'s
+"Delivered: Slice 5". `wallybot/domain/provider_reliability.py`: `ProviderCallOutcome` +
+`compute_provider_reliability(provider, outcomes, now)` — HEALTHY/DEGRADED/UNRELIABLE/
+INSUFFICIENT_DATA from error rate/latency thresholds, fewer than 5 calls yields INSUFFICIENT_DATA,
+no success at all always forces UNRELIABLE. `wallybot/domain/price_consensus.py`: `PriceQuote` +
+`compute_price_consensus(instrument_id, quotes, now, max_staleness, outlier_threshold_pct)` —
+drops stale quotes before computing at all, excludes median-outliers, needs ≥2 surviving quotes or
+yields INSUFFICIENT_DATA. Both are pure functions tested against synthetic inputs since this
+codebase still has only one real provider per data kind (no live multi-provider overlap exists yet
+to compute a genuine consensus from). Neither wires into the existing `wallybot/risk/` breaker
+mechanism or any real adapter's call path — that instrumentation is separate future work.
+Persistence (`ProviderReliabilitySnapshotRow`/`PriceConsensusResultRow` + migration
+`0010_provider_reliability_and_price_consensus.py` + two repositories) follows the same
+insert-only pattern as Slices 1-4. Bumped `apps/api/main.py`'s hardcoded Alembic revision check
+again to `"0010_provider_reliability"`. Verified: full suite 412 passed (380→412), ruff/pyright
+clean, domain purity confirmed, migration applied and verified against the live `wallybot-api`
+container (head `0010_provider_reliability`, `/health/ready` → `ready`). Not yet committed.
+
+**Phase 11 status: complete — Slices 1-5 all delivered.** Real, tracked open items across the
+whole phase (each named explicitly in its own slice's `reasons`/`UNSCORED_DIMENSIONS`/
+`UNEVALUATED_DIMENSIONS`, never silently declared done): Slice 4b's real wallet/entity vendor
+adapter, Slice 3's real `SecurityAnalysisProvider` adapter, Slice 4's exchange-flow classification
+(needs a `WalletActivityEvent` schema extension), and Slice 5's circuit-breaker wiring/real
+multi-provider data/rate-limit-outage detection. Per ARCHITECTURE.md's implementation sequence,
+Phase 12+ (AI strategy layer/`TradeProposal`, political/financial disclosure ingestion, or wiring
+any of Phase 10/11's OBSERVE-only signals into the actual decision pipeline) is the natural next
+body of work — none started, each needs its own design pass.
 
 
 ## Activity inspection UI — 2026-09-12

@@ -1,10 +1,12 @@
 # Phase 11 implementation backlog: Smart Money scoring and clustering
 
-Status: Slices 1-4 delivered and verified 2026-09-13. Per ARCHITECTURE.md's implementation
-sequence: "Smart Money scoring and clustering, token/whale intelligence, provider reliability and
-price consensus." This backlog is provisional past Slice 4, same discipline as
-`docs/PHASE_4.md`/`docs/PHASE_10.md`: each further slice gets its own design pass when actually
-started, not committed to upfront.
+Status: Slices 1-5 delivered and verified 2026-09-13 — **Phase 11's originally-scoped backlog is
+now complete.** Per ARCHITECTURE.md's implementation sequence: "Smart Money scoring and
+clustering, token/whale intelligence, provider reliability and price consensus." Each slice below
+was still given its own design pass when started, same discipline as `docs/PHASE_4.md`/
+`docs/PHASE_10.md` — completing the backlog table does not mean every dimension the wider spec
+names is implemented; each slice's "Explicitly not built" section is the honest record of what is
+still open.
 
 | Order | Slice | Acceptance evidence |
 | --- | --- | --- |
@@ -12,9 +14,9 @@ started, not committed to upfront.
 | 2 | Smart Money clustering (independent wallets converging on the same asset) | Unit + property tests; integration tests for insert-only history |
 | 3 | Token intelligence (`TokenRiskScore` from `SecurityAnalysisProvider`) | Unit + property tests; integration tests for insert-only history; port + fake only (no real vendor key) |
 | 4 | Whale intelligence (large-transfer signals; exchange-flow direction deferred, see below) | Unit + property tests; integration tests for insert-only history |
-| 5 | Provider reliability tracking + price consensus across independent feeds | Not started |
+| 5 | Provider reliability tracking + price consensus across independent feeds | Unit + property tests; integration tests for insert-only history |
 
-**This session implements Slices 1, 2, 3 and 4.**
+**This session implements Slices 1 through 5.**
 
 ## Delivered: Slice 1 — Smart Money scoring engine
 
@@ -243,3 +245,79 @@ Explicitly not built in Slice 4: exchange/stablecoin flow-direction classificati
 no scheduler or service that calls `detect_whale_transfers` automatically, no wiring of a
 `WhaleTransferSignal` into any signal, strategy or the decision pipeline. No provider
 reliability/price consensus (Slice 5).
+
+## Delivered: Slice 5 — Provider reliability tracking + price consensus
+
+Per ARCHITECTURE.md: "Provider reliability (latency, errors, rate limits, freshness, outages,
+cross-provider disagreement) drives circuit breakers and exponential backoff with jitter; no
+single provider is ever the sole source of truth for a decision that can move money, and where
+multiple independent price feeds exist WallyBot computes a consensus price and rejects orders
+against a stale or outlier quote." Two independent pure computations, tested against synthetic
+inputs since this codebase still only has one provider wired up per data kind (Kraken for market
+data, CoinGecko for metadata) — there is no live multi-provider overlap to compute a real
+consensus from yet, same situation `classify_regime`/`RiskEngine` were built in before every real
+consumer existed.
+
+- `wallybot/domain/provider_reliability.py` (pure): `ProviderCallOutcome` (one observed call —
+  provider, success, latency, timestamp), `ProviderReliabilityStatus`
+  (HEALTHY/DEGRADED/UNRELIABLE/INSUFFICIENT_DATA), `ProviderReliabilitySnapshot` (immutable,
+  self-validating). `compute_provider_reliability(provider, outcomes, now)`: fewer than
+  `MIN_CALLS_FOR_STATUS` (5) observed calls yields `INSUFFICIENT_DATA` — a handful of samples
+  cannot tell a real outage from noise, same principle as Smart Money's minimum-trade-count gate.
+  Otherwise computes error rate, average latency and time since the last success, classifying
+  HEALTHY/DEGRADED/UNRELIABLE from threshold crossings (a total absence of any successful call is
+  always UNRELIABLE, regardless of the raw error-rate math). Rate-limit pressure, outage detection
+  and cross-provider disagreement are named `UNEVALUATED_DIMENSIONS`: no current adapter surfaces
+  rate-limit headers, and there is only one provider per data kind, so there is nothing to
+  disagree across yet. **Does not itself implement a circuit breaker or backoff policy** — wiring
+  a computed status into the existing breaker mechanism in `wallybot/risk/` is real future work.
+- `wallybot/domain/price_consensus.py` (pure): `PriceQuote` (source, price, timestamp),
+  `PriceConsensusStatus` (CONSENSUS/INSUFFICIENT_DATA), `PriceConsensusResult` (immutable,
+  self-validating). `compute_price_consensus(instrument_id, quotes, now, max_staleness,
+  outlier_threshold_pct)`: quotes older than `max_staleness` are dropped before consensus is even
+  computed — "reject a stale quote" is enforced by exclusion, not a flag a caller could ignore. A
+  quote deviating from the group median by more than `outlier_threshold_pct` is excluded as an
+  outlier and named in `reasons`, never silently averaged in. Fewer than
+  `MIN_QUOTES_FOR_CONSENSUS` (2) quotes survive both filters yields `INSUFFICIENT_DATA` — a
+  "consensus" from one confirmed source isn't a consensus.
+- `wallybot/infrastructure/models.py` + `migrations/versions/
+  0010_provider_reliability_and_price_consensus.py`: `ProviderReliabilitySnapshotRow` /
+  `provider_reliability_snapshots` and `PriceConsensusResultRow` / `price_consensus_results` —
+  both insert-only, same reasoning as every other snapshot table in this schema.
+  `wallybot/infrastructure/provider_reliability_repository.py` /
+  `wallybot/infrastructure/price_consensus_repository.py`: `save` only ever inserts;
+  `latest`/`history` read back per provider/instrument.
+- `tests/unit/test_provider_reliability.py` + `tests/unit/test_price_consensus.py`: threshold
+  crossings for each status, the "no success at all forces UNRELIABLE" rule, staleness/outlier
+  exclusion, insufficient-data when too few quotes survive either filter, and both value types'
+  own construction invariants.
+- `tests/property/test_provider_reliability_invariants.py` + `tests/property/
+  test_price_consensus_invariants.py` (Hypothesis): status always matches whether the minimum
+  sample size was reached, a consensus price (when present) is always positive and drawn only from
+  real source names, included/excluded source sets never overlap, and both computations are
+  byte-for-byte deterministic.
+- `tests/integration/test_provider_reliability_persistence.py` + `tests/integration/
+  test_price_consensus_persistence.py` (Testcontainers): round-trip, a second snapshot/result never
+  overwrites the first, and an `INSUFFICIENT_DATA` record round-trips with no computed price/
+  metrics.
+
+Verified: full suite 412 passed (380→412), ruff clean, pyright clean on every new/changed file
+(same pre-existing, unrelated pyright backlog noted in Slice 2 untouched), domain purity confirmed
+(both modules import only stdlib + `wallybot.domain.validation`), migration applied and verified
+against the live `wallybot-api` container (head `0010_provider_reliability`, `/health/ready` →
+`ready`).
+
+Explicitly not built in Slice 5: no real circuit breaker/backoff wiring off a computed
+`ProviderReliabilityStatus` (the existing breaker mechanism lives in `wallybot/risk/` and this
+slice does not touch it), no scheduler or service that records `ProviderCallOutcome`s from actual
+adapter calls (Kraken/CoinGecko clients don't emit them yet — that instrumentation is separate
+future work), no second real price feed to compute a genuine multi-provider consensus from, no
+rate-limit/outage/cross-provider-disagreement evaluation (named `UNEVALUATED_DIMENSIONS`).
+
+**Phase 11's originally-scoped backlog (Slices 1-5) is complete.** The wider spec's remaining
+named-but-unbuilt dimensions across all five slices (unrealized PnL/drawdown/Sharpe-like
+adjustment/entry-exit timing/rug-wash exposure for Smart Money; liquidity/volume/holder deltas for
+clustering; holder concentration/contract-pool-developer age for token risk; exchange-flow
+direction for whale intelligence; circuit breakers, real multi-provider data and rate-limit/outage
+detection for reliability) remain real, tracked gaps — each named explicitly in its own slice's
+`reasons`/`UNSCORED_DIMENSIONS`/`UNEVALUATED_DIMENSIONS`, not silently declared done.
