@@ -1,11 +1,11 @@
 # Phase 3 implementation backlog
 
-Status: Slices 1-3 (regime classification; `Strategy` port + trend-following strategy;
-`SignalAggregator`) implemented and verified on 2026-09-12. Slices 4-5 are a documented backlog
-only — not started, not scaffolded as empty placeholders. See [ARCHITECTURE](../ARCHITECTURE.md)
-for how Phase 3 fits the overall implementation sequence, [RISK](../RISK.md) for the deterministic
-risk policy Slice 5 must implement, and [PHASE_2](PHASE_2.md) for the completed market/data/scanner
-phase this builds on.
+Status: Slices 1-4 (regime classification; `Strategy` port + trend-following strategy;
+`SignalAggregator`; `PortfolioAllocator`) implemented and verified on 2026-09-12. Slice 5
+(`RiskEngine`) is a documented backlog only — not started, not scaffolded as empty placeholders.
+See [ARCHITECTURE](../ARCHITECTURE.md) for how Phase 3 fits the overall implementation sequence,
+[RISK](../RISK.md) for the deterministic risk policy Slice 5 must implement, and
+[PHASE_2](PHASE_2.md) for the completed market/data/scanner phase this builds on.
 
 | Order | Slice | Acceptance evidence |
 | --- | --- | --- |
@@ -92,3 +92,43 @@ that anywhere downstream yet since nothing downstream (allocation, risk) exists 
 Explicitly not built in Slice 3: no `PortfolioAllocator` or `RiskEngine` consuming an
 `AggregatedSignal` yet (Slices 4-5) — an aggregated BUY/SELL/HOLD recommendation is still just a
 recommendation until something proposes a position size and something else approves it.
+
+## Delivered: Slice 4 — `PortfolioAllocator`
+
+- `wallybot/domain/portfolio.py`: `Bucket` (`CORE`/`GROWTH`/`SPECULATIVE`), `PortfolioPolicy`
+  (versioned; bucket targets that must sum to exactly 1, speculative operating/absolute maxima,
+  single-speculative-asset maximum, max open positions — **every default comes from RISK.md's own
+  Initial Policy table, none invented**: 70/20/10 targets, 10% operating / 15% absolute speculative
+  ceiling, 3% single speculative asset, 1 open position), `PortfolioState` (equity, per-bucket and
+  per-asset exposure grouped across venues per RISK.md, open position count), `AllocationProposal`
+  (approved/rejected with reasons; a dataclass invariant enforces approved⇒positive notional and
+  rejected⇒zero notional, so the two fields can never silently disagree), and the
+  `PortfolioAllocator` protocol (`propose(signal, bucket, state, policy, as_of) ->
+  AllocationProposal`) — matches `ARCHITECTURE.md`'s one-line Contracts description: "Proposed
+  allocation under bucket, asset and cluster capacities."
+- `wallybot/portfolio/simple_allocator.py` (new package, explicitly named in `ARCHITECTURE.md`'s
+  planned layout): `SimplePortfolioAllocator` — proposes bucket headroom scaled by the signal's
+  confidence, then (for `SPECULATIVE` only) further caps by the operating ceiling and the
+  single-asset ceiling. **Deliberately targets only the operating ceiling, never the absolute
+  one** — RISK.md: "The 15% absolute ceiling does not automatically authorize an increase from
+  10%. Such a change needs reviewed configuration, fresh MFA and explicit operator action"; nothing
+  in this allocator has a path to that ceiling. A `SELL` signal raises rather than silently
+  no-op'ing, because reducing/closing a position needs real position data this phase has no
+  representation for yet (that's Phase 4 ledger territory) — a strategy proposing a sell here would
+  otherwise be silently ignored, which is worse than a loud error.
+- `tests/unit/test_portfolio.py` (value validation, including the `RISK.md`-matching default
+  policy) and `tests/unit/test_simple_allocator.py`: HOLD/SELL handling, max-open-positions,
+  bucket-ceiling-reached, a full `CORE` allocation computed by hand, the speculative single-asset
+  cap taking priority over a wider bucket room, a synthetic wider-bucket-target policy isolating
+  the operating-ceiling branch specifically, and the single-speculative-asset-ceiling branch.
+
+Explicitly not built in Slice 4: the actual stop-risk position-sizing formula from RISK.md's "Loss
+calculations and sizing" section (needs entry/stop price and a risk-budget concept this phase has
+no representation for) — that belongs to `RiskEngine` (Slice 5), which also has final approve/
+reject/reduce authority over whatever this allocator proposes. No cluster-level concentration
+(only bucket + single-asset) — nothing yet defines what a "cluster" grouping is. No `AI` advisory
+step from the trade-decision flow — that is Phase 6.
+
+**Slice 5 (`RiskEngine`) remains a dedicated, separate planning item** — it is the authoritative
+approval gate for real financial exposure and RISK.md is explicit that its thresholds must never be
+invented ad hoc.
