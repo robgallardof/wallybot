@@ -143,13 +143,34 @@ first, exactly matching the lifecycle diagram's own edge, before resolving furth
 acceptance evidence: happy path with the exact expected transition sequence, rejected submission
 never re-attempted, `UNKNOWN` resolved only via `reconcile()`, repeated `reconcile()` never
 double-posts, both crash scenarios, and a scripted partial fill observed exactly once. Verified:
-full suite 237 passed (227→237), ruff/pyright clean. Not yet committed.
+full suite 237 passed (227→237), ruff/pyright clean. Committed as `b3faee0`.
 
-**Phase 4 status: Slices 1-5 done.** Slice 6 (reconciliation: fetch/dedupe/compare exchange state
-against Postgres, persist discrepancies) is the last backlog item and the natural next step, but
-is lower-stakes than Slice 5 was — most of its machinery (`ExchangeGateway.lookup_order`/
-`list_fills`, `UnitOfWork.fill_exists`, `ExecutionService.reconcile`) already exists from Slice 5;
-what's missing is the batch/scheduled sweep across *all* open orders rather than one at a time.
+**Phase 4 Slice 6 delivered** (reconciliation sweep) — see `docs/PHASE_4.md`'s "Delivered: Slice
+6". `wallybot/application/reconciliation_service.py`: `ReconciliationService.sweep(environment)`
+calls `ExecutionService.reconcile_order` across every non-terminal order in Postgres, catching one
+order's failure as its own `ReconciliationOutcome` rather than aborting the sweep. Refactored
+`ExecutionService.reconcile`/`_observe` to work off plain `(client_order_id, venue, account_id,
+environment)` instead of requiring a full `OrderIntent` — that was always all they used, and it's
+what makes a sweep possible at all (Postgres never stored full `Instrument` fidelity, so a sweep
+reading rows back could never reconstruct one). `reconcile(intent)` still works unchanged for the
+common case; `reconcile_order(...)` is the new sweep-facing entry point.
+`UnitOfWork.list_open_order_intents(environment)` is the one new read. Verified: full suite 240
+passed (237→240), ruff/pyright clean. Not yet committed.
+
+**Phase 4 status: all 6 slices done — Phase 4 is complete as `docs/PHASE_4.md`'s backlog scoped
+it.** Explicitly still missing (each flagged in the relevant slice's "Delivered" section, not a
+surprise): cancellation orchestration, position-lot/PnL, real balance reconciliation against a
+venue, an outbox, a scheduler actually calling `sweep()` periodically, and any dashboard/API
+surface reading order/fill/ledger state back. Per `docs/PENDING.md`'s own recommended delivery
+order ("mercado visible y calidad → decisión persistida → PAPER con ledger y recuperación →
+evaluación reproducible → ..."), the natural next major body of work is either (a) wiring Phase
+3's `RiskEngine`/`PortfolioAllocator` output into an actual persisted "decision" that becomes the
+`OrderIntent` this phase's `ExecutionService` consumes — closing the gap between "signals exist"
+and "PAPER trades actually happen end-to-end" — or (b) more UI-facing work, since everything in
+Phase 4 is still backend-only and invisible, same category of gap the Markets screen fixed for
+Phase 2. Given this session's history (the user's last UI-visibility complaint), (b) may be the
+more valuable next move once Phase 4's backend is committed, but the connecting-decision-to-intent
+work in (a) is what actually makes a first real PAPER trade possible at all.
 
 
 ## Activity inspection UI — 2026-09-12

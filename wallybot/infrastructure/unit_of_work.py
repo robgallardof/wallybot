@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from wallybot.domain.execution import Fill
 from wallybot.domain.ledger import LedgerTransaction
-from wallybot.domain.order import OrderIntent, OrderStatus
+from wallybot.domain.order import TERMINAL_STATUSES, OrderIntent, OrderStatus
 from wallybot.infrastructure.models import (
     FillRow,
     LedgerAccountRow,
@@ -82,6 +82,23 @@ class UnitOfWork:
     async def get_order_status(self, client_order_id: str) -> OrderStatus | None:
         row = await self.session.get(OrderIntentRow, client_order_id)
         return OrderStatus(row.status) if row is not None else None
+
+    async def list_open_order_intents(self, environment: str) -> list[tuple[str, str, str, str]]:
+        """`(client_order_id, venue, account_id, environment)` for every non-terminal order in
+        `environment` -- exactly what a reconciliation sweep needs, without requiring the full
+        `Instrument` fidelity (tick sizes, etc.) this table doesn't carry."""
+        result = await self.session.execute(
+            select(
+                OrderIntentRow.client_order_id,
+                OrderIntentRow.venue,
+                OrderIntentRow.account_id,
+                OrderIntentRow.environment,
+            ).where(
+                OrderIntentRow.environment == environment,
+                OrderIntentRow.status.not_in([status.value for status in TERMINAL_STATUSES]),
+            )
+        )
+        return [tuple(row) for row in result.all()]
 
     async def fill_exists(
         self, venue: str, account_id: str, environment: str, fill_id: str

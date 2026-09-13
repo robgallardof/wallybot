@@ -1,10 +1,10 @@
 # Phase 4 implementation backlog
 
-Status: Slice 1 (order intent + lifecycle state machine), Slice 2 (`ExchangeGateway` port +
-`FakeExchange` paper execution), Slice 3 (balanced double-entry ledger value types), Slice 4
-(real PostgreSQL schema + migration + `UnitOfWork`) and Slice 5 (`ExecutionService`) implemented
-and verified on 2026-09-12/13.
-Slice 6 is a documented backlog only — not started. See [ARCHITECTURE](../ARCHITECTURE.md) for
+Status: all six slices implemented and verified on 2026-09-12/13 — order intent + lifecycle state
+machine, `ExchangeGateway` port + `FakeExchange` paper execution, balanced double-entry ledger
+value types, real PostgreSQL schema + migration + `UnitOfWork`, `ExecutionService`, and a
+reconciliation sweep. **Phase 4 as scoped by this backlog is complete**; see each slice's
+"Delivered" section below for exactly what that does and does not mean. See [ARCHITECTURE](../ARCHITECTURE.md) for
 how Phase 4 fits the overall implementation sequence, [DATA](../DATA.md) for the ledger/
 reconciliation rules later slices must implement, and [PHASE_3](PHASE_3.md) for the completed
 signals/allocation/risk phase this builds on.
@@ -27,7 +27,7 @@ is actually designed, not committed to upfront.
 | 5 | `ExecutionService` (durable claim, SUBMITTING before network call, UNKNOWN resolution, reconcile-before-retry per ADR-008) | Failure-injection tests: crash before/after SUBMITTING, ambiguous timeout, no duplicate fills |
 | 6 | Reconciliation (fetch/dedupe/compare exchange state, persist discrepancies) | Integration tests against `FakeExchange`'s scripted outcomes (TESTING.md) |
 
-**This session implements Slices 1 through 5.**
+**This session implements all six slices.**
 
 ## Delivered: Slice 1 — `OrderIntent` + lifecycle state machine
 
@@ -220,3 +220,47 @@ scheduling of `reconcile()` for orders left at `UNKNOWN` (a future scheduler/rec
 Slice 6's territory, decides when to call it — `ExecutionService` only provides the operation);
 no outbox events; no risk re-validation (an intent is assumed already `VALIDATED` by the time it
 reaches `submit()`).
+
+## Delivered: Slice 6 — reconciliation sweep
+
+- `wallybot/application/reconciliation_service.py`: `ReconciliationService.sweep(environment)`
+  fetches every non-terminal `order_intent` in that environment and calls
+  `ExecutionService.reconcile_order` on each — composing Slice 5's already-built resolution logic
+  across every open order rather than one at a time, per DATA.md: "Run at startup, before LIVE
+  activation, periodically, after ambiguous requests, and after reconnects ... Reconciliation is
+  account-scoped ... and restartable." One order's failure is caught and returned as a
+  `ReconciliationOutcome(client_order_id, resolved_status=None, error=...)` rather than aborting
+  the sweep for the rest — DATA.md's "do not treat a partial/failed fetch as an empty account"
+  applied to a sweep of many orders instead of one.
+- Refactored `ExecutionService.reconcile`/`_observe` to work off plain
+  `(client_order_id, venue, account_id, environment)` rather than requiring a full `OrderIntent`
+  object, since that was always all they actually used — `venue` is the only piece of `Instrument`
+  either ever touches. This is what makes the sweep possible at all: `order_intents` never stored
+  full `Instrument` fidelity (tick sizes, etc.), so a sweep reading rows back from Postgres could
+  never have reconstructed a real `OrderIntent` to call the old signature with.
+  `ExecutionService.reconcile(intent)` still exists unchanged for the common case (right after
+  `submit()` returns `UNKNOWN`, the caller still holds the full intent); `reconcile_order(...)` is
+  the new lower-level entry point the sweep uses.
+- `UnitOfWork.list_open_order_intents(environment)` — the one new read this slice needed.
+- `tests/integration/test_reconciliation_service.py` (Testcontainers): a sweep resolves multiple
+  `UNKNOWN` orders left over from a simulated crash; terminal orders and other environments are
+  correctly excluded from a sweep; one corrupted order's `InvalidOrderTransition` is captured as
+  that order's outcome without stopping the sweep from resolving (or attempting) the rest.
+
+Explicitly not built in Slice 6, matching DATA.md's fuller reconciliation section but genuinely
+out of scope until something needs it: balance/position comparison against the venue
+(`ExchangeGateway` has no balance-fetching method — nothing before this needed one); persisted
+discrepancy evidence beyond the returned outcomes (no `reconciliations` table); pagination over
+exchange history (`lookup_order`/`list_fills` are both already scoped to one order at a time, so
+there is nothing to paginate yet); scheduling (something — Phase 4's own scheduler process,
+eventually — has to decide when `sweep()` runs; this slice only provides the operation, exactly
+as `ExecutionService.reconcile` only provided the operation for a single order in Slice 5).
+
+**With Slice 6 delivered, Phase 4 ("Replay, paper execution, ledger and recovery under failures")
+is complete as this backlog scoped it.** What it does NOT cover, and what would need its own
+phase/slice treatment before any of it is true: cancellation, position-lot/PnL calculation,
+real balance reconciliation, an outbox for downstream notifications, a scheduler actually calling
+`sweep()` periodically, and any dashboard/API surface reading order/fill/ledger state back —
+`docs/PENDING.md`'s own "Orden de entrega recomendado" still places "PAPER con ledger y
+recuperación" before evaluation/AI/reports/LIVE gates, and this is the ledger+recovery half of
+that, not the whole thing.

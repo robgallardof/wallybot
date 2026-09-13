@@ -108,12 +108,28 @@ class ExecutionService:
             await uow.update_order_status(
                 intent.client_order_id, OrderStatus.SUBMITTED, OrderStatus.ACKNOWLEDGED, now
             )
-        return await self._observe(intent, OrderStatus.ACKNOWLEDGED)
+        return await self._observe(
+            intent.client_order_id,
+            intent.instrument.venue,
+            intent.account_id,
+            intent.environment,
+            OrderStatus.ACKNOWLEDGED,
+        )
 
     async def reconcile(self, intent: OrderIntent) -> OrderStatus:
-        current_status = await self._current_status(intent.client_order_id)
+        """Reconcile one order this process still holds a full `OrderIntent` for (the common
+        case: right after `submit()` returned UNKNOWN). For reconciling orders known only from
+        persisted state -- a scheduled sweep, say -- see `reconcile_order`."""
+        return await self.reconcile_order(
+            intent.client_order_id, intent.instrument.venue, intent.account_id, intent.environment
+        )
+
+    async def reconcile_order(
+        self, client_order_id: str, venue: str, account_id: str, environment: str
+    ) -> OrderStatus:
+        current_status = await self._current_status(client_order_id)
         if current_status is None:
-            raise ValueError(f"no such order_intent: {intent.client_order_id}")
+            raise ValueError(f"no such order_intent: {client_order_id}")
         if current_status in TERMINAL_STATUSES:
             return current_status
 
@@ -125,25 +141,27 @@ class ExecutionService:
             now = self.clock.now()
             async with unit_of_work(self.sessions) as uow:
                 await uow.update_order_status(
-                    intent.client_order_id, current_status, OrderStatus.UNKNOWN, now
+                    client_order_id, current_status, OrderStatus.UNKNOWN, now
                 )
             current_status = OrderStatus.UNKNOWN
 
-        lookup = await self.gateway.lookup_order(intent.client_order_id)
+        lookup = await self.gateway.lookup_order(client_order_id)
         if lookup.status is VenueOrderStatus.NOT_FOUND:
             if current_status is not OrderStatus.UNKNOWN:
                 raise ValueError(
-                    f"gateway has no record of {intent.client_order_id}, but its recorded "
+                    f"gateway has no record of {client_order_id}, but its recorded "
                     f"status is {current_status}, not UNKNOWN"
                 )
             now = self.clock.now()
             async with unit_of_work(self.sessions) as uow:
                 await uow.update_order_status(
-                    intent.client_order_id, current_status, OrderStatus.VALIDATED, now
+                    client_order_id, current_status, OrderStatus.VALIDATED, now
                 )
             return OrderStatus.VALIDATED
 
-        return await self._observe(intent, current_status, lookup)
+        return await self._observe(
+            client_order_id, venue, account_id, environment, current_status, lookup
+        )
 
     async def _current_status(self, client_order_id: str) -> OrderStatus | None:
         async with unit_of_work(self.sessions) as uow:
@@ -151,15 +169,16 @@ class ExecutionService:
 
     async def _observe(
         self,
-        intent: OrderIntent,
+        client_order_id: str,
+        venue: str,
+        account_id: str,
+        environment: str,
         current_status: OrderStatus,
         lookup: OrderLookup | None = None,
     ) -> OrderStatus:
-        lookup = lookup or await self.gateway.lookup_order(intent.client_order_id)
+        lookup = lookup or await self.gateway.lookup_order(client_order_id)
         if lookup.status is VenueOrderStatus.NOT_FOUND:
-            raise ValueError(
-                f"gateway lost track of {intent.client_order_id} after acknowledging it"
-            )
+            raise ValueError(f"gateway lost track of {client_order_id} after acknowledging it")
         target = _VENUE_TO_ORDER_STATUS[lookup.status]
         now = self.clock.now()
         async with unit_of_work(self.sessions) as uow:
@@ -169,15 +188,13 @@ class ExecutionService:
                         f"gateway observed {target} from {current_status}, which is not a "
                         "valid transition"
                     )
-                await uow.update_order_status(intent.client_order_id, current_status, target, now)
-            for fill in await self.gateway.list_fills(intent.client_order_id):
-                already_seen = await uow.fill_exists(
-                    intent.instrument.venue, intent.account_id, intent.environment, fill.fill_id
-                )
+                await uow.update_order_status(client_order_id, current_status, target, now)
+            for fill in await self.gateway.list_fills(client_order_id):
+                already_seen = await uow.fill_exists(venue, account_id, environment, fill.fill_id)
                 if already_seen:
                     continue
-                uow.save_fill(fill, account_id=intent.account_id, environment=intent.environment)
+                uow.save_fill(fill, account_id=account_id, environment=environment)
                 await uow.save_ledger_transaction(
-                    build_fill_ledger_transaction(fill, account_id=intent.account_id)
+                    build_fill_ledger_transaction(fill, account_id=account_id)
                 )
         return target
