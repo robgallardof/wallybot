@@ -14,11 +14,13 @@ committed to upfront.
 | 2 | PostgreSQL schema + `EntityRepository`/`WalletRepository` | Integration tests: round-trip, upsert-without-duplicating-attributions, cluster insert-only semantics |
 | 3 | Entity Correlation Graph (typed relationships between wallet/entity/token/event) | Not started |
 | 4 | `WalletIntelligenceProvider` port + `FakeWalletIntelligenceProvider` | Unit + contract tests |
-| 4b | A real vendor adapter for the above (Arkham/Nansen/Helius/Birdeye/Whale Alert/Dune/...) | Blocked on API credentials -- see "Delivered: Slice 4" below |
+| 4b | A real wallet/entity vendor adapter (Arkham/Nansen/Helius/Birdeye/Whale Alert/Dune/...) | Still blocked on API credentials -- see "Delivered: Slice 4" below |
+| 4c | `MarketMetadataProvider` port + real `CoinGeckoMarketMetadataProvider` adapter | Contract-tested against a real recorded response, verified live |
 | 5 | On-chain event ingestion (webhook/subscription preferred over polling) | Not started |
 
-**This session implements Slices 1 through 4 (port + fake only; the real adapter needs
-credentials this session does not have -- see below).**
+**This session implements Slices 1 through 4c.** Slice 4b (a real *wallet/entity* intelligence
+adapter specifically) remains blocked on credentials; Slice 4c substitutes a real adapter for the
+market-metadata half of the provider list, which needs no key.
 
 ## Delivered: Slice 1 — Entity/Wallet/WalletCluster domain model
 
@@ -161,3 +163,41 @@ providers before Slice 4b can be completed the same way Kraken was.
 
 Verified: full suite 297 passed (281→297), ruff/pyright clean, domain purity confirmed
 (`wallet_activity.py` imports only stdlib + `wallybot.domain.entity`/`validation`).
+
+## Delivered: Slice 4c — `MarketMetadataProvider` port + real CoinGecko adapter
+
+User confirmed access to CoinGecko when asked which provider (if any) they had credentials for.
+CoinGecko's `/coins/markets` public endpoint needs no API key at all — verified live via `curl`
+before writing any code, the same check that unblocked Kraken in Phase 2. This is not a wallet/
+entity intelligence provider (Slice 4b, above, is still genuinely blocked); it is the real
+implementation of `MarketMetadataProvider`, a port ARCHITECTURE.md's Contracts table already
+named as planned before this session's expansion.
+
+- `wallybot/domain/market_metadata.py` (pure): `TokenMarketMetadata` (token id, symbol, name,
+  market cap/FDV/24h volume/circulating/total/max supply in USD, all optional and `None` — never
+  a fabricated zero — when the provider does not report them; `source`, `source_updated_at` (the
+  provider's own claimed freshness) and `fetched_at` (this system's own retrieval time) — the same
+  "exchange time vs. received time" distinction `Candle` already makes). `MarketMetadataProvider`
+  Protocol: `fetch_token_metadata(token_ids) -> list[TokenMarketMetadata]`.
+- `wallybot/market/coingecko.py`: `CoinGeckoMarketMetadataProvider`, with the same injectable-
+  transport shape as `wallybot/exchanges/kraken.py` (`CoinGeckoTransport` Protocol +
+  `HttpxCoinGeckoTransport`) so tests never depend on live network access. Every numeric field
+  converts via `Decimal(str(value))`, never `Decimal(value)` directly on a JSON float, to avoid
+  binary floating-point artifacts in what this codebase treats as authoritative money/supply data.
+- `tests/unit/test_market_metadata.py`; `tests/contract/test_coingecko.py` using a real recorded
+  response (`bitcoin`/`ethereum` from `/coins/markets`, captured 2026-09-13) as a fixture, per
+  TESTING.md's "do not depend on external ... availability for mandatory tests" — including
+  Ethereum's genuinely-absent `max_supply` staying `None`, not becoming a fabricated `0`.
+- **Verified against the live API directly** (not just the fixture), matching this session's
+  standing practice for every real adapter: `CoinGeckoMarketMetadataProvider` with a real
+  `SystemClock` and the real `HttpxCoinGeckoTransport` correctly fetched and normalized live
+  bitcoin/ethereum data with no API key.
+
+Verified: full suite 314 passed (297→314), ruff/pyright clean, domain purity confirmed.
+
+Explicitly not built in Slice 4c: no token security/safety fields (mint authority, liquidity
+locks, honeypot indicators — those need a different provider, `SecurityAnalysisProvider`, and are
+still Phase 11's `TokenRiskScore` territory), no historical/candle data from CoinGecko (that
+remains `MarketDataProvider`'s job, already served by Kraken/Fake), no wiring of this provider
+into the decision pipeline or the scanner — this slice only proves the adapter itself works
+against the real service.

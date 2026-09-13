@@ -238,12 +238,24 @@ no real provider exists yet to imitate. Contract suite + test module mirror the 
 Kraken/FakeExchange pattern. Verified: full suite 297 passed (281→297), ruff/pyright clean,
 domain purity confirmed. Not yet committed.
 
-**Blocked: Slice 4b (a real vendor adapter — Arkham/Nansen/Helius/Birdeye/Whale Alert/Dune/...).**
-Every one of these needs an API key this session does not have (unlike Kraken's public
-market-data endpoints, verified credential-free in Phase 2). Building a real adapter without one
-would mean an untested or fabricated-fixture adapter, which this session's discipline treats as
-equivalent to not having verified it. Asked the user which provider (if any) they have API access
-to, to unblock this the same way Kraken was unblocked by checking its docs instead of assuming.
+**Blocked: Slice 4b (a real wallet/entity vendor adapter — Arkham/Nansen/Helius/Birdeye/Whale
+Alert/Dune/...).** Every one of these needs an API key this session does not have (unlike
+Kraken's public market-data endpoints, verified credential-free in Phase 2). Asked the user which
+provider they had access to.
+
+**Phase 10 Slice 4c delivered** (user confirmed CoinGecko access). `wallybot/domain/
+market_metadata.py`: `TokenMarketMetadata`/`MarketMetadataProvider` — a port ARCHITECTURE.md's
+Contracts table already named as planned. `wallybot/market/coingecko.py`:
+`CoinGeckoMarketMetadataProvider`, same injectable-transport shape as `KrakenExchange`. Verified
+CoinGecko's `/coins/markets` needs no API key at all (checked live via `curl` first, same as
+Kraken). `tests/contract/test_coingecko.py` uses a real recorded response fixture; also verified
+directly against the live API (real bitcoin/ethereum data, Ethereum's absent `max_supply`
+correctly `None`, not a fabricated `0`). Verified: full suite 314 passed (297→314), ruff/pyright
+clean, domain purity confirmed. Not yet committed.
+
+**Next up:** either keep building Phase 10 (on-chain event ingestion, Slice 5) or pivot to Phase
+11 (Smart Money scoring) using fakes for now, since Slice 4b's real wallet-intelligence adapter
+stays blocked until the user supplies a key for one of the listed vendors.
 
 
 ## Activity inspection UI — 2026-09-12
