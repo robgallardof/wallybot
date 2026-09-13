@@ -322,10 +322,26 @@ domain purity confirmed, migration applied and verified against the live `wallyb
 (head `0008_token_risk`, `/health/ready` → `ready`). Committed as `a36c8fb` (Slice 2); Slice 3 not
 yet committed.
 
-**Phase 11 status: Slices 1-3 delivered.** Remaining backlog: Slice 4 (whale intelligence), Slice 5
-(provider reliability + price consensus) — neither started, each needs its own design pass. Slice
-4b (real wallet/entity vendor adapter) and Slice 3's real `SecurityAnalysisProvider` adapter both
-stay blocked on API credentials the user has not yet supplied.
+**Phase 11 Slice 4 delivered** (whale intelligence, large-transfer half only) — see
+`docs/PHASE_11.md`'s "Delivered: Slice 4". `wallybot/domain/whale_flow.py`:
+`WhaleTransferSignal` + `detect_whale_transfers(events, threshold_usd)` — flags any
+`WalletActivityEvent` whose `value_usd` meets/exceeds the threshold, skipping unpriced events
+rather than treating them as zero. Exchange/stablecoin flow-direction classification (the other
+half ARCHITECTURE.md names) is explicitly NOT built: `WalletActivityEvent` has no counterparty/
+destination-wallet field at all, so there's no data to classify a transfer as exchange-related —
+a real schema gap, not an API-key blocker, flagged as future work (extending `WalletActivityEvent`
+itself). `WhaleTransferSignalRow`/`migrations/versions/0009_whale_transfers.py`/
+`WhaleTransferRepository` follow the same insert-only pattern as Slices 1-3. Bumped
+`apps/api/main.py`'s hardcoded Alembic revision check again to `"0009_whale_transfers"`. Verified:
+full suite 380 passed (368→380), ruff/pyright clean, domain purity confirmed, migration applied
+and verified against the live `wallybot-api` container (head `0009_whale_transfers`,
+`/health/ready` → `ready`). Not yet committed.
+
+**Phase 11 status: Slices 1-4 delivered.** Remaining backlog: Slice 5 (provider reliability +
+price consensus) — not started, needs its own design pass. Slice 4b (real wallet/entity vendor
+adapter), Slice 3's real `SecurityAnalysisProvider` adapter, and Slice 4's exchange-flow
+classification (needs a `WalletActivityEvent` schema extension, not just a vendor key) all remain
+open items.
 
 
 ## Activity inspection UI — 2026-09-12

@@ -466,6 +466,24 @@ class TokenRiskScoreRow(Base):
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
 
+class WhaleTransferSignalRow(Base):
+    """Persists `wallybot.domain.whale_flow.WhaleTransferSignal`. Insert-only: each detected
+    transfer is its own fact, never updated or deduplicated at this layer -- the same reasoning as
+    `SmartMoneyClusterSignalRow`."""
+
+    __tablename__ = "whale_transfer_signals"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    wallet_id: Mapped[str] = mapped_column(String(128), index=True)
+    chain: Mapped[str] = mapped_column(String(32), index=True)
+    token: Mapped[str] = mapped_column(String(64), index=True)
+    action: Mapped[str] = mapped_column(String(24))
+    amount: Mapped[Decimal] = mapped_column(Numeric)
+    value_usd: Mapped[Decimal] = mapped_column(Numeric)
+    threshold_usd: Mapped[Decimal] = mapped_column(Numeric)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    reasons: Mapped[list] = mapped_column(JSONB)
+
+
 class LedgerPostingRow(Base):
     """Persists one `wallybot.domain.ledger.LedgerPosting` leg. Balance-per-currency is enforced
     by `LedgerTransaction.__post_init__` before anything reaches this table -- this row layer

@@ -1,8 +1,8 @@
 # Phase 11 implementation backlog: Smart Money scoring and clustering
 
-Status: Slices 1-3 delivered and verified 2026-09-13. Per ARCHITECTURE.md's implementation
+Status: Slices 1-4 delivered and verified 2026-09-13. Per ARCHITECTURE.md's implementation
 sequence: "Smart Money scoring and clustering, token/whale intelligence, provider reliability and
-price consensus." This backlog is provisional past Slice 3, same discipline as
+price consensus." This backlog is provisional past Slice 4, same discipline as
 `docs/PHASE_4.md`/`docs/PHASE_10.md`: each further slice gets its own design pass when actually
 started, not committed to upfront.
 
@@ -11,10 +11,10 @@ started, not committed to upfront.
 | 1 | `score_smart_money` (pure, FIFO-matched realized PnL/win-rate) + append-only persistence | Unit + property tests; integration tests for insert-only history |
 | 2 | Smart Money clustering (independent wallets converging on the same asset) | Unit + property tests; integration tests for insert-only history |
 | 3 | Token intelligence (`TokenRiskScore` from `SecurityAnalysisProvider`) | Unit + property tests; integration tests for insert-only history; port + fake only (no real vendor key) |
-| 4 | Whale intelligence (large-transfer/exchange-flow signals) | Not started |
+| 4 | Whale intelligence (large-transfer signals; exchange-flow direction deferred, see below) | Unit + property tests; integration tests for insert-only history |
 | 5 | Provider reliability tracking + price consensus across independent feeds | Not started |
 
-**This session implements Slices 1, 2 and 3.**
+**This session implements Slices 1, 2, 3 and 4.**
 
 ## Delivered: Slice 1 — Smart Money scoring engine
 
@@ -196,3 +196,50 @@ API key, same as Slice 4b), no wiring of a `TokenRiskScore` into any speculative
 strategy or the decision pipeline despite ARCHITECTURE.md's stated intent ("gating any speculative
 proposal before risk evaluation") — that wiring is real future work, not implied by this slice's
 scope. No whale intelligence (Slice 4), no provider reliability/price consensus (Slice 5).
+
+## Delivered: Slice 4 — Whale intelligence (large-transfer signals)
+
+Per ARCHITECTURE.md: "Whale intelligence tracks large transfers and exchange/stablecoin flows as
+signals, not as an automatic BUY/SELL interpretation." This slice delivers the large-transfer half
+only. `WalletActivityEvent` (Phase 10's only on-chain activity data source) carries no
+counterparty/destination-wallet field at all — classifying a transfer as exchange- or
+stablecoin-related needs that counterparty identity cross-referenced against the Entity Registry's
+`EXCHANGE` entities, and there is nowhere in the current data model to get it from. Rather than
+guessing a flow direction with no data behind it, `UNEVALUATED_DIMENSIONS` names
+`exchange_flow_direction`/`stablecoin_flow_classification` explicitly in every signal's `reasons`.
+Extending `WalletActivityEvent` with a counterparty field is real future work, flagged here, not
+resolved silently.
+
+- `wallybot/domain/whale_flow.py` (pure): `WhaleTransferSignal` (immutable, self-validating —
+  positive amount/value/threshold, `value_usd >= threshold_usd` by construction, at least one
+  reason, an aware `occurred_at`). `detect_whale_transfers(events, threshold_usd)`: flags every
+  event whose `value_usd` meets or exceeds `threshold_usd`; an event with no `value_usd` at all is
+  skipped, never treated as zero — an unpriced transfer's size is unknown, not small. Deliberately
+  a plain magnitude flag: "do not interpret a large transfer by itself as BUY or SELL," the same
+  rule `WalletActivityEvent`'s own docstring states for `action`, applied one level up.
+- `wallybot/infrastructure/models.py` + `migrations/versions/0009_whale_transfers.py`:
+  `WhaleTransferSignalRow` / `whale_transfer_signals` — insert-only, same reasoning as
+  `SmartMoneyClusterSignalRow`. `wallybot/infrastructure/whale_flow_repository.py`:
+  `WhaleTransferRepository.save` only ever inserts; `history_for_wallet`/`latest` read it back.
+- `tests/unit/test_whale_flow.py`: above/below/exactly-at threshold, an unpriced event is skipped
+  rather than zeroed, multiple qualifying events each produce their own signal, and
+  `WhaleTransferSignal`'s own construction invariants (including that a signal cannot be
+  constructed below its own threshold).
+- `tests/property/test_whale_flow_invariants.py` (Hypothesis): across arbitrary present/absent
+  values, the emitted signal count always matches the number of events at or above the threshold,
+  every signal's `value_usd` always meets the threshold, and detecting twice over the same input is
+  byte-for-byte deterministic.
+- `tests/integration/test_whale_flow_persistence.py` (Testcontainers): round-trip, a second signal
+  never overwrites the first, and `history_for_wallet` filters correctly by wallet.
+
+Verified: full suite 380 passed (368→380), ruff clean, pyright clean on every new/changed file
+(same pre-existing, unrelated pyright backlog noted in Slice 2 untouched), domain purity confirmed
+(`whale_flow.py` imports only stdlib + `wallybot.domain.validation`/`wallet_activity`), migration
+applied and verified against the live `wallybot-api` container (head `0009_whale_transfers`,
+`/health/ready` → `ready`).
+
+Explicitly not built in Slice 4: exchange/stablecoin flow-direction classification (blocked on a
+`WalletActivityEvent` schema gap, not an API key — a different kind of blocker than Slices 3/4b),
+no scheduler or service that calls `detect_whale_transfers` automatically, no wiring of a
+`WhaleTransferSignal` into any signal, strategy or the decision pipeline. No provider
+reliability/price consensus (Slice 5).
