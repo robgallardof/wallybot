@@ -59,7 +59,7 @@ export function Auth({
       </section>
       <section className="auth-panel">
         <div className="auth-card">
-          <div className="flex items-center justify-end gap-2 mb-5">
+          <div className="appearance-controls auth-appearance-controls">
             <LanguageSelector />
             <ThemeToggle />
           </div>

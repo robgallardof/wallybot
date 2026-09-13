@@ -87,7 +87,11 @@ export function DashboardShell({
               {i18n.t("La ejecución real no está disponible en esta fase.")}
             </p>
           </div>
-          <button className="user-button" onClick={logout}>
+          <button
+            className="user-button"
+            onClick={logout}
+            aria-label={i18n.t("Cerrar sesión")}
+          >
             <span className="avatar small">
               {user.username.slice(0, 1).toUpperCase()}
             </span>

@@ -24,6 +24,9 @@ jobs:
       - run: pnpm --dir apps/web lint && pnpm --dir apps/web build
       - run: pnpm --dir apps/web exec playwright install --with-deps chromium
       - run: pnpm --dir apps/web test:e2e
+      - run: pnpm --dir apps/web test:e2e
+        env:
+          WALLY_E2E_PRODUCTION: "1"
       - run: uv run bandit -r apps/api wallybot -q
       - run: uv run pip-audit --progress-spinner off
       - run: pnpm --dir apps/web audit

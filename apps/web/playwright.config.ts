@@ -7,7 +7,12 @@ export default defineConfig({
   retries: 0,
   timeout: 45000,
   reporter: "list",
-  use: { baseURL: "http://localhost:3334", trace: "off", screenshot: "off" },
+  use: {
+    baseURL: "http://localhost:3334",
+    trace: "off",
+    screenshot: "off",
+    colorScheme: "light",
+  },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     command:

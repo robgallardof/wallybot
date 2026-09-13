@@ -78,5 +78,9 @@ function App() {
 }
 
 export default function Application() {
-  return <QueryClientProvider client={client}><App /></QueryClientProvider>;
+  return (
+    <QueryClientProvider client={client}>
+      <App />
+    </QueryClientProvider>
+  );
 }

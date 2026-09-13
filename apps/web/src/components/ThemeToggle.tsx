@@ -18,6 +18,7 @@ export function ThemeToggle() {
       type="button"
       className="theme-toggle"
       aria-label={dark ? t("Cambiar a modo claro") : t("Cambiar a modo oscuro")}
+      title={dark ? t("Cambiar a modo claro") : t("Cambiar a modo oscuro")}
       onClick={() => setTheme(dark ? "light" : "dark")}
     >
       {dark ? <Sun size={16} /> : <Moon size={16} />}

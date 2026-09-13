@@ -9,11 +9,24 @@ const labels: Record<string, string> = {
   DISABLED: "Desactivado",
 };
 
-export function Service({ name, status }: { name: string; status?: string }) {
+export function Service({
+  name,
+  status,
+  description,
+}: {
+  name: string;
+  status?: string;
+  description?: string;
+}) {
   useTranslation();
   return (
     <div className="service-row">
-      <span>{name}</span>
+      <span>
+        {name}
+        {description && (
+          <small className="service-description">{description}</small>
+        )}
+      </span>
       <span
         className={
           status === "HEALTHY" ? "service-status good" : "service-status"

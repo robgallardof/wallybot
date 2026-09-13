@@ -650,7 +650,7 @@
   font-size: 11px;
 }
 :root .market-row-excluded {
-  opacity: 0.6;
+  background: var(--surface-raised);
 }
 :root .quality-pill {
   display: inline-block;
@@ -679,5 +679,159 @@
   :root.dark {
     --border: #92929c;
     --muted: #d1d1d8;
+  }
+}
+
+/* Activity inspection keeps backend audit records unchanged. */
+:root .activity-filters {
+  display: grid;
+  grid-template-columns: minmax(180px, 2fr) minmax(150px, 1fr) minmax(
+      150px,
+      1fr
+    );
+  gap: 14px;
+  margin: 22px 0;
+}
+:root .market-filters {
+  display: grid;
+  grid-template-columns: minmax(180px, 2fr) repeat(2, minmax(120px, 1fr)) auto;
+  align-items: end;
+  gap: 14px;
+  margin: 22px 0;
+}
+:root .market-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+:root .market-filters input,
+:root .market-filters select {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 10px 12px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+:root .markets-table td.market-details {
+  min-width: 180px;
+  max-width: 320px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+:root .market-details summary,
+:root .event-details summary {
+  min-height: 44px;
+  align-content: center;
+  cursor: pointer;
+  color: var(--accent);
+}
+:root .system-groups {
+  display: grid;
+  gap: 24px;
+}
+:root .system-groups h3 {
+  margin: 0 0 12px;
+}
+:root .system-updated {
+  margin-bottom: 24px;
+}
+:root .service-description {
+  display: block;
+  color: var(--muted);
+  margin-top: 6px;
+}
+:root .system-panel .service-row {
+  gap: 16px;
+  flex-wrap: wrap;
+}
+@media (max-width: 1000px) {
+  :root .market-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 600px) {
+  :root .market-filters {
+    grid-template-columns: 1fr;
+  }
+  :root .panel-heading {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+}
+:root .activity-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  min-width: 0;
+}
+:root .activity-filters input,
+:root .activity-filters select {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 10px 12px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+:root .activity-count {
+  color: var(--muted);
+  font-size: 12px;
+}
+:root .activity-empty {
+  padding: 30px 12px;
+  text-align: center;
+}
+:root .activity-panel .event-row {
+  align-items: flex-start;
+}
+:root .activity-panel .event-row > div {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+:root .event-details {
+  margin-top: 8px;
+  font-size: 12px;
+}
+:root .event-details summary {
+  cursor: pointer;
+  color: var(--accent);
+  padding: 8px 0;
+  width: fit-content;
+}
+:root .event-details dl {
+  margin: 8px 0;
+  background: var(--surface-raised);
+  padding: 12px;
+  border-radius: 9px;
+}
+:root .event-details dt {
+  color: var(--muted);
+  margin-top: 8px;
+}
+:root .event-details dt:first-child {
+  margin-top: 0;
+}
+:root .event-details dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 800px) {
+  :root .activity-filters {
+    grid-template-columns: 1fr;
+  }
+  :root .activity-panel .event-row time {
+    flex-basis: 100%;
+    margin-left: 44px;
   }
 }

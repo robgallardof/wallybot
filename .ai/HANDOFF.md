@@ -1,0 +1,21 @@
+# Codex UI handoff — 2026-09-12
+
+Claude is actively modifying backend/connectivity in this working tree. User explicitly assigned Codex UI/UX, especially dark mode. Preserve concurrent changes; do not commit or revert the entire tree.
+
+Delivered: apps/web/src/theme.css complete dark surfaces; layout imports it; ThemeToggle accessible title and 44px targets. QR stays white. Production browser tests exercise auth, theme persistence, ES/EN, CSP nonce and unknown-route 404. scripts/dev.py isolates web environment; CI adds WALLY_E2E_PRODUCTION tests with disposable DB and sanitized frontend environment.
+
+Verified: Next production build, 2 production browser tests, 10 environment tests, frontend lint and targeted Ruff. Docker web rebuilt and updated ALONE. Actual localhost mobile setup smoke: HTTP 200, dark palette, 390px without overflow or page errors. Screenshots in ignored apps/web/test-results. No real enrollment or secret reads.
+
+Backlog requested by user: docs/PENDING.md. Next UI work: integrate Claude's market contract, filters/loading/error states, accessible table interactions and translated event labels. Do not duplicate backend work. Test harness currently runs next start in production; it warns that standalone server.js is preferred. Exact standalone harness is a remaining improvement, although Docker standalone build and local mobile smoke passed.
+
+Two review agents hit account usage limits; no replay module was delivered by this team. Check CURRENT and actual working tree before taking another phase. Graphify query and AST-only update succeeded using C:/Users/kingg/AppData/Roaming/uv/tools/graphifyy/Scripts/graphify.exe; CLI was not on PATH.
+
+
+## Apple HIG-inspired UI refresh — 2026-09-12
+
+User rejected green palette. Codex replaced theme.css with semantic neutral white/gray and graphite surfaces, accessible blue actions, larger labels, system fonts, selected navigation aria-current/indicator, keyboard skip link, reduced-motion and contrast preferences. Design evidence: docs/UI-DESIGN.md. Two production E2E tests and lint passed; desktop clear/dark and mobile screenshots inspected. Only web service rebuilt; preserve Claude backend changes.
+
+
+## Activity inspection UI — 2026-09-12
+
+Codex continued observability UI while Claude owns market/backend integration. EventsPage adds text search (message/code/id), type filter, newest/oldest sort, refresh, explicit failure/stale states and empty filter reset. EventList detailed mode exposes stable ID, original event code and full UTC timestamp. Filters are explicitly limited to the latest 100 API events; no claim of full-history search or live stream. No API/DB changes. Verified frontend lint, Next production build and 2 production E2E tests including filters, details, ES/EN and mobile no-overflow; activity mobile screenshot inspected. Web-only deployment. Next: backend history pagination contract with Claude, translated display labels, live stream only after authenticated server delivery exists.

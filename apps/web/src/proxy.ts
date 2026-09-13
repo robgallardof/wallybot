@@ -9,8 +9,11 @@ export function proxy(request: NextRequest) {
     `style-src 'self' 'nonce-${nonce}'`,
     "img-src 'self' data:",
     `connect-src 'self'${development ? " ws: wss:" : ""}`,
-    "font-src 'self'", "object-src 'none'", "frame-ancestors 'none'",
-    "base-uri 'self'", "form-action 'self'",
+    "font-src 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
   ].join("; ");
   const headers = new Headers(request.headers);
   headers.set("x-nonce", nonce);

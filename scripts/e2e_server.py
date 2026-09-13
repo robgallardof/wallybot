@@ -32,9 +32,22 @@ def main() -> None:
             subprocess.run(
                 [sys.executable, "-m", "alembic", "upgrade", "head"], cwd=ROOT, env=env, check=True
             )
-            pnpm = shutil.which("pnpm.cmd" if os.name == "nt" else "pnpm")
-            if not pnpm:
-                raise SystemExit("pnpm required")
+            node = shutil.which("node")
+            if not node:
+                raise SystemExit("Node.js required")
+            next_cli = ROOT / "apps/web/node_modules/next/dist/bin/next"
+            web_env = {
+                key: value
+                for key, value in os.environ.items()
+                if not key.upper().startswith("WALLY_")
+            }
+            web_env["WALLY_DEV_API"] = "http://127.0.0.1:8001"
+            web_env["NEXT_TELEMETRY_DISABLED"] = "1"
+            production = os.environ.get("WALLY_E2E_PRODUCTION") == "1"
+            if production:
+                subprocess.run(
+                    [node, str(next_cli), "build"], cwd=ROOT / "apps/web", env=web_env, check=True
+                )
             children = []
             try:
                 children.append(
@@ -61,17 +74,16 @@ def main() -> None:
                 children.append(
                     subprocess.Popen(
                         [
-                            pnpm,
-                            "exec",
-                            "next",
-                            "dev",
+                            node,
+                            str(next_cli),
+                            "start" if production else "dev",
                             "--hostname",
                             "127.0.0.1",
                             "--port",
                             "3334",
                         ],
                         cwd=ROOT / "apps/web",
-                        env=env,
+                        env=web_env,
                     )
                 )
                 while all(child.poll() is None for child in children):

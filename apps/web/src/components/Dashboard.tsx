@@ -33,7 +33,7 @@ export function Dashboard({
     ? initial
     : "dashboard";
   const { dashboard, system, events, change } = useDashboardData();
-  const markets = useMarketsData();
+  const markets = useMarketsData(page === "markets");
   function navigate(next: string) {
     router.push(`/${next}`);
   }

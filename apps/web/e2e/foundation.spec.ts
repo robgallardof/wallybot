@@ -21,7 +21,36 @@ test("setup, MFA, dashboard, controls, activity, logout and recovery login", asy
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  const policyViolations: string[] = [];
+  await page.exposeFunction("recordPolicyViolation", (directive: string) => {
+    policyViolations.push(directive);
+  });
+  await page.addInitScript(() => {
+    document.addEventListener("securitypolicyviolation", (event) => {
+      const report = (
+        window as unknown as {
+          recordPolicyViolation: (directive: string) => void;
+        }
+      ).recordPolicyViolation;
+      report(event.effectiveDirective);
+    });
+  });
   await page.goto("/setup");
+  await page.getByRole("button", { name: "Cambiar a modo oscuro" }).click();
+  await expect(page.locator("html")).toHaveClass(/dark/);
+  await expect(page.locator(".auth-panel")).toHaveCSS(
+    "background-color",
+    "rgb(28, 28, 31)",
+  );
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Cambiar a modo claro" }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "test-results/setup-dark.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Cambiar a modo claro" }).click();
   await page.getByLabel("Idioma").selectOption("en");
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
@@ -98,6 +127,16 @@ test("setup, MFA, dashboard, controls, activity, logout and recovery login", asy
     path: "test-results/dashboard-desktop.png",
     fullPage: true,
   });
+  await page.getByRole("button", { name: "Cambiar a modo oscuro" }).click();
+  await expect(page.locator(".metric").first()).toHaveCSS(
+    "background-color",
+    "rgb(28, 28, 31)",
+  );
+  await page.screenshot({
+    path: "test-results/dashboard-dark.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Cambiar a modo claro" }).click();
   await page.getByRole("button", { name: "Riesgo", exact: true }).click();
   await page
     .getByRole("button", { name: "Pausar instancia", exact: true })
@@ -114,7 +153,35 @@ test("setup, MFA, dashboard, controls, activity, logout and recovery login", asy
     page.getByRole("heading", { name: "Instancia en preparación" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Actividad", exact: true }).click();
-  await expect(page.getByText("BOT PAUSED", { exact: true })).toBeVisible();
+  await expect(
+    page.locator(".event-row strong").filter({ hasText: "Instancia pausada" }),
+  ).toBeVisible();
+  await page.getByLabel("Buscar eventos").fill("no-such-event-12345");
+  await expect(
+    page.getByRole("heading", { name: "No hay eventos que coincidan" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Limpiar filtros" }).click();
+  await page.getByLabel("Tipo de evento").selectOption("BOT_PAUSED");
+  await expect(page.locator(".activity-panel .event-row")).toHaveCount(1);
+  await page.getByText("Ver detalles", { exact: true }).click();
+  await expect(
+    page.getByText("Código del evento", { exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".event-details code").last()).toHaveText(
+    "BOT_PAUSED",
+  );
+  await page.getByLabel("Idioma").selectOption("en");
+  await expect(page.getByText("View details", { exact: true })).toBeVisible();
+  await page.getByLabel("Language").selectOption("es");
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(390);
+  await page.screenshot({
+    path: "test-results/activity-mobile.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 1280, height: 720 });
   await page.getByRole("button", { name: "Sistema", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Servicios y dependencias" }),
@@ -132,7 +199,9 @@ test("setup, MFA, dashboard, controls, activity, logout and recovery login", asy
     fullPage: true,
   });
   await page.setViewportSize({ width: 1280, height: 720 });
-  await page.getByRole("button", { name: /browser-admin/ }).click();
+  await page
+    .getByRole("button", { name: "Cerrar sesión", exact: true })
+    .click();
   await expect(
     page.getByRole("heading", { name: "Bienvenido de nuevo" }),
   ).toBeVisible();
@@ -147,4 +216,27 @@ test("setup, MFA, dashboard, controls, activity, logout and recovery login", asy
     page.getByRole("heading", { name: "Una visión clara." }),
   ).toBeVisible();
   expect(errors).toEqual([]);
+  if (process.env.WALLY_E2E_PRODUCTION === "1")
+    expect(policyViolations).toEqual([]);
+});
+
+test("production HTML uses a fresh nonce and known Next routes", async ({
+  request,
+}) => {
+  test.skip(
+    process.env.WALLY_E2E_PRODUCTION !== "1",
+    "Production-only security check",
+  );
+  const first = await request.get("/setup");
+  const second = await request.get("/setup");
+  expect(first.status()).toBe(200);
+  const policy = first.headers()["content-security-policy"];
+  expect(policy).toContain("'strict-dynamic'");
+  expect(policy).not.toContain("'unsafe-eval'");
+  expect(policy).not.toContain("'unsafe-inline'");
+  const nonce = /'nonce-([^']+)'/.exec(policy)?.[1];
+  expect(nonce).toBeTruthy();
+  expect(second.headers()["content-security-policy"]).not.toBe(policy);
+  expect(await first.text()).toContain(`nonce="${nonce}"`);
+  expect((await request.get("/not-a-wallybot-page")).status()).toBe(404);
 });

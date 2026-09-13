@@ -5,9 +5,23 @@ import shutil
 import signal
 import subprocess
 import time
+from collections.abc import Mapping
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def web_environment(source: Mapping[str, str]) -> dict[str, str]:
+    """Keep the web proxy setting, never backend WallyBot credentials.
+
+    Match names case-insensitively because Windows environment names are not
+    case-sensitive. Unknown future WALLY_* settings are denied by default.
+    """
+    return {
+        key.upper() if key.upper() == "WALLY_DEV_API" else key: value
+        for key, value in source.items()
+        if not key.upper().startswith("WALLY_") or key.upper() == "WALLY_DEV_API"
+    }
 
 
 def main() -> None:
@@ -34,6 +48,8 @@ def main() -> None:
         base["WALLY_" + name.upper()] = value
 
     def environment(role: str) -> dict[str, str]:
+        if role == "web":
+            return web_environment(base)
         env = base.copy()
         if role not in {"owner", "api"}:
             env.pop("WALLY_ENCRYPTION_KEY", None)
@@ -76,7 +92,7 @@ def main() -> None:
         ([uv, "run", "python", "-m", "apps.worker"], "worker", ROOT),
         ([uv, "run", "python", "-m", "apps.scheduler"], "scheduler", ROOT),
         ([uv, "run", "python", "-m", "apps.research_worker"], "research", ROOT),
-        ([pnpm, "dev"], "api", ROOT / "apps/web"),
+        ([pnpm, "dev"], "web", ROOT / "apps/web"),
     ]
     children: list[subprocess.Popen] = []
     try:
