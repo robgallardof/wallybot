@@ -1,6 +1,6 @@
 # Phase 5 implementation backlog: datasets, backtests and evaluation
 
-Status: Slice 1 delivered 2026-09-13. Per ARCHITECTURE.md's implementation sequence: "Immutable
+Status: Slices 1-2 delivered 2026-09-13. Per ARCHITECTURE.md's implementation sequence: "Immutable
 datasets, backtests, walk-forward, Monte Carlo, benchmarks." Per PENDING.md's own recommended
 delivery order this is the natural next major body of work after Phase 4 (PAPER execution) and
 Phase 12 Slices 1-3 (AI proposals in SHADOW mode) — "mercado visible y calidad → decisión
@@ -15,7 +15,7 @@ its own design pass when started, same discipline as every phase before it.
 | 4 | Experiment record (dataset/code/config/seed) + strategy registry lifecycle | Integration tests: insert-only history, reproducibility from artifacts |
 | 5 | Backtest/experiment UI | Playwright: loading/error/empty states, ES/EN |
 
-**This session implements Slice 1.**
+**This session implements Slices 1-2.**
 
 ## Delivered: Slice 1 — DuckDB reader over checksummed Parquet manifests
 
@@ -61,3 +61,37 @@ walk-forward/Monte Carlo evaluation (Slices 2-3); any experiment/strategy-regist
 history are not yet written to Parquet at all — only `Candle` rows are).
 
 Verified: full suite 460 passed (452→460), ruff/pyright clean.
+
+## Delivered: Slice 2 — backtest engine (fills/costs model shared with PAPER)
+
+Per ARCHITECTURE.md: "Implementar backtesting con modelo de fills y costes explícito; compartir
+reglas verificables con PAPER." `wallybot/backtest/engine.py`'s `BacktestEngine`: single-
+instrument, single-strategy, long-only replay over a `list[Candle]` (from Slice 1's
+`read_candles`, or any other source honoring the same shape). At each candle, computes a
+`FeatureVector` via the injected `FeatureEngine` using only candles up to and including that one
+(`LookaheadError` already enforces this at the feature layer), classifies the regime, and asks
+the injected `Strategy` for a signal — the exact same composition `DecisionPipeline` uses, not a
+second parallel decision path.
+
+**Fill assumption stated plainly, not hidden in a formula**: this codebase's Parquet store only
+records OHLCV, never order-book depth or bid/ask, so there is no real spread to simulate against.
+A signal computed as-of candle *i*'s close fills at candle *i+1*'s open — never the signal
+candle's own price, which would be a lookahead bug. `BacktestCostModel.fee_rate` defaults to
+`FakeExchange`'s own `0.001`, so PAPER and backtests share one fee assumption instead of two
+independently invented ones; `slippage_pct` has no PAPER equivalent to share (FakeExchange
+simulates a real bid/ask spread instead) and is an explicitly-labeled placeholder, exactly like
+`smart_money.py`'s 60/40 split is labeled a placeholder, not a calibration.
+
+`tests/unit/test_backtest_engine.py`: a hand-built rise-then-fall candle series produces exactly
+one round-trip trade with the exact expected entry/exit fill prices (verified against
+`TrendFollowingStrategy`'s real momentum/regime logic, not a mocked strategy); fee and slippage
+are shown to actually shift fill prices and worsen PnL versus the zero-cost case; a flat series
+produces zero trades and zero drawdown; mixed-instrument, too-short-series, non-positive-equity
+and out-of-range-allocation inputs are all rejected. All 9 tests passed on first execution — the
+fill-price arithmetic was hand-derived before running, not adjusted to match unexpected output.
+
+**Explicitly not built**: walk-forward/Monte Carlo evaluation (Slice 3), multi-asset or
+multi-strategy portfolios, any risk-engine sizing (this allocates a fixed `allocation_pct` of
+current equity per trade and nothing else), short selling, any persistence of results (Slice 4).
+
+Verified: full suite 469 passed (460→469), ruff/pyright clean.

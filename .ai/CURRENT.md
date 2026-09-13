@@ -472,19 +472,29 @@ same mistake `TradeProposalRepository` already documents avoiding, fixed by havi
 supply the real `Instrument`; (2) DuckDB's Python client silently converts `TIMESTAMPTZ` to the
 host's local timezone on fetch — fixed with `SET TimeZone='UTC'`, caught only because the test
 suite actually ran on this machine and returned Mexico-City-shifted timestamps. Added `duckdb`
-and `pytz` as real dependencies. Verified: full suite 460 passed (452→460), ruff/pyright clean.
-Not yet committed as of this note.
+and `pytz` as real dependencies. Verified: full suite 460 passed (452→460), ruff/pyright clean. Committed.
 
-**What's realistically left for a "finished product"**: Phase 5 Slices 2-5 (backtest engine,
-walk-forward/Monte Carlo, experiment/registry persistence, UI), Phase 12 Slice 4 (real AI adapter --
-needs an authorized model/API key decision) and an orchestrator that actually calls
+**Phase 5 Slice 2 delivered** (backtest engine) — see `docs/PHASE_5.md`'s "Delivered: Slice 2".
+`wallybot/backtest/engine.py`'s `BacktestEngine`: single-instrument/single-strategy/long-only
+replay reusing `FeatureEngine`/`Strategy`/`classify_regime` exactly as `DecisionPipeline` does.
+Fills at the *next* candle's open (never the signal candle's own price -- would be lookahead);
+`BacktestCostModel.fee_rate` defaults to `FakeExchange`'s own 0.001 so PAPER and backtests share
+one fee assumption; `slippage_pct` is an explicit placeholder (no PAPER equivalent to share,
+since FakeExchange simulates a real spread instead). `tests/unit/test_backtest_engine.py`: 9
+tests, all passed on first run against hand-derived expected fill prices/PnL for a real
+rise-then-fall series driven by the actual `TrendFollowingStrategy`. Verified: full suite 469
+passed (460→469), ruff/pyright clean.
+
+**What's realistically left for a "finished product"**: Phase 5 Slices 3-5 (walk-forward/Monte
+Carlo, experiment/strategy-registry persistence, backtest UI); Phase 12 Slice 4 (real AI adapter
+-- needs an authorized model/API key decision) and an orchestrator that actually calls
 `ShadowDecisionService` on a schedule (none exists yet); connecting the remaining Phase 10/11
 OBSERVE-only signals (wallet activity feed itself, entity correlation graph, provider
 reliability/price consensus) to the UI the same way Smart Money/whale flow/token risk were;
-Phases 5/7/8 (backtesting, research agents, Telegram); and Phase 9 (LIVE trading) -- which per
-RISK.md/SECURITY.md requires explicit human-authorized evidence gates and real exchange
-credentials and must never be rushed to "look done." Continuing sequentially, one verified slice
-at a time, same discipline as every slice above.
+Phases 7/8 (research agents, Telegram); and Phase 9 (LIVE trading) -- which per RISK.md/
+SECURITY.md requires explicit human-authorized evidence gates and real exchange credentials and
+must never be rushed to "look done." Continuing sequentially, one verified slice at a time, same
+discipline as every slice above.
 
 
 ## Activity inspection UI — 2026-09-12
