@@ -1,10 +1,10 @@
 # Phase 3 implementation backlog
 
-Status: Slice 1 (regime classification) implemented and verified on 2026-09-12. Slices 2-5 are a
-documented backlog only — not started, not scaffolded as empty placeholders. See
-[ARCHITECTURE](../ARCHITECTURE.md) for how Phase 3 fits the overall implementation sequence,
-[RISK](../RISK.md) for the deterministic risk policy Slice 5 must implement, and
-[PHASE_2](PHASE_2.md) for the completed market/data/scanner phase this builds on.
+Status: Slices 1-2 (regime classification; `Strategy` port + trend-following strategy) implemented
+and verified on 2026-09-12. Slices 3-5 are a documented backlog only — not started, not scaffolded
+as empty placeholders. See [ARCHITECTURE](../ARCHITECTURE.md) for how Phase 3 fits the overall
+implementation sequence, [RISK](../RISK.md) for the deterministic risk policy Slice 5 must
+implement, and [PHASE_2](PHASE_2.md) for the completed market/data/scanner phase this builds on.
 
 | Order | Slice | Acceptance evidence |
 | --- | --- | --- |
@@ -40,3 +40,28 @@ Explicitly not built in Slice 1: nothing consumes a `RegimeClassification` yet (
 it, no risk ceiling changes because of it) — that arrives with Slices 2 and 5 respectively. No
 volatility-based or multi-feature regime logic; momentum alone is deliberately the simplest
 possible starting rule until a real strategy needs more.
+
+## Delivered: Slice 2 — `Strategy` port + trend-following strategy
+
+- `wallybot/domain/strategy.py`: `Action` (`BUY`/`SELL`/`HOLD`), `StrategyContext` (instrument,
+  features, regime, as_of — everything a pure strategy needs, nothing an execution capability
+  would need), `StrategySignal` (instrument, strategy_id, version, action, confidence in `[0, 1]`,
+  as_of, reason), and the `Strategy` protocol (`evaluate(context) -> StrategySignal`) explicitly
+  named in `ARCHITECTURE.md`'s Contracts table: "Pure recommendation; cannot submit orders or
+  mutate balances." There is no method on anything in this module resembling order submission —
+  nothing here for a future caller to misuse even by accident.
+- `wallybot/strategies/trend_following.py` (new package, explicitly named in `ARCHITECTURE.md`'s
+  planned layout): `TrendFollowingStrategy` — the first concrete strategy, DRAFT status per
+  RISK.md's promotion ladder. Maps regime directly to action (`TRENDING_UP`→BUY,
+  `TRENDING_DOWN`→SELL, `RANGING`/`RISK_OFF`→HOLD) and derives confidence from `|momentum|` capped
+  at 1. Validates that the regime classification and feature vector actually belong to the context
+  instrument before using them (a caller wiring bug there would otherwise silently produce a
+  signal based on the wrong instrument's data).
+- `tests/unit/test_strategy.py` (value validation: confidence bounds, required fields) and
+  `tests/unit/test_trend_following.py` (one test per regime→action mapping, confidence capping,
+  cross-instrument mismatch rejection, missing-feature rejection).
+
+Explicitly not built in Slice 2: no second strategy, no strategy registry/versioning migration
+path, no `SignalAggregator` yet to combine multiple strategies' signals (Slice 3) — a single
+strategy's signal isn't "consensus," it's just one opinion, deliberately not treated as more than
+that anywhere downstream yet since nothing downstream (allocation, risk) exists to consume it.
