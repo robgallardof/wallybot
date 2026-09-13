@@ -9,56 +9,11 @@ drift and abnormal returns, per DATA.md's "Market quality and historical data" s
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from enum import StrEnum
 
 from wallybot.domain.market import TIMEFRAME_DURATIONS, Candle
+from wallybot.domain.quality import QualityIssue, QualityReport, QualityStatus
 
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
-
-# Required-field gaps, staleness and failed synchronization are blocking per DATA.md; a warning
-# is usable only when the explicit quality policy allows that reason. Ordering/duplicate/alignment
-# issues mean the series itself cannot be trusted, so they block too -- only statistically notable
-# but structurally sound signals (drift within a bound, an unusually large move) are warnings.
-_BLOCKING_REASONS = frozenset(
-    {
-        "wrong_timeframe",
-        "not_ordered",
-        "duplicate_timestamps",
-        "misaligned_timestamp",
-        "gap_detected",
-        "stale",
-        "clock_drift_impossible",
-    }
-)
-_WARNING_REASONS = frozenset({"clock_drift", "abnormal_return"})
-
-
-class QualityStatus(StrEnum):
-    PASS = "PASS"
-    WARNING = "WARNING"
-    FAILURE = "FAILURE"
-
-
-@dataclass(frozen=True)
-class QualityIssue:
-    reason: str
-    evidence: str
-
-    def __post_init__(self) -> None:
-        if self.reason not in _BLOCKING_REASONS and self.reason not in _WARNING_REASONS:
-            raise ValueError(f"Unknown quality reason code: {self.reason}")
-
-    @property
-    def severity(self) -> QualityStatus:
-        if self.reason in _BLOCKING_REASONS:
-            return QualityStatus.FAILURE
-        return QualityStatus.WARNING
-
-
-@dataclass(frozen=True)
-class QualityReport:
-    status: QualityStatus
-    issues: tuple[QualityIssue, ...]
 
 
 @dataclass(frozen=True)

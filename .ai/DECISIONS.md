@@ -164,3 +164,29 @@ exchange's actual API documentation/behavior first — "market data" and "tradin
 gated at very different authentication levels, and conflating them can block real, buildable work
 for no reason. If a future task looks blocked on "needing an account/API key," verify the specific
 endpoints actually required before asking the user for anything.
+
+## 2026-09-12 — `wallybot/domain/` must not import from capability packages, even for values
+
+**Context:** Phase 3 Slice 5 (`RiskEngine`) needed to reference the data-quality result type
+(`QualityReport`/`QualityStatus`) in `wallybot/domain/risk.py`. It was defined in
+`wallybot/data/quality.py` (Slice 3), so the natural import was `from wallybot.data.quality import
+QualityReport` — which is backwards: `wallybot/domain/` is supposed to be the innermost layer
+everything else depends on, never the reverse. A `grep` across `wallybot/domain/` for imports from
+any capability package (`data`, `exchanges`, `market`, `scoring`, `application`, `signals`,
+`strategies`, `portfolio`, `infrastructure`) confirmed this would have been the only violation.
+
+**Decision:** Extracted the pure value types (`QualityStatus`, `QualityIssue`, `QualityReport`,
+plus their reason-code frozensets) into a new `wallybot/domain/quality.py`. `wallybot/data/
+quality.py` now imports them back for `QualityPolicy`/`evaluate_series_quality` to use, the same
+way `wallybot/market/universe.py` already imported `Candle`/`Instrument` from `wallybot/domain/
+market.py` rather than redefining them. `wallybot/data/quality.py` still re-exports the moved
+names (existing imports like `from wallybot.data.quality import QualityStatus` keep working), but
+new code (`domain/risk.py`, `wallybot/risk/deterministic_risk_engine.py`, the new risk test files)
+imports them from their real home, `wallybot.domain.quality`.
+
+**Why it matters:** A "value type" (no I/O, no framework dependency) can still end up in the wrong
+package if it was added to solve a narrower problem (Slice 3's quality gate) before a later slice
+(Slice 5's RiskEngine) needed to share it more broadly. Before adding an import to any
+`wallybot/domain/*.py` file, check it isn't importing from `data/`, `exchanges/`, `market/`,
+`scoring/`, `application/`, `signals/`, `strategies/`, `portfolio/` or `infrastructure/` — if the
+type being imported is itself pure, move it into `domain/` instead of importing it outward.

@@ -1,10 +1,8 @@
 # Phase 3 implementation backlog
 
-Status: Slices 1-4 (regime classification; `Strategy` port + trend-following strategy;
-`SignalAggregator`; `PortfolioAllocator`) implemented and verified on 2026-09-12. Slice 5
-(`RiskEngine`) is a documented backlog only — not started, not scaffolded as empty placeholders.
-See [ARCHITECTURE](../ARCHITECTURE.md) for how Phase 3 fits the overall implementation sequence,
-[RISK](../RISK.md) for the deterministic risk policy Slice 5 must implement, and
+Status: **all five slices implemented and verified on 2026-09-12.** Phase 3 is complete. See
+[ARCHITECTURE](../ARCHITECTURE.md) for how Phase 3 fits the overall implementation sequence,
+[RISK](../RISK.md) for the deterministic risk policy Slice 5 implements, and
 [PHASE_2](PHASE_2.md) for the completed market/data/scanner phase this builds on.
 
 | Order | Slice | Acceptance evidence |
@@ -132,3 +130,61 @@ step from the trade-decision flow — that is Phase 6.
 **Slice 5 (`RiskEngine`) remains a dedicated, separate planning item** — it is the authoritative
 approval gate for real financial exposure and RISK.md is explicit that its thresholds must never be
 invented ad hoc.
+
+## Delivered: Slice 5 — `RiskEngine`
+
+Scoped to exactly what this codebase can faithfully implement today from RISK.md's own stated
+Invariants, Initial Policy table and Approval contract — nothing invented, nothing skipped
+silently. See the module docstrings in `wallybot/domain/risk.py` and
+`wallybot/risk/deterministic_risk_engine.py` for the full reasoning; summary:
+
+- `wallybot/domain/risk.py`: `RiskDecision` (`APPROVED`/`REJECTED`/`APPROVED_WITH_REDUCED_SIZE`),
+  `ExchangeStatus`, `RiskPolicy` (version, and RISK.md's given max daily/weekly loss, max
+  drawdown, and max spread — spread has **no default**, since RISK.md explicitly says
+  liquidity/spread-class limits "must be configured... Missing required limits fail closed; do
+  not invent universally safe market thresholds" — every `RiskPolicy` field is required at
+  construction, never optional-with-a-guess), `RiskContext` (everything RISK.md's Approval
+  contract says Risk *receives*: control status, portfolio state/policy, quality result,
+  snapshot, exchange status, reconciliation health, active breakers, daily/weekly/drawdown loss,
+  as_of, expiry — RiskEngine computes none of this itself), `RiskAssessment` (decision, final
+  notional, version, as_of, expires_at, reasons — a dataclass invariant enforces REJECTED⇒zero
+  notional, everything else⇒positive notional, and reasons is never empty, so an assessment can
+  never claim a decision with no evidence), and the `RiskEngine` protocol.
+- `wallybot/risk/deterministic_risk_engine.py`: `DeterministicRiskEngine` — checks run in the
+  order RISK.md lists (allocator approval → mode/authority → fresh data → exchange status →
+  reconciliation → breakers → daily/weekly/drawdown losses, `>=` not `>` since "Equality at a
+  limit triggers the breaker" → spread), then re-derives bucket/asset capacity **authoritatively**
+  (never trusting the allocator's proposal blindly — this is the final word, and may reduce size
+  here) and applies instrument precision/minimum-quantity rounding (may reduce size again). A
+  reduction at either of the last two steps yields `APPROVED_WITH_REDUCED_SIZE`; a reduction to
+  below the instrument's minimum tradable quantity is a full `REJECTED`, matching "Zero-sized
+  approvals are rejected" — never an approval for zero.
+- `tests/unit/test_risk.py` (value validation) and
+  `tests/unit/test_deterministic_risk_engine.py`: one test per blocking check fired independently,
+  the exact-equality-at-limit boundary for daily/weekly/drawdown losses, a hand-computed
+  capacity-driven size reduction, a hand-computed instrument-precision-driven size reduction, the
+  single-speculative-asset ceiling taking priority, and the zero-sized-rounds-to-rejection case.
+- `tests/property/test_risk_invariants.py`: a Hypothesis property test (per TESTING.md's call for
+  risk-code property coverage) generating losses, drawdown, bucket exposure, proposed notional and
+  spread across their valid ranges, asserting the core shape invariant holds for every generated
+  combination: `REJECTED` always has zero notional, anything else always has a positive notional
+  that never exceeds what was proposed, expiry is always strictly after `as_of`, and every
+  assessment carries at least one reason.
+- **Found and fixed a real architecture-layering bug in the process**: `wallybot/domain/risk.py`
+  initially imported `QualityReport` from `wallybot/data/quality.py`, which would have made
+  `wallybot/domain/` depend on a capability package — backwards. Extracted the pure value types
+  into `wallybot/domain/quality.py` instead (see `.ai/DECISIONS.md`).
+
+**Explicitly out of scope, documented in the module docstrings, not silently missing:**
+volatility/correlation limits (nothing in this codebase computes volatility yet — only momentum,
+Phase 3 Slice 8); any AI-related check (no AI provider exists — Phase 6); the *mechanism* behind
+reconciliation health and breaker state (Phase 4 ledger/execution infrastructure — `RiskContext`
+receives these as already-computed booleans/sets, per RISK.md's own description of what Risk
+*receives* rather than computes); cluster-level concentration (only bucket + single-asset, same
+scope boundary as Slice 4); the full emergency-operations action set (`PAUSE NEW TRADES`,
+`CANCEL OPEN ORDERS`, `CLOSE ALL POSITIONS`, `EMERGENCY STOP` — these are operator-triggered
+actions on *existing* exposure, not part of evaluating a *new* proposal).
+
+**Phase 3 is now complete.** Next per `ARCHITECTURE.md`'s implementation sequence is Phase 4:
+"Replay, paper execution, ledger and recovery under failures" — the first phase requiring real
+persistence (order intents, fills, ledger postings) beyond anything built so far.
