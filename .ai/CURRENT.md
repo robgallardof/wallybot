@@ -172,6 +172,26 @@ Phase 2. Given this session's history (the user's last UI-visibility complaint),
 more valuable next move once Phase 4's backend is committed, but the connecting-decision-to-intent
 work in (a) is what actually makes a first real PAPER trade possible at all.
 
+**Decision pipeline delivered** — user explicitly chose "conectar el pipeline de decisión" when
+asked. See `docs/DECISION_PIPELINE.md` for full detail. Summary:
+`wallybot/application/decision_pipeline.py`'s `DecisionPipeline.run()` composes, for the first
+time, `scan_universe` (Phase 2) → quality gate → `classify_regime`/`Strategy`/`SignalAggregator`/
+`PortfolioAllocator`/`RiskEngine` (Phase 3) → `OrderIntent`/`ExecutionService` (Phase 4) into one
+real, tested, closed loop from market data to a submitted order. `wallybot/infrastructure/
+uuid_id_generator.py` (`UuidIdGenerator`) is the first concrete `IdGenerator`. Found and fixed a
+real gap while wiring this (separate commit `fe8b403`): `RiskAssessment` only carried
+`final_notional`, not the `final_quantity` RISK.md's own contract calls for — needed to actually
+build an `OrderIntent`. `tests/integration/test_decision_pipeline.py` (Testcontainers): a
+hand-built uptrend series produces a real FILLED order with a balanced ledger transaction end to
+end; a bucket at its ceiling and an active risk breaker both correctly produce no order. Verified:
+full suite 243 passed (240→243, plus the risk fix commit already included), ruff/pyright clean.
+Not yet committed (this pipeline itself; the risk fix is already committed).
+
+Explicitly still missing, flagged in `docs/DECISION_PIPELINE.md`: no equity/PnL/breaker tracker
+feeding real `PortfolioState`/`RiskEnvironment` inputs (a caller still has to supply these), no
+persisted `decisions` record (only the resulting `OrderIntent` is durable — a HOLD/REJECTED
+outcome today only lives in the returned `DecisionOutcome`, not in Postgres), no scheduling.
+
 
 ## Activity inspection UI — 2026-09-12
 
