@@ -265,9 +265,28 @@ Verified: full suite 317 passed (314→317), ruff/pyright clean, migration appli
 against the live `wallybot-api` container. Not yet committed.
 
 **Phase 10 status: Slices 1-5 delivered.** Remaining backlog: Slice 4b (blocked on a real
-wallet/entity vendor API key), and beyond that, Phase 11 (Smart Money scoring/clustering) is the
-natural next major body of work — it can proceed now using `FakeWalletIntelligenceProvider` and
-the now-real `wallet_activity_events` log, without needing Slice 4b unblocked first.
+wallet/entity vendor API key).
+
+**Phase 11 Slice 1 delivered** (Smart Money scoring engine) — see `docs/PHASE_11.md`. The wider
+spec names ~20 scoring dimensions; this codebase's `WalletActivityEvent` log only supports five of
+them (realized PnL, win rate, trade count, wallet age, holding period), so
+`wallybot/domain/smart_money.py`'s `score_smart_money` scores only those and lists the other
+fifteen, by name, as "not evaluated" in every snapshot's `reasons` rather than faking a complete
+picture. A wallet under `MIN_COMPLETED_TRADES` (5) realized round trips (FIFO-matched BUY/SELL
+pairs, reusing DATA.md's own convention) gets `INSUFFICIENT_DATA` and no score at all — structural
+enforcement of "never classify a wallet as Smart Money merely because it had one profitable
+trade." The 60/40 win-rate/PnL scoring weights are an explicitly-labeled versioned placeholder,
+not a calibration — nothing consumes this score for any financial decision yet.
+`SmartMoneyScoreSnapshotRow`/`migrations/versions/0006_smart_money.py`/
+`SmartMoneyScoreRepository` are insert-only: no unique constraint on `wallet_id` at all, so a
+fresh evaluation is always a new row, never an update ("store the score history... never
+overwrite previous score snapshots"). Verified: full suite 331 passed (317→331), ruff/pyright
+clean, domain purity confirmed, migration applied and verified against the live `wallybot-api`
+container. Not yet committed.
+
+**Next up:** Phase 11 Slice 2 (Smart Money clustering — independent wallets converging on the
+same asset within a configurable window) is the natural next step and needs no new external data,
+only the wallet activity log and registry already built.
 
 
 ## Activity inspection UI — 2026-09-12

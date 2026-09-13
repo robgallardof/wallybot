@@ -406,6 +406,27 @@ class WalletActivityEventRow(Base):
     attribution_observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class SmartMoneyScoreSnapshotRow(Base):
+    """Persists `wallybot.domain.smart_money.SmartMoneyScoreSnapshot`. Insert-only -- "store the
+    score history... never overwrite previous score snapshots" (ARCHITECTURE.md). There is
+    deliberately no unique constraint that would prevent two snapshots for the same wallet: a
+    fresh evaluation is always a new row, timestamped by `computed_at`, never an update."""
+
+    __tablename__ = "smart_money_score_snapshots"
+    __table_args__ = (CheckConstraint("status IN ('SCORED', 'INSUFFICIENT_DATA')"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    wallet_id: Mapped[str] = mapped_column(String(128), index=True)
+    version: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(24))
+    score: Mapped[Decimal | None] = mapped_column(Numeric)
+    trade_count: Mapped[int] = mapped_column(Integer)
+    win_rate: Mapped[Decimal | None] = mapped_column(Numeric)
+    realized_pnl_usd: Mapped[Decimal | None] = mapped_column(Numeric)
+    wallet_age_seconds: Mapped[Decimal | None] = mapped_column(Numeric)
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    reasons: Mapped[list] = mapped_column(JSONB)
+
+
 class LedgerPostingRow(Base):
     """Persists one `wallybot.domain.ledger.LedgerPosting` leg. Balance-per-currency is enforced
     by `LedgerTransaction.__post_init__` before anything reaches this table -- this row layer
