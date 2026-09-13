@@ -81,3 +81,24 @@ class EventView(BaseModel):
 class ControlView(BaseModel):
     status: Status
     environment: Literal["PAPER"]
+
+
+class MarketRowView(BaseModel):
+    id: str
+    venue: str
+    base: str
+    quote: str
+    bid: str
+    ask: str
+    spread_ratio: str
+    quality_status: Literal["PASS", "WARNING", "FAILURE"]
+    quality_reasons: list[str]
+    eligible: bool
+    rejection_reasons: list[str]
+    score: str | None
+    rank: int | None
+
+
+class MarketsView(BaseModel):
+    as_of: str
+    rows: list[MarketRowView]

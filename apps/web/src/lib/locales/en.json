@@ -1,4 +1,5 @@
 {
+  "Saltar al contenido": "Skip to content",
   "Idioma": "Language",
   "Cambiar a modo claro": "Switch to light mode",
   "Cambiar a modo oscuro": "Switch to dark mode",
@@ -126,5 +127,25 @@
   "La preservación del capital guía cada decisión.": "Capital preservation guides every decision.",
   "Comprobando…": "Checking…",
   "Cargando actividad…": "Loading activity…",
-  "Todavía no hay actividad registrada.": "No activity has been recorded yet."
+  "Todavía no hay actividad registrada.": "No activity has been recorded yet.",
+  "Mercados": "Markets",
+  "Mercados descubiertos": "Discovered markets",
+  "ACTUALIZACIÓN CADA 30 S": "REFRESHES EVERY 30 S",
+  "Datos públicos de Kraken. Sin claves de trading. Los fallos del proveedor se muestran como fallo, nunca como cotización válida.": "Public Kraken data. No trading keys. Provider failures are shown as a failure, never as a valid quote.",
+  "No se descubrió ningún instrumento.": "No instruments were discovered.",
+  "Rango": "Rank",
+  "Instrumento": "Instrument",
+  "Compra": "Bid",
+  "Venta": "Ask",
+  "Calidad": "Quality",
+  "Puntaje": "Score",
+  "Estado": "Status",
+  "AVISO": "WARNING",
+  "FALLO": "FAILURE",
+  "motivo(s)": "reason(s)",
+  "Elegible": "Eligible",
+  "Excluido": "Excluded",
+  "Cargando mercados…": "Loading markets…",
+  "No se pudieron cargar los mercados. El proveedor de datos puede no estar disponible.": "Could not load markets. The data provider may be unavailable.",
+  "Última actualización": "Last updated"
 }

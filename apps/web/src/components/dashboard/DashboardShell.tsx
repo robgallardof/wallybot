@@ -4,6 +4,7 @@ import {
   Activity,
   FlaskConical,
   LayoutDashboard,
+  LineChart,
   LogOut,
   Settings2,
   ShieldCheck,
@@ -18,6 +19,7 @@ import { ThemeToggle } from "../ThemeToggle";
 const navigation = [
   ["dashboard", "Resumen", LayoutDashboard],
   ["portfolio", "Portafolio", Wallet],
+  ["markets", "Mercados", LineChart],
   ["research", "Investigación", FlaskConical],
   ["risk", "Riesgo", ShieldCheck],
   ["events", "Actividad", Activity],
@@ -42,11 +44,13 @@ export function DashboardShell({
   children: ReactNode;
 }) {
   useTranslation();
-  const title =
-    navigation.find(([key]) => key === page)?.[1] ?? "Resumen";
+  const title = navigation.find(([key]) => key === page)?.[1] ?? "Resumen";
 
   return (
     <div className="app-layout">
+      <a className="skip-link" href="#main-content">
+        {i18n.t("Saltar al contenido")}
+      </a>
       <aside className="sidebar">
         <a className="brand" href="/dashboard">
           wally<span>bot</span>
@@ -67,10 +71,11 @@ export function DashboardShell({
               key={key}
               className={page === key ? "nav-item active" : "nav-item"}
               onClick={() => navigate(key)}
+              aria-current={page === key ? "page" : undefined}
             >
               <Icon size={18} />
               {i18n.t(label)}
-              {key === "dashboard" && <span className="nav-dot" />}
+              {page === key && <span className="nav-dot" />}
             </button>
           ))}
         </nav>
@@ -78,7 +83,9 @@ export function DashboardShell({
           <div className="safety-note">
             <ShieldCheck size={20} />
             <strong>{i18n.t("Primero, preservar.")}</strong>
-            <p>{i18n.t("La ejecución real no está disponible en esta fase.")}</p>
+            <p>
+              {i18n.t("La ejecución real no está disponible en esta fase.")}
+            </p>
           </div>
           <button className="user-button" onClick={logout}>
             <span className="avatar small">
@@ -92,9 +99,9 @@ export function DashboardShell({
           </button>
         </div>
       </aside>
-      <main className="main">
+      <main className="main" id="main-content" tabIndex={-1}>
         <header className="topbar">
-          <div className="flex items-center gap-2">
+          <div className="appearance-controls">
             <LanguageSelector />
             <ThemeToggle />
           </div>
@@ -127,7 +134,9 @@ export function DashboardShell({
             <div>
               <span className="eyebrow">{i18n.t("PORTFOLIO & RESEARCH")}</span>
               <h1>
-                {page === "dashboard" ? i18n.t("Una visión clara.") : i18n.t(title)}
+                {page === "dashboard"
+                  ? i18n.t("Una visión clara.")
+                  : i18n.t(title)}
               </h1>
               <p className="muted">
                 {page === "dashboard"
@@ -157,7 +166,9 @@ export function DashboardShell({
           <div className="notice">
             <ShieldCheck size={19} />
             <div>
-              <strong>{i18n.t("Estás en un entorno seguro de preparación.")}</strong>
+              <strong>
+                {i18n.t("Estás en un entorno seguro de preparación.")}
+              </strong>
               <span>
                 {" "}
                 {i18n.t(

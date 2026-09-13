@@ -34,3 +34,22 @@ export const eventsSchema = z.array(
     message: z.string(),
   }),
 );
+export const marketRowSchema = z.object({
+  id: z.string(),
+  venue: z.string(),
+  base: z.string(),
+  quote: z.string(),
+  bid: z.string(),
+  ask: z.string(),
+  spread_ratio: z.string(),
+  quality_status: z.enum(["PASS", "WARNING", "FAILURE"]),
+  quality_reasons: z.array(z.string()),
+  eligible: z.boolean(),
+  rejection_reasons: z.array(z.string()),
+  score: z.string().nullable(),
+  rank: z.number().nullable(),
+});
+export const marketsSchema = z.object({
+  as_of: z.string(),
+  rows: z.array(marketRowSchema),
+});

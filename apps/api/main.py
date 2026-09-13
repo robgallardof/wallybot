@@ -1,5 +1,8 @@
 import asyncio
 from contextlib import asynccontextmanager
+from datetime import timedelta
+from decimal import Decimal
+from functools import partial
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
@@ -13,10 +16,16 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from apps.api.auth_routes import router as auth_router
 from apps.api.dependencies import SignedIn
+from apps.api.market_routes import router as market_router
 from apps.api.system_routes import router as system_router
+from wallybot.application.market_overview import build_market_overview
+from wallybot.data.quality import QualityPolicy
+from wallybot.exchanges.kraken import KrakenExchange
 from wallybot.infrastructure.database import database
 from wallybot.infrastructure.logging import configure_logging
 from wallybot.infrastructure.settings import Settings, load_settings
+from wallybot.infrastructure.system_clock import SystemClock
+from wallybot.market.universe import UniverseFilterConfig
 from wallybot.security.auth import AuthError, AuthService
 from wallybot.security.throttle import Throttle, Throttled
 
@@ -37,6 +46,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.redis = redis
         app.state.auth = AuthService(sessions, config)
         app.state.throttle = Throttle(redis, config.auth_limit, config.auth_window_seconds)
+
+        clock = SystemClock()
+        app.state.market_overview = partial(
+            build_market_overview,
+            provider=KrakenExchange(clock=clock),
+            clock=clock,
+            timeframe="1h",
+            history_candles=30,
+            universe_config=UniverseFilterConfig(
+                version=1,
+                min_history_candles=20,
+                min_average_quote_volume=Decimal("0"),
+                max_spread_ratio=Decimal("0.05"),
+            ),
+            quality_policy=QualityPolicy(
+                version=1,
+                timeframe="1h",
+                max_stale_age=timedelta(hours=3),
+                max_clock_drift=timedelta(minutes=5),
+                max_abnormal_return=Decimal("0.5"),
+            ),
+            feature_window=20,
+        )
         logger.info("API_STARTED")
         yield
         await redis.aclose()
@@ -130,4 +162,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(auth_router)
     app.include_router(system_router)
+    app.include_router(market_router)
     return app

@@ -42,3 +42,43 @@ market/limit capabilities, spread, fees, slippage, latency, partial fills, rejec
 and accept-then-timeout behavior" — a materially bigger `FakeExchange` extension than anything
 built so far, worth its own careful design rather than assuming the Phase 2 shape carries over
 unchanged).
+
+
+## Parallel Codex UI work — 2026-09-12
+
+User assigned Claude connections/backend and Codex UI/UX. Dark palette now implemented and deployed (web only). Verified: Next production build, 2 production browser tests, 10 web environment isolation tests, frontend lint and targeted Ruff, mobile localhost smoke. No backend restart or real enrollment. Pending Markdown: docs/PENDING.md; UI handoff: .ai/HANDOFF.md. Preserve concurrent Claude changes.
+
+
+## Apple HIG-inspired UI refresh — 2026-09-12
+
+User rejected green palette. Codex replaced theme.css with semantic neutral white/gray and graphite surfaces, accessible blue actions, larger labels, system fonts, selected navigation aria-current/indicator, keyboard skip link, reduced-motion and contrast preferences. Design evidence: docs/UI-DESIGN.md. Two production E2E tests and lint passed; desktop clear/dark and mobile screenshots inspected. Only web service rebuilt; preserve Claude backend changes.
+
+## Kraken lookahead fix + Markets screen delivered end-to-end — 2026-09-13
+
+**Kraken fix:** live testing against real Kraken inside the `wallybot-api` container surfaced a
+real bug: `/0/public/OHLC` always returns the still-open candle as its last row, tripping
+`LookaheadError`. Fixed in `wallybot/exchanges/kraken.py` by filtering with Kraken's own `"last"`
+closed-candle cursor plus a `close_time > now` wall-clock check; updated
+`tests/contract/test_kraken_exchange.py`'s fixture clock/assertions to match (4 real closed
+candles in the recorded fixture, not 5). Full suite green (197→199), ruff/pyright clean, rebuilt
+and redeployed `wallybot-api`, re-verified against live Kraken inside the container (no error, both
+instruments scored/ranked). Committed as `58eb865`.
+
+**Markets screen:** user said "no veo tanto avances en la ui" — everything through this point was
+backend-only, nothing visible. Per `docs/PENDING.md`'s own P0 ("Conectar datos → calidad → scanner
+→ API → pantalla de mercados"), wired the already-working `/api/markets` endpoint into an actual
+frontend page: `apps/web/src/lib/dto.ts` (`marketRowSchema`/`marketsSchema`),
+`apps/web/src/hooks/useMarketsData.ts`, `apps/web/src/components/dashboard/pages/MarketsPage.tsx`
+(table: rank/instrument/bid/ask/spread/quality pill/score/eligibility, loading/error/empty states),
+wired into `Dashboard.tsx` and a new "Mercados" nav entry in `DashboardShell.tsx` (between
+Portfolio and Research, matching `ARCHITECTURE.md`'s stated nav order). Added English strings to
+`lib/locales/en.json` and additive-only CSS to `theme.css` (`.markets-table`, `.quality-pill`
+variants) reusing Codex's existing design tokens — did not touch Codex's in-progress dark-mode/
+a11y files beyond that. Added `tests/integration/test_markets_route.py` (auth-required check +
+full setup→login→`/api/markets` flow with `FakeExchange` injected via `app.state.market_overview`
+override, so this mandatory test never hits live Kraken, per `TESTING.md`). Verified: `next build`,
+`tsc --noEmit`, `eslint` all clean; full pytest suite 199 passed; rebuilt/redeployed `web`
+container; loaded the login page live in a browser with no console errors. **Not verified in an
+authenticated browser session** — no login credentials available and none were fabricated/read
+from `.secrets`; the integration test is the strongest available proof the route+DTO+auth contract
+actually matches what the frontend expects. Not yet committed.
