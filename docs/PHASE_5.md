@@ -1,6 +1,6 @@
 # Phase 5 implementation backlog: datasets, backtests and evaluation
 
-Status: Slices 1-2 delivered 2026-09-13. Per ARCHITECTURE.md's implementation sequence: "Immutable
+Status: Slices 1-3 delivered 2026-09-13. Per ARCHITECTURE.md's implementation sequence: "Immutable
 datasets, backtests, walk-forward, Monte Carlo, benchmarks." Per PENDING.md's own recommended
 delivery order this is the natural next major body of work after Phase 4 (PAPER execution) and
 Phase 12 Slices 1-3 (AI proposals in SHADOW mode) — "mercado visible y calidad → decisión
@@ -15,7 +15,7 @@ its own design pass when started, same discipline as every phase before it.
 | 4 | Experiment record (dataset/code/config/seed) + strategy registry lifecycle | Integration tests: insert-only history, reproducibility from artifacts |
 | 5 | Backtest/experiment UI | Playwright: loading/error/empty states, ES/EN |
 
-**This session implements Slices 1-2.**
+**This session implements Slices 1-3.**
 
 ## Delivered: Slice 1 — DuckDB reader over checksummed Parquet manifests
 
@@ -95,3 +95,34 @@ multi-strategy portfolios, any risk-engine sizing (this allocates a fixed `alloc
 current equity per trade and nothing else), short selling, any persistence of results (Slice 4).
 
 Verified: full suite 469 passed (460→469), ruff/pyright clean.
+
+## Delivered: Slice 3 — walk-forward segmentation + bootstrap resampling
+
+Per ARCHITECTURE.md: "Implementar walk-forward, Monte Carlo y bootstrapping, con muestra e
+incertidumbre reportadas." `wallybot/backtest/evaluation.py`:
+
+- `run_walk_forward(engine, candles, starting_equity, allocation_pct, num_windows)`: splits the
+  candle series into `num_windows` sequential, non-overlapping segments and re-runs
+  `BacktestEngine` on each independently from the same `starting_equity` — **`TrendFollowing
+  Strategy` has no tunable parameters to fit per period**, so this reports per-period robustness
+  (does the same strategy hold up across different sub-windows) rather than a train/optimize/test
+  parameter search, which only becomes meaningful once a strategy actually has parameters —
+  documented as future work, not silently approximated.
+- `bootstrap_trade_pnls(result, num_samples, seed)`: resamples a backtest's own realized trade
+  PnLs with replacement (reshuffling which trades count, never inventing new ones) using a seeded
+  `random.Random`, the same determinism idiom `FakeExchange` already uses. Returns `None` — not a
+  fabricated distribution — for fewer than 2 trades, since a "distribution" over 0-1 outcomes is
+  not evidence of anything. Reports mean/median/p05/p95 total PnL and probability of a net loss
+  across the resampled totals.
+
+`tests/unit/test_backtest_evaluation.py`: walk-forward produces exactly the requested window
+count with correct independent starting equity each time, and rejects too-few-candles-per-window
+and non-positive window counts; bootstrap converges toward the real per-trade mean over 5000
+samples, is exactly deterministic for a fixed seed, reports `probability_of_loss == 1` when every
+real trade lost, and returns `None` under 2 trades. All 8 tests passed on first run.
+
+**Explicitly not built**: any parameter-fitting walk-forward (no strategy has tunable parameters
+yet), leakage/survivorship-bias controls (Slice 3's remaining bullets), experiment/registry
+persistence or UI (Slices 4-5).
+
+Verified: full suite 477 passed (469→477), ruff/pyright clean.

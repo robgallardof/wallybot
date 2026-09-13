@@ -485,8 +485,16 @@ tests, all passed on first run against hand-derived expected fill prices/PnL for
 rise-then-fall series driven by the actual `TrendFollowingStrategy`. Verified: full suite 469
 passed (460→469), ruff/pyright clean.
 
-**What's realistically left for a "finished product"**: Phase 5 Slices 3-5 (walk-forward/Monte
-Carlo, experiment/strategy-registry persistence, backtest UI); Phase 12 Slice 4 (real AI adapter
+**Phase 5 Slice 3 delivered** (walk-forward + bootstrap) — see `docs/PHASE_5.md`'s "Delivered:
+Slice 3". `wallybot/backtest/evaluation.py`: `run_walk_forward` splits candles into N sequential
+independent sub-period backtests (no parameter fitting -- `TrendFollowingStrategy` has none yet);
+`bootstrap_trade_pnls` resamples realized trade PnLs with a seeded RNG, returning `None` (not a
+fabricated distribution) under 2 trades. 8 new tests, all passed first run (bootstrap mean
+converges to the real average over 5000 samples, exactly deterministic per seed). Verified: full
+suite 477 passed (469→477), ruff/pyright clean.
+
+**What's realistically left for a "finished product"**: Phase 5 Slices 4-5 (experiment/
+strategy-registry persistence, backtest UI); Phase 12 Slice 4 (real AI adapter
 -- needs an authorized model/API key decision) and an orchestrator that actually calls
 `ShadowDecisionService` on a schedule (none exists yet); connecting the remaining Phase 10/11
 OBSERVE-only signals (wallet activity feed itself, entity correlation graph, provider
