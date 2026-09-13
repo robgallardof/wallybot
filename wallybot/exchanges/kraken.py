@@ -86,18 +86,28 @@ class KrakenExchange:
                 "since": str(int(since.timestamp())),
             },
         )
-        rows = self._ohlc_rows(payload)
+        rows, last_closed_ts = self._ohlc_rows_and_last_closed(payload)
         now = self.clock.now()
         step = timedelta(minutes=_INTERVAL_MINUTES[timeframe])
         candles = []
-        for row in rows[:limit]:
+        for row in rows:
+            # Kraken's OHLC response always includes the still-in-progress candle as its last
+            # row; "last" is Kraken's own cursor for the last *closed* one. Treating the
+            # in-progress candle as closed would hand the feature engine data from the future --
+            # exactly what LookaheadError exists to catch -- so filter using Kraken's own
+            # cursor first, then the wall clock as a second, independent check (clock skew).
+            if row[0] > last_closed_ts:
+                continue
             open_time = datetime.fromtimestamp(row[0], tz=UTC)
+            close_time = open_time + step
+            if close_time > now:
+                continue
             candles.append(
                 Candle(
                     instrument=instrument,
                     timeframe=timeframe,
                     open_time=open_time,
-                    close_time=open_time + step,
+                    close_time=close_time,
                     open=Decimal(row[1]),
                     high=Decimal(row[2]),
                     low=Decimal(row[3]),
@@ -107,7 +117,7 @@ class KrakenExchange:
                     received_at=now,
                 )
             )
-        return candles
+        return candles[:limit]
 
     async def fetch_snapshot(self, instrument: Instrument) -> MarketSnapshot:
         payload = await self.transport.get("/0/public/Ticker", {"pair": self._altname(instrument)})
@@ -123,8 +133,11 @@ class KrakenExchange:
     def _altname(self, instrument: Instrument) -> str:
         return f"{instrument.base}{instrument.quote}"
 
-    def _ohlc_rows(self, payload: dict) -> list[list]:
-        for key, value in payload["result"].items():
+    def _ohlc_rows_and_last_closed(self, payload: dict) -> tuple[list, int]:
+        result = payload["result"]
+        if "last" not in result:
+            raise ValueError("Kraken OHLC response is missing the 'last' closed-candle cursor")
+        for key, value in result.items():
             if key != "last":
-                return value
+                return value, result["last"]
         raise ValueError("Kraken OHLC response is missing candle data")

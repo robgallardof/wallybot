@@ -85,8 +85,11 @@ class FixtureKrakenTransport:
 
 
 def make_provider() -> KrakenExchange:
+    # Fixed between the fixture's last *closed* candle's close (22:00 UTC, the 21:00-open row
+    # Kraken's "last" cursor points to) and its still-in-progress candle's close (23:00 UTC,
+    # the 22:00-open row) -- matching when this response would actually have been captured.
     return KrakenExchange(
-        clock=FixedClock(datetime(2026, 9, 12, tzinfo=UTC)),
+        clock=FixedClock(datetime(2026, 9, 12, 22, 15, tzinfo=UTC)),
         transport=FixtureKrakenTransport(),
     )
 
@@ -135,8 +138,11 @@ async def test_limit_truncates_available_rows() -> None:
 async def test_candle_data_matches_the_recorded_response() -> None:
     provider = make_provider()
     instrument = (await provider.discover_instruments())[0]
+    # The fixture's OHLC response has 5 rows, but the 5th (timestamp 1789250400) is after
+    # the fixture's "last" closed-candle cursor (1789246800) -- it's Kraken's still-in-progress
+    # candle, so only 4 closed candles are actually available.
     candles = await provider.fetch_candles(instrument, "1h", _OHLC_FIRST_OPEN_TIME, limit=5)
-    assert len(candles) == 5
+    assert len(candles) == 4
     assert candles[0].open_time == _OHLC_FIRST_OPEN_TIME
     assert candles[0].close_time == _OHLC_FIRST_OPEN_TIME + timedelta(hours=1)
     assert str(candles[0].close) == "77124.4"
