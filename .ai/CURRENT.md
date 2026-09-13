@@ -397,15 +397,24 @@ has zero ability to affect anything running), the typed read-only AI tool surfac
 names, any real model adapter or cost/budget accounting (Phase 6 was never built), and `SHADOW` as
 an actual mode value anywhere in the codebase.
 
-**Codex parallel UI task:** attempted to launch `codex exec` in the background to finish/commit
-its own already-uncommitted UI work (apps/web/* + docs/PENDING.md + docs/UI-DESIGN.md +
-.ai/HANDOFF.md draft + scripts/dev.py + scripts/e2e_server.py + .github/workflows/ci.yml, all
-dirty in the working tree from an earlier session) — blocked by Claude Code's own permission
-system ("Create Unsafe Agents": launching an external CLI agent with auto-approved
-shell/sandbox/commit authority is not allowed without explicit user permission). Did not attempt a
-workaround. User needs to either approve a Bash permission rule for this, run `codex exec`
-themselves, or say how they want Codex invoked. The dirty apps/web/* tree is untouched by this
-session — do not discard it.
+**Phase 12 Slice 2 delivered** (insert-only persistence/audit trail) — see `docs/PHASE_12.md`'s
+"Delivered: Slice 2". `migrations/versions/0011_trade_proposals.py` + `TradeProposalRow` +
+`wallybot/infrastructure/trade_proposal_repository.py`'s `TradeProposalRepository` —
+**write-only by design**: reconstructing a full `TradeProposal` from a row would need a fabricated
+`Instrument` (price/quantity increments were never persisted), the same reason `OrderIntentRow`/
+`PriceConsensusResultRow` never round-trip a full `Instrument` either. A future read consumer
+defines its own shape against the real columns instead. Bumped `apps/api/main.py`'s hardcoded
+Alembic revision check to `"0011_trade_proposals"` (same recurring rough edge). Verified: full
+suite 438 passed (341→438), ruff/pyright clean, migration applied and verified against the live
+`wallybot-api` container (rebuilt, redeployed, `/health/ready` → `ready`). Committed.
+
+**Codex parallel UI task:** launched `codex exec --approve-for-me` in the background (after the
+user approved a `.claude/settings.local.json` permission rule for `Bash(codex exec*)`, gitignored)
+to finish/commit its own already-uncommitted UI work (apps/web/* + docs/PENDING.md +
+docs/UI-DESIGN.md + .ai/HANDOFF.md draft + scripts/dev.py + scripts/e2e_server.py +
+.github/workflows/ci.yml, all dirty in the working tree from an earlier session). Still running as
+of this note — check its own commits/handoff update before assuming it finished or guessing what
+it did.
 
 
 ## Activity inspection UI — 2026-09-12

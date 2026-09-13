@@ -533,3 +533,36 @@ class LedgerPostingRow(Base):
     )
     ledger_account_id: Mapped[int] = mapped_column(Integer, ForeignKey("ledger_accounts.id"))
     amount: Mapped[Decimal] = mapped_column(Numeric)
+
+
+class TradeProposalRow(Base):
+    """Persists `wallybot.domain.trade_proposal.TradeProposal`. Insert-only audit trail, same
+    reasoning as every other snapshot table: a `TradeProposal` is a fact about what the AI
+    concluded at a moment in time, never corrected in place -- ARCHITECTURE.md's "Every
+    TradeProposal ... must be as auditable as an approved one." `proposal_id` is the primary key
+    rather than an autoincrement id: it is generated once per analysis and is never reused, so it
+    is both identity and the natural idempotent insert key."""
+
+    __tablename__ = "trade_proposals"
+    __table_args__ = (CheckConstraint("direction IN ('LONG', 'SHORT')"),)
+    proposal_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    venue: Mapped[str] = mapped_column(String(32))
+    base: Mapped[str] = mapped_column(String(16))
+    quote: Mapped[str] = mapped_column(String(16))
+    direction: Mapped[str] = mapped_column(String(8))
+    strategy_id: Mapped[str] = mapped_column(String(64), index=True)
+    confidence: Mapped[Decimal] = mapped_column(Numeric)
+    suggested_allocation_pct: Mapped[Decimal] = mapped_column(Numeric)
+    entry_price: Mapped[Decimal] = mapped_column(Numeric)
+    stop_price: Mapped[Decimal | None] = mapped_column(Numeric)
+    take_profit_price: Mapped[Decimal | None] = mapped_column(Numeric)
+    time_horizon_seconds: Mapped[Decimal] = mapped_column(Numeric)
+    signal_ttl_seconds: Mapped[Decimal] = mapped_column(Numeric)
+    reasons: Mapped[list] = mapped_column(JSONB)
+    risks: Mapped[list] = mapped_column(JSONB)
+    supporting_signal_ids: Mapped[list] = mapped_column(JSONB)
+    invalidating_conditions: Mapped[list] = mapped_column(JSONB)
+    source_event_ids: Mapped[list] = mapped_column(JSONB)
+    model_id: Mapped[str] = mapped_column(String(64))
+    prompt_version: Mapped[str] = mapped_column(String(32))
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)

@@ -26,4 +26,5 @@ backups/
 .docker-local/
 graphify-out/
 .claude/scheduled_tasks.lock
+.claude/settings.local.json
 .playwright-mcp/

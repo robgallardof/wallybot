@@ -1,6 +1,6 @@
 # Phase 12 implementation backlog: AI strategy engine and TradeProposal
 
-Status: Slice 1 delivered 2026-09-13. Per ARCHITECTURE.md's implementation sequence: "AI strategy
+Status: Slices 1-2 delivered 2026-09-13. Per ARCHITECTURE.md's implementation sequence: "AI strategy
 engine producing schema-validated `TradeProposal`s, wired into the existing
 `RiskEngine`/`PortfolioAllocator`/`ExecutionService` pipeline; SHADOW mode before any LIVE
 eligibility." Each slice gets its own design pass when started, same discipline as
@@ -16,7 +16,7 @@ open.
 | 3 | SHADOW mode + wiring `TradeProposal` → `RiskEngine` → recorded-but-not-submitted outcome | Integration tests: a SHADOW proposal never reaches `ExecutionService.submit`, its would-be `RiskAssessment` is still persisted |
 | 4 | Real `AIProvider` adapter (Anthropic/OpenAI) with typed read-only tool surface | Blocked: needs a provider API key with an explicit budget the user authorizes for this purpose — SECURITY.md's "Secret and agent isolation" boundary means this is not a decision to make silently |
 
-**This session implements Slice 1.**
+**This session implements Slices 1-2.**
 
 ## Delivered: Slice 1 — `TradeProposal` domain type + `AIProvider` port
 
@@ -63,3 +63,37 @@ list update it calls for; any real model adapter, cost/token accounting or budge
 (Phase 6 was never built — there is no `AIProvider` cost-tracking infrastructure to reuse yet);
 `SHADOW` as an actual `Status`/mode value anywhere in `wallybot/domain/control.py` or the execution
 pipeline.
+
+## Delivered: Slice 2 — insert-only persistence/audit trail
+
+Per ARCHITECTURE.md: "Every `TradeProposal` and its resulting `RiskAssessment`/`OrderIntent` must
+be as auditable as an approved one... Storing only the final decision is not sufficient." This
+slice makes a `TradeProposal` durable the moment it exists, independent of anything that later
+happens to it.
+
+- `migrations/versions/0011_trade_proposals.py` + `wallybot/infrastructure/models.py`'s
+  `TradeProposalRow`: one insert-only table, same "a fresh evaluation is always a new row, never
+  updated" pattern as every Phase 10/11 snapshot table (no unique constraint on `proposal_id`
+  beyond it being the primary key — a generated ID is never reused, so this is both identity and
+  the natural idempotent insert key, not a dedup mechanism against re-analysis). `reasons`,
+  `risks`, `supporting_signal_ids`, `invalidating_conditions` and `source_event_ids` persist as
+  JSONB, same as `SmartMoneyScoreSnapshotRow.reasons` and friends.
+- `wallybot/infrastructure/trade_proposal_repository.py`'s `TradeProposalRepository`:
+  **write-only by design.** Reconstructing a full `TradeProposal` back from a row would require
+  rebuilding its `Instrument` from stored venue/base/quote identity alone, and this table does not
+  persist price/quantity increments or minimum size — the exact same reason `OrderIntentRow` and
+  `PriceConsensusResultRow` never reconstruct a full `Instrument` either (see `wallybot.
+  infrastructure.unit_of_work`, and Phase 10 Slice 6's own note that "Postgres never stored full
+  Instrument fidelity"). Fabricating those fields to make a domain round trip pass would violate
+  RISK.md's "do not invent" rule. A future slice that actually needs to read proposals back (an
+  admin UI, Phase 14) defines its own read shape against the columns this table really has,
+  instead of pretending the original `Instrument` survived.
+- `tests/integration/test_trade_proposal_persistence.py` (Testcontainers): verifies persistence by
+  querying `TradeProposalRow` directly (not via a domain round trip, per the above) — every field
+  lands correctly, and two proposals for the same instrument both persist as independent rows.
+- Bumped `apps/api/main.py`'s hardcoded Alembic revision check to `"0011_trade_proposals"` (same
+  recurring rough edge every migration since Phase 4 Slice 4 has bumped by hand).
+
+Verified: full suite 438 passed (341→438), ruff/pyright clean, migration applied and verified
+against the live `wallybot-api` container (rebuilt, redeployed, head `0011_trade_proposals`,
+`/health/ready` → `ready`). Committed.
