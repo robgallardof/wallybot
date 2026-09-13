@@ -1,10 +1,11 @@
 # Phase 3 implementation backlog
 
-Status: Slices 1-2 (regime classification; `Strategy` port + trend-following strategy) implemented
-and verified on 2026-09-12. Slices 3-5 are a documented backlog only — not started, not scaffolded
-as empty placeholders. See [ARCHITECTURE](../ARCHITECTURE.md) for how Phase 3 fits the overall
-implementation sequence, [RISK](../RISK.md) for the deterministic risk policy Slice 5 must
-implement, and [PHASE_2](PHASE_2.md) for the completed market/data/scanner phase this builds on.
+Status: Slices 1-3 (regime classification; `Strategy` port + trend-following strategy;
+`SignalAggregator`) implemented and verified on 2026-09-12. Slices 4-5 are a documented backlog
+only — not started, not scaffolded as empty placeholders. See [ARCHITECTURE](../ARCHITECTURE.md)
+for how Phase 3 fits the overall implementation sequence, [RISK](../RISK.md) for the deterministic
+risk policy Slice 5 must implement, and [PHASE_2](PHASE_2.md) for the completed market/data/scanner
+phase this builds on.
 
 | Order | Slice | Acceptance evidence |
 | --- | --- | --- |
@@ -65,3 +66,29 @@ Explicitly not built in Slice 2: no second strategy, no strategy registry/versio
 path, no `SignalAggregator` yet to combine multiple strategies' signals (Slice 3) — a single
 strategy's signal isn't "consensus," it's just one opinion, deliberately not treated as more than
 that anywhere downstream yet since nothing downstream (allocation, risk) exists to consume it.
+
+## Delivered: Slice 3 — `SignalAggregator`
+
+- `wallybot/domain/aggregation.py`: `AggregatedSignal` (instrument, action, confidence in `[0,1]`,
+  version, as_of, the full tuple of `contributing_signals` for auditability, and a reason string)
+  and the `SignalAggregator` protocol (`aggregate(signals, as_of) -> AggregatedSignal`) — matches
+  `ARCHITECTURE.md`'s Contracts table verbatim: "Deterministic weighting, agreement and
+  disagreement; HOLD on invalid quorum."
+- `wallybot/signals/weighted_aggregator.py` (new package, explicitly named in `ARCHITECTURE.md`'s
+  planned layout): `WeightedSignalAggregator` — fixed, versioned per-strategy weights; computes
+  confidence-weighted BUY vs SELL totals against total participating weight. Returns HOLD (not a
+  coin-flip pick) in **two** distinct cases, each with its own reason string: quorum not met (too
+  few signals), or agreement ratio below a configured minimum (signals disagree, or barely edge
+  out each other) — a real strategy conflict is treated as "no signal," never resolved by
+  tie-breaking logic. Raises loudly on an unconfigured strategy ID or mismatched instruments,
+  rather than silently ignoring or zero-weighting a signal that shouldn't have been passed in.
+- `tests/unit/test_aggregation.py` (value validation) and
+  `tests/unit/test_weighted_aggregator.py`: full agreement → BUY at full confidence, full
+  disagreement → HOLD, weak agreement below threshold → HOLD, a strong weighted majority
+  overriding a lone dissenting signal → BUY at the correct computed confidence, quorum-not-met →
+  HOLD, and rejections for an unconfigured strategy, mismatched instruments, empty input, and each
+  constructor validation rule.
+
+Explicitly not built in Slice 3: no `PortfolioAllocator` or `RiskEngine` consuming an
+`AggregatedSignal` yet (Slices 4-5) — an aggregated BUY/SELL/HOLD recommendation is still just a
+recommendation until something proposes a position size and something else approves it.
