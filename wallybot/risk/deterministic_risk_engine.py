@@ -55,7 +55,7 @@ class DeterministicRiskEngine:
             reasons.append(f"reduced from {final_notional} to {available}: capacity limit")
             final_notional = available
 
-        final_notional, quantity_reason = self._apply_instrument_precision(
+        final_notional, final_quantity, quantity_reason = self._apply_instrument_precision(
             final_notional, proposal.instrument, context
         )
         if quantity_reason is not None:
@@ -64,15 +64,14 @@ class DeterministicRiskEngine:
         if final_notional <= 0:
             return self._rejected(as_of, expires_at, "quantity rounds below instrument minimum")
 
-        decision = (
-            RiskDecision.APPROVED_WITH_REDUCED_SIZE if reasons else RiskDecision.APPROVED
-        )
+        decision = RiskDecision.APPROVED_WITH_REDUCED_SIZE if reasons else RiskDecision.APPROVED
         if not reasons:
             reasons.append("approved: within all evaluated limits")
 
         return RiskAssessment(
             decision=decision,
             final_notional=final_notional,
+            final_quantity=final_quantity,
             version=RISK_ASSESSMENT_VERSION,
             as_of=as_of,
             expires_at=expires_at,
@@ -122,22 +121,23 @@ class DeterministicRiskEngine:
 
     def _apply_instrument_precision(
         self, notional: Decimal, instrument: Instrument, context: RiskContext
-    ) -> tuple[Decimal, str | None]:
+    ) -> tuple[Decimal, Decimal, str | None]:
         mid_price = (context.snapshot.bid + context.snapshot.ask) / 2
         raw_quantity = notional / mid_price
         quantity = raw_quantity.quantize(instrument.quantity_increment, rounding=ROUND_DOWN)
         if quantity < instrument.min_quantity:
-            return Decimal(0), None
+            return Decimal(0), Decimal(0), None
         rounded_notional = quantity * mid_price
         if rounded_notional < notional:
             reason = f"quantity rounded down to instrument step ({quantity})"
-            return rounded_notional, reason
-        return rounded_notional, None
+            return rounded_notional, quantity, reason
+        return rounded_notional, quantity, None
 
     def _rejected(self, as_of: datetime, expires_at: datetime, reason: str) -> RiskAssessment:
         return RiskAssessment(
             decision=RiskDecision.REJECTED,
             final_notional=Decimal(0),
+            final_quantity=Decimal(0),
             version=RISK_ASSESSMENT_VERSION,
             as_of=as_of,
             expires_at=expires_at,

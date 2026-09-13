@@ -111,6 +111,7 @@ def test_assessment_rejected_must_have_zero_notional():
         RiskAssessment(
             decision=RiskDecision.REJECTED,
             final_notional=Decimal("1"),
+            final_quantity=Decimal("1"),
             version=1,
             as_of=AS_OF,
             expires_at=AS_OF + timedelta(minutes=1),
@@ -123,6 +124,7 @@ def test_assessment_approved_must_have_positive_notional():
         RiskAssessment(
             decision=RiskDecision.APPROVED,
             final_notional=Decimal("0"),
+            final_quantity=Decimal("0"),
             version=1,
             as_of=AS_OF,
             expires_at=AS_OF + timedelta(minutes=1),
@@ -135,6 +137,7 @@ def test_assessment_requires_at_least_one_reason():
         RiskAssessment(
             decision=RiskDecision.APPROVED,
             final_notional=Decimal("1"),
+            final_quantity=Decimal("1"),
             version=1,
             as_of=AS_OF,
             expires_at=AS_OF + timedelta(minutes=1),
@@ -147,6 +150,7 @@ def test_assessment_expiry_must_be_after_as_of():
         RiskAssessment(
             decision=RiskDecision.APPROVED,
             final_notional=Decimal("1"),
+            final_quantity=Decimal("1"),
             version=1,
             as_of=AS_OF,
             expires_at=AS_OF,

@@ -98,6 +98,7 @@ class RiskContext:
 class RiskAssessment:
     decision: RiskDecision
     final_notional: Decimal
+    final_quantity: Decimal
     version: int
     as_of: datetime
     expires_at: datetime
@@ -108,10 +109,16 @@ class RiskAssessment:
             raise ValueError("version must be positive")
         if self.expires_at <= self.as_of:
             raise ValueError("expires_at must be after as_of")
-        if self.decision == RiskDecision.REJECTED and self.final_notional != 0:
-            raise ValueError("a REJECTED assessment must have zero final_notional")
-        if self.decision != RiskDecision.REJECTED and self.final_notional <= 0:
-            raise ValueError("an approved assessment must have a positive final_notional")
+        if self.decision == RiskDecision.REJECTED:
+            if self.final_notional != 0:
+                raise ValueError("a REJECTED assessment must have zero final_notional")
+            if self.final_quantity != 0:
+                raise ValueError("a REJECTED assessment must have zero final_quantity")
+        else:
+            if self.final_notional <= 0:
+                raise ValueError("an approved assessment must have a positive final_notional")
+            if self.final_quantity <= 0:
+                raise ValueError("an approved assessment must have a positive final_quantity")
         if not self.reasons:
             raise ValueError("reasons must not be empty -- every decision needs evidence")
 
