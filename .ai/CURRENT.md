@@ -303,10 +303,29 @@ pre-existing, unrelated pyright backlog in `test_security.py`/`auth_routes.py`/`
 and verified against the live `wallybot-api` container (head `0007_smart_money_clusters`,
 `/health/ready` → `ready`). Not yet committed.
 
-**Phase 11 status: Slices 1-2 delivered.** Remaining backlog: Slice 3 (token intelligence /
-`TokenRiskScore`), Slice 4 (whale intelligence), Slice 5 (provider reliability + price consensus)
-— none started, each needs its own design pass. Slice 4b (real wallet/entity vendor adapter) stays
-blocked on API credentials the user has not yet supplied.
+**Phase 11 Slice 3 delivered** (token intelligence / `TokenRiskScore`) — see `docs/PHASE_11.md`'s
+"Delivered: Slice 3". `wallybot/domain/token_risk.py`: `SecurityAnalysisResult`/
+`SecurityAnalysisProvider` port + `score_token_risk` — scores only mint/freeze authority,
+liquidity-lock, buy/sell tax, honeypot and malicious labels (every field the provider actually
+reported); holder concentration and contract/pool/developer-wallet age are named `UNSCORED_
+DIMENSIONS` since no provider models them. Higher `risk_score` (0-100) means riskier — opposite
+polarity from Smart Money's score, since this gates entry. A honeypot or malicious label always
+forces 100 regardless of other clean checks. No real `SecurityAnalysisProvider` vendor (GoPlus/
+Honeypot.is/TokenSniffer/RugCheck) is integrated — same "blocked on a vendor API key" situation as
+Phase 10 Slice 4b — so this is port + pure scoring + `FakeSecurityAnalysisProvider` only, same
+shape as Slice 4's wallet-intelligence delivery. `TokenRiskScoreRow`/`migrations/versions/
+0008_token_risk.py`/`TokenRiskScoreRepository` are insert-only, same pattern as Slices 1-2. Bumped
+`apps/api/main.py`'s hardcoded Alembic revision check again to `"0008_token_risk"`. Verified: full
+suite 368 passed (346→368), ruff/pyright clean (pre-existing unrelated pyright backlog in
+`test_security.py`/`auth_routes.py`/`system_routes.py`/`tests/integration/conftest.py` untouched),
+domain purity confirmed, migration applied and verified against the live `wallybot-api` container
+(head `0008_token_risk`, `/health/ready` → `ready`). Committed as `a36c8fb` (Slice 2); Slice 3 not
+yet committed.
+
+**Phase 11 status: Slices 1-3 delivered.** Remaining backlog: Slice 4 (whale intelligence), Slice 5
+(provider reliability + price consensus) — neither started, each needs its own design pass. Slice
+4b (real wallet/entity vendor adapter) and Slice 3's real `SecurityAnalysisProvider` adapter both
+stay blocked on API credentials the user has not yet supplied.
 
 
 ## Activity inspection UI — 2026-09-12

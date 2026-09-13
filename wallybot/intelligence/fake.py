@@ -10,7 +10,9 @@ per wallet -- rather than inventing data with no real schema to validate against
 
 from datetime import datetime
 
+from wallybot.domain.clock import Clock
 from wallybot.domain.entity import Attribution
+from wallybot.domain.token_risk import SecurityAnalysisResult
 from wallybot.domain.wallet_activity import WalletActivityEvent
 
 
@@ -34,3 +36,40 @@ class FakeWalletIntelligenceProvider:
 
     async def fetch_wallet_labels(self, chain: str, address: str) -> tuple[Attribution, ...]:
         return self._labels.get(f"{chain}:{address}", ())
+
+
+class FakeSecurityAnalysisProvider:
+    """Implements wallybot.domain.token_risk.SecurityAnalysisProvider (structural, not
+    inherited). No real vendor (GoPlus, Honeypot.is, TokenSniffer, RugCheck, ...) is integrated
+    yet, so -- same reasoning as `FakeWalletIntelligenceProvider` -- this returns exactly what it
+    was seeded with rather than inventing a schema no real provider has been checked against.
+
+    A token that was never seeded gets an all-`None` result, not an exception: a real security
+    scanner always answers a valid query, it just may have nothing to report -- the same "unknown
+    wallet returns an empty activity list, never a raised error" contract
+    `FakeWalletIntelligenceProvider` already follows."""
+
+    def __init__(
+        self, clock: Clock, results: dict[str, SecurityAnalysisResult] | None = None
+    ) -> None:
+        self.clock = clock
+        self._results = results or {}
+
+    async def analyze_token(self, chain: str, token_id: str) -> SecurityAnalysisResult:
+        key = f"{chain}:{token_id}"
+        result = self._results.get(key)
+        if result is not None:
+            return result
+        return SecurityAnalysisResult(
+            token_id=token_id,
+            chain=chain,
+            mint_authority_active=None,
+            freeze_authority_active=None,
+            liquidity_locked=None,
+            buy_tax_pct=None,
+            sell_tax_pct=None,
+            is_honeypot=None,
+            malicious_labels=None,
+            source="fake",
+            fetched_at=self.clock.now(),
+        )

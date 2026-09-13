@@ -1,9 +1,8 @@
 # Phase 11 implementation backlog: Smart Money scoring and clustering
 
-Status: Slice 1 (Smart Money scoring engine + persistence) and Slice 2 (Smart Money clustering +
-persistence) delivered and verified 2026-09-13. Per ARCHITECTURE.md's implementation sequence:
-"Smart Money scoring and clustering, token/whale intelligence, provider reliability and price
-consensus." This backlog is provisional past Slice 2, same discipline as
+Status: Slices 1-3 delivered and verified 2026-09-13. Per ARCHITECTURE.md's implementation
+sequence: "Smart Money scoring and clustering, token/whale intelligence, provider reliability and
+price consensus." This backlog is provisional past Slice 3, same discipline as
 `docs/PHASE_4.md`/`docs/PHASE_10.md`: each further slice gets its own design pass when actually
 started, not committed to upfront.
 
@@ -11,11 +10,11 @@ started, not committed to upfront.
 | --- | --- | --- |
 | 1 | `score_smart_money` (pure, FIFO-matched realized PnL/win-rate) + append-only persistence | Unit + property tests; integration tests for insert-only history |
 | 2 | Smart Money clustering (independent wallets converging on the same asset) | Unit + property tests; integration tests for insert-only history |
-| 3 | Token intelligence (`TokenRiskScore` from `SecurityAnalysisProvider`) | Not started |
+| 3 | Token intelligence (`TokenRiskScore` from `SecurityAnalysisProvider`) | Unit + property tests; integration tests for insert-only history; port + fake only (no real vendor key) |
 | 4 | Whale intelligence (large-transfer/exchange-flow signals) | Not started |
 | 5 | Provider reliability tracking + price consensus across independent feeds | Not started |
 
-**This session implements Slices 1 and 2.**
+**This session implements Slices 1, 2 and 3.**
 
 ## Delivered: Slice 1 — Smart Money scoring engine
 
@@ -135,3 +134,65 @@ attributions), no scheduler or service that calls `detect_smart_money_clusters` 
 wiring of a `SmartMoneyClusterSignal` into any signal, strategy or the decision pipeline — same
 OBSERVE-only scope as Slice 1's score. No token/whale intelligence (Slices 3-4), no provider
 reliability/price consensus (Slice 5).
+
+## Delivered: Slice 3 — Token intelligence (`TokenRiskScore`)
+
+Per ARCHITECTURE.md's Contracts table: "Token/contract safety checks (mint/freeze authority,
+liquidity locks, honeypot indicators) feeding TokenRiskScore," and the "Token intelligence"
+section, which also names market cap, FDV, liquidity, holder concentration, contract/pool/
+developer-wallet age, buy/sell tax and known malicious labels. No `SecurityAnalysisProvider`
+vendor (GoPlus, Honeypot.is, TokenSniffer, RugCheck, ...) is integrated — the same "blocked on a
+real API key" situation as Phase 10 Slice 4b's wallet/entity vendors — so, like that slice, this
+one delivers the port and a pure scoring function plus a seeded fake, not a real adapter. Market
+cap/FDV are already real via `MarketMetadataProvider` (Phase 10 Slice 4c) but measure size, not
+safety, so they are deliberately not folded into this score.
+
+- `wallybot/domain/token_risk.py` (pure): `SecurityAnalysisResult` (one provider's raw safety
+  check output — every field `None` when not checked, matching `TokenMarketMetadata`'s own
+  convention), `SecurityAnalysisProvider` port, `TokenRiskStatus`, `TokenRiskScore` (immutable,
+  self-validating: `SCORED` needs an in-range `risk_score`, `INSUFFICIENT_DATA` must not carry
+  one). `score_token_risk(result, now)`: scores only the dimensions the provider actually reported
+  — a provider that reported nothing at all yields `INSUFFICIENT_DATA`, never a fabricated "looks
+  safe" zero. Higher `risk_score` means riskier (0-100), the opposite polarity from Smart Money's
+  score, since this number is meant to gate entry rather than rank quality. A honeypot or a known
+  malicious label forces `risk_score` to 100 regardless of any other clean check — these are
+  binary disqualifiers, not another point on a weighted scale. Holder concentration and
+  contract/pool/developer-wallet age are listed in every scored snapshot's `reasons` as
+  `UNSCORED_DIMENSIONS`: no provider in this codebase, real or fake, models them yet. **The
+  per-dimension point weights (mint 25, freeze 20, unlocked liquidity 20, tax capped at 15 each)
+  are an explicitly-labeled versioned placeholder, not a backtested calibration** — same caveat as
+  Slice 1's 60/40 split; nothing consumes this score for any financial decision yet.
+- `wallybot/intelligence/fake.py`: `FakeSecurityAnalysisProvider` — an unseeded token gets an
+  all-`None` result (not an exception), matching `FakeWalletIntelligenceProvider`'s "unknown wallet
+  returns empty, never raises" contract; a real scanner always answers a valid query, it just may
+  have nothing to report.
+- `wallybot/infrastructure/models.py` + `migrations/versions/0008_token_risk.py`:
+  `TokenRiskScoreRow` / `token_risk_scores` — insert-only, no unique constraint on
+  `(chain, token_id)`, same reasoning as `SmartMoneyScoreSnapshotRow`.
+  `wallybot/infrastructure/token_risk_repository.py`: `TokenRiskScoreRepository.save` only ever
+  inserts; `latest`/`history` read it back.
+- `tests/unit/test_token_risk.py`: insufficient-data when nothing was checked, a fully-clean token
+  scores low, each dimension's independent risk contribution, honeypot/malicious-label override to
+  100 regardless of other clean checks, per-dimension tax capping, total-risk capping, and
+  `TokenRiskScore`'s own construction invariants.
+- `tests/property/test_token_risk_invariants.py` (Hypothesis): across arbitrary combinations of
+  present/absent dimensions, the score (when present) always stays in `[0, 100]`, status always
+  matches whether anything was actually checked, a honeypot or malicious label always forces 100,
+  and scoring the same result twice is byte-for-byte deterministic.
+- `tests/contract/security_analysis_provider_suite.py` + `tests/contract/
+  test_fake_security_analysis_provider.py` (same shared-suite pattern as
+  `wallet_intelligence_provider_suite.py`).
+- `tests/integration/test_token_risk_persistence.py` (Testcontainers): round-trip, a second score
+  never overwrites the first, and an `INSUFFICIENT_DATA` score round-trips with no `risk_score`.
+
+Verified: full suite 368 passed (346→368), ruff clean, pyright clean on every new/changed file (the
+same pre-existing, unrelated pyright backlog noted in Slice 2 is untouched), domain purity
+confirmed (`token_risk.py` imports only stdlib + `wallybot.domain.validation`), migration applied
+and verified against the live `wallybot-api` container (head `0008_token_risk`, `/health/ready` →
+`ready`).
+
+Explicitly not built in Slice 3: no real `SecurityAnalysisProvider` adapter (blocked on a vendor
+API key, same as Slice 4b), no wiring of a `TokenRiskScore` into any speculative-allocation gate,
+strategy or the decision pipeline despite ARCHITECTURE.md's stated intent ("gating any speculative
+proposal before risk evaluation") — that wiring is real future work, not implied by this slice's
+scope. No whale intelligence (Slice 4), no provider reliability/price consensus (Slice 5).

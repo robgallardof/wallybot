@@ -448,6 +448,24 @@ class SmartMoneyClusterSignalRow(Base):
     reasons: Mapped[list] = mapped_column(JSONB)
 
 
+class TokenRiskScoreRow(Base):
+    """Persists `wallybot.domain.token_risk.TokenRiskScore`. Insert-only, same reasoning as
+    `SmartMoneyScoreSnapshotRow`: a fresh evaluation is always a new row, never an update -- a
+    token's risk profile can change (authority revoked, liquidity unlocked, a new malicious
+    label), and history should show that rather than overwrite it."""
+
+    __tablename__ = "token_risk_scores"
+    __table_args__ = (CheckConstraint("status IN ('SCORED', 'INSUFFICIENT_DATA')"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    token_id: Mapped[str] = mapped_column(String(128), index=True)
+    chain: Mapped[str] = mapped_column(String(32), index=True)
+    version: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(24))
+    risk_score: Mapped[Decimal | None] = mapped_column(Numeric)
+    reasons: Mapped[list] = mapped_column(JSONB)
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
 class LedgerPostingRow(Base):
     """Persists one `wallybot.domain.ledger.LedgerPosting` leg. Balance-per-currency is enforced
     by `LedgerTransaction.__post_init__` before anything reaches this table -- this row layer
