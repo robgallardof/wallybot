@@ -96,7 +96,21 @@ evidence) and `tests/unit/test_fake_exchange_execution.py` (rejections, settleme
 partial-fill-vs-cancel race, unknown-ID safety). Verified: full suite 213 passed (199→213), ruff
 and pyright clean on every touched file, domain purity confirmed
 (`wallybot/domain/execution.py` imports only stdlib + `wallybot.domain.market`/`wallybot.domain.
-order`). Not yet committed.
+order`). Committed as `770494e`.
+
+**Phase 4 Slice 3 delivered** (balanced double-entry ledger value types) — see `docs/PHASE_4.md`'s
+"Delivered: Slice 3". `wallybot/domain/ledger.py`: `LedgerAccount`/`LedgerPosting` (signed Decimal
+amounts)/`LedgerTransaction`, enforcing DATA.md's "debit/credit equality per asset/currency" as
+"signed amounts sum to zero per currency" and rejecting cross-currency cancellation ("never mix
+units"). `tests/unit/test_ledger.py` + `tests/property/test_ledger_invariants.py` (Hypothesis:
+arbitrary balanced multi-currency posting sets always validate; any single unbalancing leg always
+fails). Verified: full suite 222 passed (213→222), ruff/pyright clean, domain purity confirmed
+(stdlib only). Not yet committed.
+
+**Next up:** Slice 4 (real PostgreSQL schema + Alembic migration for order/fill/ledger tables,
+`UnitOfWork`) is the next backlog item and a bigger jump — first real persistence for Phase 4,
+needs its own dedicated design pass per this session's established discipline, same as `RiskEngine`
+and Slice 2 got.
 
 
 ## Activity inspection UI — 2026-09-12

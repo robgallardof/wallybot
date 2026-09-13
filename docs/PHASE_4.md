@@ -1,8 +1,9 @@
 # Phase 4 implementation backlog
 
-Status: Slice 1 (order intent + lifecycle state machine) and Slice 2 (`ExchangeGateway` port +
-`FakeExchange` paper execution) implemented and verified on 2026-09-12/13.
-Slices 3+ are a documented backlog only — not started. See [ARCHITECTURE](../ARCHITECTURE.md) for
+Status: Slice 1 (order intent + lifecycle state machine), Slice 2 (`ExchangeGateway` port +
+`FakeExchange` paper execution) and Slice 3 (balanced double-entry ledger value types) implemented
+and verified on 2026-09-12/13.
+Slices 4+ are a documented backlog only — not started. See [ARCHITECTURE](../ARCHITECTURE.md) for
 how Phase 4 fits the overall implementation sequence, [DATA](../DATA.md) for the ledger/
 reconciliation rules later slices must implement, and [PHASE_3](PHASE_3.md) for the completed
 signals/allocation/risk phase this builds on.
@@ -25,7 +26,7 @@ is actually designed, not committed to upfront.
 | 5 | `ExecutionService` (durable claim, SUBMITTING before network call, UNKNOWN resolution, reconcile-before-retry per ADR-008) | Failure-injection tests: crash before/after SUBMITTING, ambiguous timeout, no duplicate fills |
 | 6 | Reconciliation (fetch/dedupe/compare exchange state, persist discrepancies) | Integration tests against `FakeExchange`'s scripted outcomes (TESTING.md) |
 
-**This session implements Slices 1 and 2.**
+**This session implements Slices 1, 2 and 3.**
 
 ## Delivered: Slice 1 — `OrderIntent` + lifecycle state machine
 
@@ -101,3 +102,31 @@ in-memory dict for the lifetime of the test/process), no `ExecutionService` orch
 `OrderIntent`'s state machine to this gateway, no ledger, no real Kraken execution adapter (PAPER
 mode never needs one — LIVE would get its own dedicated review, per `wallybot/exchanges/kraken.py`'s
 own docstring).
+
+## Delivered: Slice 3 — balanced double-entry ledger value types
+
+- `wallybot/domain/ledger.py` (pure): `AccountPurpose` (`CASH`/`POSITION`/`CLEARING`/`FEE`),
+  `LedgerAccount` (account_id + currency + purpose), `LedgerPosting` (a signed `Decimal` amount
+  against one account; positive increases the account's balance, negative decreases it — this
+  encodes debit/credit equality as "signed amounts sum to zero" rather than separate debit/credit
+  columns, which is equivalent but simpler to validate and property-test). A zero-amount posting
+  is rejected outright (DATA.md gives no reason to ever persist one; it would only hide a bug).
+  `LedgerTransaction` groups postings and enforces DATA.md's "Enforce debit/credit equality per
+  asset/currency within a journal transaction at commit": for every currency its postings touch,
+  those signed amounts must sum to exactly zero. Grouping by currency *before* summing is what
+  "never adds BTC units to USD units" means in code — a BTC leg can never cancel a USD leg.
+  Requires at least two postings (single-entry isn't double-entry) and an aware `recorded_at`.
+- `tests/unit/test_ledger.py`: a balanced BUY-with-fee transaction is accepted; an unbalanced
+  posting is rejected; same-magnitude postings in *different* currencies are still rejected
+  (proves units never mix); zero-amount postings and single-posting transactions are rejected;
+  naive datetimes are rejected.
+- `tests/property/test_ledger_invariants.py`: Hypothesis generates arbitrary multi-currency,
+  multi-leg posting sets that are always balanced by construction and confirms they always
+  validate (RISK.md's own property-test list: "sums of postings balance per currency"); a second
+  property adds one extra, deliberately unbalancing leg to a random currency and confirms
+  construction always fails, across the generated input space.
+
+Explicitly not built in Slice 3: no persistence, no builder that turns a `Fill` (Slice 2) into a
+`LedgerTransaction` automatically (that mapping — which accounts a given fill's cash/position/fee
+legs actually hit — belongs to the execution/reconciliation service Slices 4-6 that will also need
+Postgres), no position-lot or PnL calculation, no reversal/correction transactions.
