@@ -2,6 +2,8 @@
 
 Self-hosted, AI-assisted quantitative research and portfolio platform. Its objective is long-term net portfolio growth subject to capital preservation, measurable evidence, and deterministic risk controls. Profitability is not guaranteed.
 
+WallyBot's target shape is a multi-source financial intelligence, portfolio analysis and controlled trading platform: market data plus wallet/entity intelligence (smart money, whale flows, political and corporate disclosures, on-chain events) feeding an AI strategy layer that may only ever *propose* trades, never place them. A deterministic risk engine, portfolio policy engine and execution engine — none of them AI — are the sole path from a proposal to an order. See [ARCHITECTURE.md](ARCHITECTURE.md)'s "Multi-source intelligence and Smart Money" and "AI strategy layer and TradeProposal" sections for the target design; most of this is not built yet — see Current status below and the [implementation sequence](ARCHITECTURE.md#implementation-sequence) for what exists today.
+
 ## Current status
 
 Phase 1 now has an executable foundation: FastAPI, React/TypeScript, PostgreSQL, Redis, Alembic, gateway port 3333, password/TOTP authentication, recovery codes, sessions, ADMIN/VIEWER authorization, persistent PAPER controls, audit events, process heartbeats, tests and encrypted backup verification.
