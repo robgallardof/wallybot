@@ -1630,7 +1630,6 @@ dependencies = [
     { name = "alembic" },
     { name = "argon2-cffi" },
     { name = "cryptography" },
-    { name = "duckdb" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "prometheus-client" },
@@ -1638,7 +1637,6 @@ dependencies = [
     { name = "pyarrow" },
     { name = "pydantic-settings" },
     { name = "pyotp" },
-    { name = "pytz" },
     { name = "redis" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "uvicorn" },
@@ -1656,13 +1654,16 @@ dev = [
     { name = "ruff" },
     { name = "testcontainers", extra = ["redis"] },
 ]
+research = [
+    { name = "duckdb" },
+    { name = "pytz" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.14,<2" },
     { name = "argon2-cffi", specifier = ">=23.1,<26" },
     { name = "cryptography", specifier = ">=50,<51" },
-    { name = "duckdb", specifier = ">=1.5.5" },
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "httpx", specifier = ">=0.28,<1" },
     { name = "prometheus-client", specifier = ">=0.21,<1" },
@@ -1670,7 +1671,6 @@ requires-dist = [
     { name = "pyarrow", specifier = ">=23.0.1,<26" },
     { name = "pydantic-settings", specifier = ">=2.7,<3" },
     { name = "pyotp", specifier = ">=2.9,<3" },
-    { name = "pytz", specifier = ">=2026.3.post1" },
     { name = "redis", specifier = ">=5.2,<7" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.38,<2.1" },
     { name = "uvicorn", specifier = ">=0.34,<1" },
@@ -1687,6 +1687,10 @@ dev = [
     { name = "pytest-cov", specifier = ">=6,<8" },
     { name = "ruff", specifier = ">=0.11,<1" },
     { name = "testcontainers", extras = ["postgres", "redis"], specifier = ">=4.9,<5" },
+]
+research = [
+    { name = "duckdb", specifier = ">=1.5.5" },
+    { name = "pytz", specifier = ">=2026.3.post1" },
 ]
 
 [[package]]

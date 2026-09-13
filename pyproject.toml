@@ -17,8 +17,6 @@ dependencies = [
   "pyotp>=2.9,<3",
   "prometheus-client>=0.21,<1",
   "pyarrow>=23.0.1,<26",
-  "duckdb>=1.5.5",
-  "pytz>=2026.3.post1",
 ]
 
 [dependency-groups]
@@ -27,6 +25,14 @@ dev = [
   "hypothesis>=6.125,<7", "testcontainers[postgres,redis]>=4.9,<5",
   "ruff>=0.11,<1", "pyright>=1.1.390,<2", "bandit>=1.8,<2", "pip-audit>=2.8,<3",
 ]
+# duckdb has no musl/Alpine wheel and needs a C++ toolchain to build from source -- kept out of
+# the base `dependencies` list (and thus out of the Alpine Docker images: docker/api.Dockerfile's
+# `uv sync` excludes this group) so `docker compose build` never tries to compile it. Backtesting
+# (Phase 5) is research/dev tooling for now, not something any running service container calls.
+research = ["duckdb>=1.5.5", "pytz>=2026.3.post1"]
+
+[tool.uv]
+default-groups = ["dev", "research"]
 
 [build-system]
 requires = ["hatchling"]

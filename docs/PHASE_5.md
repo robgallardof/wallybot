@@ -1,6 +1,6 @@
 # Phase 5 implementation backlog: datasets, backtests and evaluation
 
-Status: Slices 1-3 delivered 2026-09-13. Per ARCHITECTURE.md's implementation sequence: "Immutable
+Status: Slices 1-4 delivered 2026-09-13. Per ARCHITECTURE.md's implementation sequence: "Immutable
 datasets, backtests, walk-forward, Monte Carlo, benchmarks." Per PENDING.md's own recommended
 delivery order this is the natural next major body of work after Phase 4 (PAPER execution) and
 Phase 12 Slices 1-3 (AI proposals in SHADOW mode) — "mercado visible y calidad → decisión
@@ -15,7 +15,7 @@ its own design pass when started, same discipline as every phase before it.
 | 4 | Experiment record (dataset/code/config/seed) + strategy registry lifecycle | Integration tests: insert-only history, reproducibility from artifacts |
 | 5 | Backtest/experiment UI | Playwright: loading/error/empty states, ES/EN |
 
-**This session implements Slices 1-3.**
+**This session implements Slices 1-4.**
 
 ## Delivered: Slice 1 — DuckDB reader over checksummed Parquet manifests
 
@@ -126,3 +126,44 @@ yet), leakage/survivorship-bias controls (Slice 3's remaining bullets), experime
 persistence or UI (Slices 4-5).
 
 Verified: full suite 477 passed (469→477), ruff/pyright clean.
+
+## Delivered: Slice 4 — experiment record persistence
+
+Per ARCHITECTURE.md: "Registrar dataset, código, dependencias, configuración, semilla y
+divisiones temporales de cada experimento." `wallybot/domain/experiment.py`'s `ExperimentRecord`
+(pure domain type) captures exactly what a re-run needs to reproduce a backtest: dataset window
+(instrument identity + timeframe + start/end -- not the candles themselves, which live in
+Slice 1's checksummed Parquet), code identity (strategy id/version, feature-engine version,
+backtest-engine version), configuration (feature window, risk-off threshold, cost model,
+allocation) and the bootstrap seed (`None` for a plain deterministic backtest with no resampling).
+The result summary (final equity, return, drawdown, win rate, trade count) is stored alongside so
+a later re-run can be *compared* against it, not just re-derived. `migrations/versions/
+0015_experiment_records.py` + `ExperimentRecordRow` + `wallybot/infrastructure/
+experiment_repository.py`'s `ExperimentRepository`: insert-only, and — unlike
+`TradeProposalRepository`/`ShadowDecisionRepository` — **fully round-trips**, since this table
+never stores an `Instrument`-shaped value, only plain identity strings a caller already has, so
+there is no fabrication risk to design around.
+
+**Real infrastructure bug found and fixed via an actual Docker build, not assumed**: adding
+`duckdb` as a base dependency (Slice 1) broke `docker compose build` — Alpine's musl libc has no
+prebuilt DuckDB wheel, so `uv sync` tried to compile it from source and failed with `CMake Error:
+... Could not find the compiler specified in the environment variable CXX`. Fixed by moving
+`duckdb`/`pytz` into their own `research` dependency-group (`[tool.uv] default-groups = ["dev",
+"research"]` keeps them available for local dev and CI's `uv run pytest`, which runs on
+glibc/Ubuntu) and excluding that group from `docker/api.Dockerfile`'s two `uv sync` calls
+(`--no-group research`) — backtesting has no scheduler-wired caller yet, so no running service
+container needs it. Verified end-to-end: `docker compose build api` now succeeds, the container
+starts, and `/health/ready` reports `ready` at the new migration head.
+
+`tests/unit/test_experiment.py` (15 tests: validation of every field) and `tests/integration/
+test_experiment_persistence.py` (round-trip equality, unknown-id lookup, two re-runs of the same
+strategy both persist as independent history rather than overwriting).
+
+**Explicitly not built**: any strategy-registry lifecycle (DRAFT → BACKTESTED → VALIDATED → ...,
+still Slice 4's remaining bullet, not delivered here — this slice is experiment persistence only);
+any code that actually calls `BacktestEngine`/`ExperimentRepository` together end-to-end (no
+orchestrator wires dataset lookup → backtest → experiment save yet); any UI (Slice 5).
+
+Verified: full suite 495 passed (477→495), ruff/pyright clean across the whole repo (two
+pre-existing, unrelated pyright findings in `auth_routes.py`/`system_routes.py` predate this
+session), `docker compose build`/`up`/`/health/ready` all verified against the live stack.

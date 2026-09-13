@@ -493,8 +493,20 @@ fabricated distribution) under 2 trades. 8 new tests, all passed first run (boot
 converges to the real average over 5000 samples, exactly deterministic per seed). Verified: full
 suite 477 passed (469→477), ruff/pyright clean.
 
-**What's realistically left for a "finished product"**: Phase 5 Slices 4-5 (experiment/
-strategy-registry persistence, backtest UI); Phase 12 Slice 4 (real AI adapter
+**Phase 5 Slice 4 delivered** (experiment record persistence) — see `docs/PHASE_5.md`'s
+"Delivered: Slice 4". `ExperimentRecord` (pure) + insert-only `ExperimentRepository` that fully
+round-trips (unlike `TradeProposalRepository`, this table never stores an `Instrument`-shaped
+value). **Real infra bug found and fixed via an actual Docker build**: `duckdb` in the base
+dependencies broke `docker compose build` on Alpine (no musl wheel, needs a C++ toolchain to
+compile from source, none present). Fixed by moving `duckdb`/`pytz` into a `research`
+dependency-group, defaulted on for local dev/CI (`[tool.uv] default-groups`) but excluded from
+`docker/api.Dockerfile`'s `uv sync` calls (`--no-group research`) — no running service container
+calls the backtest engine yet. Verified end-to-end: `docker compose build api` succeeds now,
+redeployed, `/health/ready` → `ready`. Full suite 495 passed (477→495), ruff/pyright clean
+repo-wide.
+
+**What's realistically left for a "finished product"**: Phase 5 Slice 5 (backtest UI) and its
+strategy-registry-lifecycle remainder; Phase 12 Slice 4 (real AI adapter
 -- needs an authorized model/API key decision) and an orchestrator that actually calls
 `ShadowDecisionService` on a schedule (none exists yet); connecting the remaining Phase 10/11
 OBSERVE-only signals (wallet activity feed itself, entity correlation graph, provider

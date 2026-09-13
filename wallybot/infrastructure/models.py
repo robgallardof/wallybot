@@ -594,3 +594,39 @@ class ShadowDecisionRow(Base):
     risk_final_quantity: Mapped[Decimal | None] = mapped_column(Numeric)
     risk_reasons: Mapped[list | None] = mapped_column(JSONB)
     as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class ExperimentRecordRow(Base):
+    """Persists `wallybot.domain.experiment.ExperimentRecord`. Insert-only: an experiment is a
+    fact about a run that happened, never corrected in place -- re-running with the same
+    configuration produces a new record to compare against the old one, not an overwrite. Unlike
+    `TradeProposalRow`, this table stores no `Instrument`-shaped object at all -- only plain
+    venue/base/quote identity strings a caller already has -- so it fully round-trips without any
+    fabrication concern."""
+
+    __tablename__ = "experiment_records"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    experiment_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    strategy_id: Mapped[str] = mapped_column(String(64), index=True)
+    strategy_version: Mapped[int] = mapped_column(Integer)
+    feature_engine_version: Mapped[int] = mapped_column(Integer)
+    backtest_engine_version: Mapped[int] = mapped_column(Integer)
+    instrument_venue: Mapped[str] = mapped_column(String(32))
+    instrument_base: Mapped[str] = mapped_column(String(16))
+    instrument_quote: Mapped[str] = mapped_column(String(16))
+    timeframe: Mapped[str] = mapped_column(String(16))
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    feature_window: Mapped[int] = mapped_column(Integer)
+    risk_off_threshold: Mapped[Decimal] = mapped_column(Numeric)
+    fee_rate: Mapped[Decimal] = mapped_column(Numeric)
+    slippage_pct: Mapped[Decimal] = mapped_column(Numeric)
+    starting_equity: Mapped[Decimal] = mapped_column(Numeric)
+    allocation_pct: Mapped[Decimal] = mapped_column(Numeric)
+    seed: Mapped[int | None] = mapped_column(BigInteger)
+    trade_count: Mapped[int] = mapped_column(Integer)
+    final_equity: Mapped[Decimal] = mapped_column(Numeric)
+    total_return_pct: Mapped[Decimal] = mapped_column(Numeric)
+    max_drawdown_pct: Mapped[Decimal] = mapped_column(Numeric)
+    win_rate: Mapped[Decimal | None] = mapped_column(Numeric)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
