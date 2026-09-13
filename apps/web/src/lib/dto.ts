@@ -66,3 +66,28 @@ export const smartMoneyRowSchema = z.object({
 export const smartMoneySchema = z.object({
   rows: z.array(smartMoneyRowSchema),
 });
+export const whaleTransferRowSchema = z.object({
+  wallet_id: z.string(),
+  chain: z.string(),
+  token: z.string(),
+  action: z.string(),
+  amount: z.string(),
+  value_usd: z.string(),
+  threshold_usd: z.string(),
+  occurred_at: z.string(),
+  reasons: z.array(z.string()),
+});
+export const whaleFlowSchema = z.object({
+  rows: z.array(whaleTransferRowSchema),
+});
+export const tokenRiskRowSchema = z.object({
+  token_id: z.string(),
+  chain: z.string(),
+  status: z.enum(["SCORED", "INSUFFICIENT_DATA"]),
+  risk_score: z.string().nullable(),
+  computed_at: z.string(),
+  reasons: z.array(z.string()),
+});
+export const tokenRiskSchema = z.object({
+  rows: z.array(tokenRiskRowSchema),
+});

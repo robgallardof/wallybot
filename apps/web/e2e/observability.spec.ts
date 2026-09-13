@@ -68,6 +68,8 @@ async function shell(page: Page) {
       "/api/system": system,
       "/api/events": [],
       "/api/intelligence/smart-money": { rows: [] },
+      "/api/intelligence/whale-flow": { rows: [] },
+      "/api/intelligence/token-risk": { rows: [] },
     };
     if (!(path in responses))
       throw new Error(`Unexpected API request: ${path}`);
@@ -273,22 +275,69 @@ test("smart money direct route, loading, empty and populated states", async ({
     );
   });
   expect((await page.goto("/intelligence"))?.status()).toBe(200);
-  await expect(page.getByRole("status")).toContainText(
-    "Cargando puntajes de Smart Money",
-  );
+  await expect(
+    page.getByText("Cargando puntajes de Smart Money"),
+  ).toBeVisible();
   release();
+  const smartMoneyPanel = page.locator("article.panel", {
+    hasText: "Wallets Smart Money",
+  });
   await expect(
     page.getByText("No hay wallets monitoreadas con puntaje todavía."),
   ).toBeVisible();
   reply = "ok";
-  await page.getByRole("button", { name: "Actualizar", exact: true }).click();
-  await expect(page.getByRole("table").getByRole("row")).toHaveCount(3);
+  await smartMoneyPanel
+    .getByRole("button", { name: "Actualizar", exact: true })
+    .click();
+  await expect(smartMoneyPanel.getByRole("row")).toHaveCount(3);
   await expect(page.getByText("solana:abc123")).toBeVisible();
   await expect(page.getByText("Datos insuficientes")).toBeVisible();
   reply = "error";
-  await page.getByRole("button", { name: "Actualizar", exact: true }).click();
-  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+  await smartMoneyPanel
+    .getByRole("button", { name: "Actualizar", exact: true })
+    .click();
+  await expect(smartMoneyPanel.getByRole("alert")).toContainText(
     "No se pudo actualizar",
   );
-  await expect(page.getByRole("table")).toBeVisible();
+  await expect(smartMoneyPanel.getByRole("table")).toBeVisible();
+});
+
+test("whale flow and token risk sections render populated and empty states", async ({
+  page,
+}) => {
+  await shell(page);
+  await page.route("**/api/intelligence/whale-flow", async (route) => {
+    await route.fulfill({
+      json: {
+        rows: [
+          {
+            wallet_id: "solana:whale-1",
+            chain: "solana",
+            token: "BONK",
+            action: "TRANSFER",
+            amount: "1000000",
+            value_usd: "500000",
+            threshold_usd: "100000",
+            occurred_at: "2026-01-10T00:00:00Z",
+            reasons: ["value_usd 500000 meets threshold 100000"],
+          },
+        ],
+      },
+    });
+  });
+  await page.route("**/api/intelligence/token-risk", async (route) => {
+    await route.fulfill({ json: { rows: [] } });
+  });
+  expect((await page.goto("/intelligence"))?.status()).toBe(200);
+  const whaleFlowPanel = page.locator("article.panel", {
+    hasText: "Transferencias de ballenas",
+  });
+  await expect(whaleFlowPanel.getByText("solana:whale-1")).toBeVisible();
+  await expect(whaleFlowPanel.getByText("BONK")).toBeVisible();
+  const tokenRiskPanel = page.locator("article.panel", {
+    hasText: "Riesgo de tokens",
+  });
+  await expect(
+    tokenRiskPanel.getByText("No hay tokens evaluados todavía."),
+  ).toBeVisible();
 });

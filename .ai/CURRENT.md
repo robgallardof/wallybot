@@ -439,6 +439,29 @@ scored/insufficient-data rows via the real repository) and a new Playwright test
 passed (438→441), ruff/pyright/tsc/eslint/next-build all clean, `api` and `web` containers rebuilt
 and redeployed, `/health/ready` → `ready` at the new migration head, `/login` serving 200.
 
+**Whale flow + token risk connected to the same Inteligencia page** (2026-09-13, same session,
+user said "continua sin parar... quiero mi producto terminado"). Same pattern as Smart Money:
+`TokenRiskScoreRepository.list_latest()` added (DISTINCT ON per (chain, token_id) -- it previously
+only had per-token `latest`/`history`); `WhaleTransferRepository.latest()` already existed, no
+repo change needed. `GET /api/intelligence/whale-flow` and `GET /api/intelligence/token-risk`
+added to `apps/api/intelligence_routes.py` + `dto.py`. **Same access-control gap found again**:
+`wally_api` had no grant on `whale_transfer_signals`/`token_risk_scores` either --
+`migrations/versions/0013_intelligence_api_grants.py` (bumped `/health/ready`'s check to
+`"0013_intelligence_api_grants"`). Frontend: `WhaleFlowSection.tsx`/`TokenRiskSection.tsx` +
+`IntelligencePage.tsx` (composes Smart Money + these two into one page, one "Inteligencia" nav
+entry, no new routes needed). `tests/integration/test_whale_flow_route.py` +
+`test_token_risk_route.py` + 2 new Playwright tests. Verified: full suite 447 passed (441→447),
+ruff/pyright/tsc/eslint/next-build clean, both containers rebuilt/redeployed, `/health/ready` →
+`ready`.
+
+**What's realistically left for a "finished product"**: Phase 12 Slices 3-4 (SHADOW wiring, real
+AI adapter -- needs an authorized model/API key decision), connecting the remaining Phase 10/11
+OBSERVE-only signals (wallet activity feed itself, entity correlation graph, provider
+reliability/price consensus) the same way, Phases 5/7/8 (backtesting, research agents, Telegram),
+and Phase 9 (LIVE trading) -- which per RISK.md/SECURITY.md requires explicit human-authorized
+evidence gates and real exchange credentials and must never be rushed to "look done." Continuing
+sequentially, one verified slice at a time, same discipline as every slice above.
+
 
 ## Activity inspection UI — 2026-09-12
 

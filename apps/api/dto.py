@@ -117,3 +117,32 @@ class SmartMoneyRowView(BaseModel):
 
 class SmartMoneyView(BaseModel):
     rows: list[SmartMoneyRowView]
+
+
+class WhaleTransferRowView(BaseModel):
+    wallet_id: str
+    chain: str
+    token: str
+    action: str
+    amount: str
+    value_usd: str
+    threshold_usd: str
+    occurred_at: str
+    reasons: list[str]
+
+
+class WhaleFlowView(BaseModel):
+    rows: list[WhaleTransferRowView]
+
+
+class TokenRiskRowView(BaseModel):
+    token_id: str
+    chain: str
+    status: Literal["SCORED", "INSUFFICIENT_DATA"]
+    risk_score: str | None
+    computed_at: str
+    reasons: list[str]
+
+
+class TokenRiskView(BaseModel):
+    rows: list[TokenRiskRowView]

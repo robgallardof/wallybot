@@ -735,6 +735,10 @@
   display: grid;
   gap: 24px;
 }
+:root .intelligence-stack {
+  display: grid;
+  gap: 24px;
+}
 :root .system-groups h3 {
   margin: 0 0 12px;
 }

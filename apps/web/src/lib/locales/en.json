@@ -211,5 +211,21 @@
   "Tasa de acierto": "Win rate",
   "Evaluada": "Scored",
   "Datos insuficientes": "Insufficient data",
-  "Sin motivos informados.": "No reasons reported."
+  "Sin motivos informados.": "No reasons reported.",
+  "Cargando transferencias de ballenas…": "Loading whale transfers…",
+  "No se pudieron cargar las transferencias de ballenas. El servicio puede no estar disponible.": "Could not load whale transfers. The service may be unavailable.",
+  "Transferencias de ballenas": "Whale transfers",
+  "Transferencias on-chain que superan un umbral en USD. Es una señal de magnitud, nunca una interpretación de compra o venta.": "On-chain transfers exceeding a USD threshold. A magnitude signal only, never a buy/sell interpretation.",
+  "No se detectaron transferencias de ballenas todavía.": "No whale transfers detected yet.",
+  "Cadena": "Chain",
+  "Acción": "Action",
+  "Valor (USD)": "Value (USD)",
+  "Umbral (USD)": "Threshold (USD)",
+  "Cargando riesgo de tokens…": "Loading token risk…",
+  "No se pudo cargar el riesgo de tokens. El servicio puede no estar disponible.": "Could not load token risk. The service may be unavailable.",
+  "Riesgo de tokens": "Token risk",
+  "Puntaje 0-100: autoridad de acuñación/congelación, liquidez bloqueada, impuestos y honeypot. Mayor puntaje es más riesgo, no una recomendación de inversión.": "0-100 score: mint/freeze authority, locked liquidity, taxes and honeypot. Higher means riskier, not investment advice.",
+  "No hay tokens evaluados todavía.": "No tokens evaluated yet.",
+  "Puntaje de riesgo": "Risk score",
+  "Evaluado": "Scored"
 }

@@ -40,6 +40,32 @@ class TokenRiskScoreRepository:
         ).scalar_one_or_none()
         return None if row is None else self._to_domain(row)
 
+    async def list_latest(self) -> tuple[TokenRiskScore, ...]:
+        """One row per (chain, token): its most recent score, newest-evaluated token first.
+        Backs a UI/API listing -- per-token history stays available via `history`."""
+        rows = (
+            (
+                await self.session.execute(
+                    select(TokenRiskScoreRow)
+                    .distinct(TokenRiskScoreRow.chain, TokenRiskScoreRow.token_id)
+                    .order_by(
+                        TokenRiskScoreRow.chain,
+                        TokenRiskScoreRow.token_id,
+                        TokenRiskScoreRow.computed_at.desc(),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return tuple(
+            sorted(
+                (self._to_domain(row) for row in rows),
+                key=lambda score: score.computed_at,
+                reverse=True,
+            )
+        )
+
     async def history(self, chain: str, token_id: str) -> tuple[TokenRiskScore, ...]:
         rows = (
             (
