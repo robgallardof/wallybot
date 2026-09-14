@@ -146,3 +146,32 @@ class TokenRiskRowView(BaseModel):
 
 class TokenRiskView(BaseModel):
     rows: list[TokenRiskRowView]
+
+
+class ProviderReliabilityRowView(BaseModel):
+    provider: str
+    status: Literal["HEALTHY", "DEGRADED", "UNRELIABLE", "INSUFFICIENT_DATA"]
+    call_count: int
+    error_rate: str | None
+    average_latency_ms: str | None
+    seconds_since_last_success: str | None
+    computed_at: str
+    reasons: list[str]
+
+
+class ProviderReliabilityView(BaseModel):
+    rows: list[ProviderReliabilityRowView]
+
+
+class PriceConsensusRowView(BaseModel):
+    instrument_id: str
+    status: Literal["CONSENSUS", "INSUFFICIENT_DATA"]
+    consensus_price: str | None
+    included_sources: list[str]
+    excluded_sources: list[str]
+    computed_at: str
+    reasons: list[str]
+
+
+class PriceConsensusView(BaseModel):
+    rows: list[PriceConsensusRowView]

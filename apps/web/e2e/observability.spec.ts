@@ -70,6 +70,8 @@ async function shell(page: Page) {
       "/api/intelligence/smart-money": { rows: [] },
       "/api/intelligence/whale-flow": { rows: [] },
       "/api/intelligence/token-risk": { rows: [] },
+      "/api/intelligence/provider-reliability": { rows: [] },
+      "/api/intelligence/price-consensus": { rows: [] },
     };
     if (!(path in responses))
       throw new Error(`Unexpected API request: ${path}`);
@@ -339,5 +341,44 @@ test("whale flow and token risk sections render populated and empty states", asy
   });
   await expect(
     tokenRiskPanel.getByText("No hay tokens evaluados todavía."),
+  ).toBeVisible();
+});
+
+test("provider reliability and price consensus sections render populated and empty states", async ({
+  page,
+}) => {
+  await shell(page);
+  await page.route("**/api/intelligence/provider-reliability", async (route) => {
+    await route.fulfill({
+      json: {
+        rows: [
+          {
+            provider: "kraken",
+            status: "HEALTHY",
+            call_count: 100,
+            error_rate: "0.01",
+            average_latency_ms: "120",
+            seconds_since_last_success: "5",
+            computed_at: "2026-01-10T00:00:00Z",
+            reasons: ["error_rate=0.01 below threshold"],
+          },
+        ],
+      },
+    });
+  });
+  await page.route("**/api/intelligence/price-consensus", async (route) => {
+    await route.fulfill({ json: { rows: [] } });
+  });
+  expect((await page.goto("/intelligence"))?.status()).toBe(200);
+  const providerPanel = page.locator("article.panel", {
+    hasText: "Confiabilidad de proveedores",
+  });
+  await expect(providerPanel.getByText("kraken")).toBeVisible();
+  await expect(providerPanel.getByText("Saludable")).toBeVisible();
+  const priceConsensusPanel = page.locator("article.panel", {
+    hasText: "Consenso de precios",
+  });
+  await expect(
+    priceConsensusPanel.getByText("No hay consensos calculados todavía."),
   ).toBeVisible();
 });

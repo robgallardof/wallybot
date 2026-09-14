@@ -2,12 +2,20 @@ from fastapi import APIRouter, Request
 
 from apps.api.dependencies import SignedIn
 from apps.api.dto import (
+    PriceConsensusRowView,
+    PriceConsensusView,
+    ProviderReliabilityRowView,
+    ProviderReliabilityView,
     SmartMoneyRowView,
     SmartMoneyView,
     TokenRiskRowView,
     TokenRiskView,
     WhaleFlowView,
     WhaleTransferRowView,
+)
+from wallybot.infrastructure.price_consensus_repository import PriceConsensusRepository
+from wallybot.infrastructure.provider_reliability_repository import (
+    ProviderReliabilityRepository,
 )
 from wallybot.infrastructure.smart_money_repository import SmartMoneyScoreRepository
 from wallybot.infrastructure.token_risk_repository import TokenRiskScoreRepository
@@ -78,5 +86,56 @@ async def token_risk(request: Request, user: SignedIn) -> TokenRiskView:
                 reasons=list(score.reasons),
             )
             for score in scores
+        ]
+    )
+
+
+@router.get("/provider-reliability", response_model=ProviderReliabilityView)
+async def provider_reliability(request: Request, user: SignedIn) -> ProviderReliabilityView:
+    async with request.app.state.sessions() as db:
+        snapshots = await ProviderReliabilityRepository(db).list_latest()
+    return ProviderReliabilityView(
+        rows=[
+            ProviderReliabilityRowView(
+                provider=snapshot.provider,
+                status=snapshot.status.value,
+                call_count=snapshot.call_count,
+                error_rate=str(snapshot.error_rate) if snapshot.error_rate is not None else None,
+                average_latency_ms=(
+                    str(snapshot.average_latency_ms)
+                    if snapshot.average_latency_ms is not None
+                    else None
+                ),
+                seconds_since_last_success=(
+                    str(snapshot.seconds_since_last_success)
+                    if snapshot.seconds_since_last_success is not None
+                    else None
+                ),
+                computed_at=snapshot.computed_at.isoformat(),
+                reasons=list(snapshot.reasons),
+            )
+            for snapshot in snapshots
+        ]
+    )
+
+
+@router.get("/price-consensus", response_model=PriceConsensusView)
+async def price_consensus(request: Request, user: SignedIn) -> PriceConsensusView:
+    async with request.app.state.sessions() as db:
+        results = await PriceConsensusRepository(db).list_latest()
+    return PriceConsensusView(
+        rows=[
+            PriceConsensusRowView(
+                instrument_id=result.instrument_id,
+                status=result.status.value,
+                consensus_price=(
+                    str(result.consensus_price) if result.consensus_price is not None else None
+                ),
+                included_sources=list(result.included_sources),
+                excluded_sources=list(result.excluded_sources),
+                computed_at=result.computed_at.isoformat(),
+                reasons=list(result.reasons),
+            )
+            for result in results
         ]
     )

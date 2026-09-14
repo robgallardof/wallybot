@@ -91,3 +91,28 @@ export const tokenRiskRowSchema = z.object({
 export const tokenRiskSchema = z.object({
   rows: z.array(tokenRiskRowSchema),
 });
+export const providerReliabilityRowSchema = z.object({
+  provider: z.string(),
+  status: z.enum(["HEALTHY", "DEGRADED", "UNRELIABLE", "INSUFFICIENT_DATA"]),
+  call_count: z.number(),
+  error_rate: z.string().nullable(),
+  average_latency_ms: z.string().nullable(),
+  seconds_since_last_success: z.string().nullable(),
+  computed_at: z.string(),
+  reasons: z.array(z.string()),
+});
+export const providerReliabilitySchema = z.object({
+  rows: z.array(providerReliabilityRowSchema),
+});
+export const priceConsensusRowSchema = z.object({
+  instrument_id: z.string(),
+  status: z.enum(["CONSENSUS", "INSUFFICIENT_DATA"]),
+  consensus_price: z.string().nullable(),
+  included_sources: z.array(z.string()),
+  excluded_sources: z.array(z.string()),
+  computed_at: z.string(),
+  reasons: z.array(z.string()),
+});
+export const priceConsensusSchema = z.object({
+  rows: z.array(priceConsensusRowSchema),
+});

@@ -39,6 +39,31 @@ class PriceConsensusRepository:
         ).scalar_one_or_none()
         return None if row is None else self._to_domain(row)
 
+    async def list_latest(self) -> tuple[PriceConsensusResult, ...]:
+        """One row per instrument: its most recent consensus result, newest-computed instrument
+        first. Backs a UI/API listing -- per-instrument history stays available via `history`."""
+        rows = (
+            (
+                await self.session.execute(
+                    select(PriceConsensusResultRow)
+                    .distinct(PriceConsensusResultRow.instrument_id)
+                    .order_by(
+                        PriceConsensusResultRow.instrument_id,
+                        PriceConsensusResultRow.computed_at.desc(),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return tuple(
+            sorted(
+                (self._to_domain(row) for row in rows),
+                key=lambda result: result.computed_at,
+                reverse=True,
+            )
+        )
+
     async def history(self, instrument_id: str) -> tuple[PriceConsensusResult, ...]:
         rows = (
             (

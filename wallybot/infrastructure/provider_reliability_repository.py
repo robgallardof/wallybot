@@ -43,6 +43,31 @@ class ProviderReliabilityRepository:
         ).scalar_one_or_none()
         return None if row is None else self._to_domain(row)
 
+    async def list_latest(self) -> tuple[ProviderReliabilitySnapshot, ...]:
+        """One row per provider: its most recent snapshot, newest-computed provider first. Backs
+        a UI/API listing -- per-provider history stays available via `history`."""
+        rows = (
+            (
+                await self.session.execute(
+                    select(ProviderReliabilitySnapshotRow)
+                    .distinct(ProviderReliabilitySnapshotRow.provider)
+                    .order_by(
+                        ProviderReliabilitySnapshotRow.provider,
+                        ProviderReliabilitySnapshotRow.computed_at.desc(),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return tuple(
+            sorted(
+                (self._to_domain(row) for row in rows),
+                key=lambda snapshot: snapshot.computed_at,
+                reverse=True,
+            )
+        )
+
     async def history(self, provider: str) -> tuple[ProviderReliabilitySnapshot, ...]:
         rows = (
             (

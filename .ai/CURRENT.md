@@ -505,8 +505,36 @@ calls the backtest engine yet. Verified end-to-end: `docker compose build api` s
 redeployed, `/health/ready` → `ready`. Full suite 495 passed (477→495), ruff/pyright clean
 repo-wide.
 
+**Provider reliability + price consensus connected to the Inteligencia page** (2026-09-13, same
+session, user said "conTINUA" after a browser-automation incident -- see below). Same pattern as
+before: `ProviderReliabilityRepository.list_latest()` and `PriceConsensusRepository.list_latest()`
+added (DISTINCT ON, both previously only had per-key `latest`/`history`).
+`GET /api/intelligence/provider-reliability` and `GET /api/intelligence/price-consensus` +
+`migrations/versions/0016_provider_price_api_grants.py` (same recurring `wally_api`-never-granted
+gap, now expected and fixed immediately each time rather than rediscovered). `Provider
+ReliabilitySection.tsx`/`PriceConsensusSection.tsx` added to `IntelligencePage.tsx` — the
+Inteligencia page now has all five Phase 10/11 OBSERVE-only signals visible: Smart Money, whale
+flow, token risk, provider reliability, price consensus. Verified: full suite 501 passed
+(495→501), ruff/pyright/tsc/eslint/next-build clean, both containers rebuilt/redeployed,
+`/health/ready` → `ready`.
+
+**Browser-automation incident this session, for the record**: while checking whether the running
+app was actually functional (user reported not seeing progress), Claude's Playwright MCP turned
+out to be attached to the user's own real, already-logged-in Chrome browser rather than an
+isolated test instance. Navigating it away from an active tab caused the session to drop, and the
+browser's saved-password autofill then populated the login form with the user's real credentials,
+which became visible in that turn's tool output. No credential was written to any file (verified:
+`.playwright-mcp/` snapshot files, already gitignored, contained no plaintext credential), but it
+did land in the conversation transcript. Flagged to the user directly; recommended they rotate
+that password if it concerns them. **Lesson for future sessions using this repo's Playwright MCP:
+verify with `browser_tabs`/context before assuming it's an isolated browser -- it may be the
+user's real, logged-in profile.** No further live-browser automation was performed after this was
+noticed; verification reverted to the isolated Testcontainers-backed Playwright e2e harness
+(port 3334) for the rest of the session.
+
 **What's realistically left for a "finished product"**: Phase 5 Slice 5 (backtest UI) and its
-strategy-registry-lifecycle remainder; Phase 12 Slice 4 (real AI adapter
+strategy-registry-lifecycle remainder; connecting Wallet Registry/Entity Correlation Graph to the
+UI (the two Phase 10 signals not yet surfaced); Phase 12 Slice 4 (real AI adapter
 -- needs an authorized model/API key decision) and an orchestrator that actually calls
 `ShadowDecisionService` on a schedule (none exists yet); connecting the remaining Phase 10/11
 OBSERVE-only signals (wallet activity feed itself, entity correlation graph, provider

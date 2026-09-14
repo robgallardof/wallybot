@@ -7,6 +7,8 @@ import { useMarketsData } from "../hooks/useMarketsData";
 import { useSmartMoneyData } from "../hooks/useSmartMoneyData";
 import { useWhaleFlowData } from "../hooks/useWhaleFlowData";
 import { useTokenRiskData } from "../hooks/useTokenRiskData";
+import { useProviderReliabilityData } from "../hooks/useProviderReliabilityData";
+import { usePriceConsensusData } from "../hooks/usePriceConsensusData";
 import { DashboardShell } from "./dashboard/DashboardShell";
 import { Overview } from "./dashboard/pages/Overview";
 import { SystemPage } from "./dashboard/pages/SystemPage";
@@ -42,6 +44,8 @@ export function Dashboard({
   const smartMoney = useSmartMoneyData(page === "intelligence");
   const whaleFlow = useWhaleFlowData(page === "intelligence");
   const tokenRisk = useTokenRiskData(page === "intelligence");
+  const providerReliability = useProviderReliabilityData(page === "intelligence");
+  const priceConsensus = usePriceConsensusData(page === "intelligence");
   function navigate(next: string) {
     router.push(`/${next}`);
   }
@@ -66,6 +70,8 @@ export function Dashboard({
           smartMoney={smartMoney}
           whaleFlow={whaleFlow}
           tokenRisk={tokenRisk}
+          providerReliability={providerReliability}
+          priceConsensus={priceConsensus}
         />
       )}
       {page === "risk" && (
