@@ -15,17 +15,21 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from apps.api.auth_routes import router as auth_router
+from apps.api.backtest_routes import router as backtest_router
 from apps.api.dependencies import SignedIn
 from apps.api.intelligence_routes import router as intelligence_router
 from apps.api.market_routes import router as market_router
 from apps.api.system_routes import router as system_router
+from wallybot.application.backtest_orchestrator import BacktestOrchestrator
 from wallybot.application.market_overview import build_market_overview
+from wallybot.data.historical_query import DEFAULT_QUERY_LIMITS
 from wallybot.data.quality import QualityPolicy
 from wallybot.exchanges.kraken import KrakenExchange
 from wallybot.infrastructure.database import database
 from wallybot.infrastructure.logging import configure_logging
 from wallybot.infrastructure.settings import Settings, load_settings
 from wallybot.infrastructure.system_clock import SystemClock
+from wallybot.infrastructure.uuid_id_generator import UuidIdGenerator
 from wallybot.market.universe import UniverseFilterConfig
 from wallybot.security.auth import AuthError, AuthService
 from wallybot.security.throttle import Throttle, Throttled
@@ -49,9 +53,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.throttle = Throttle(redis, config.auth_limit, config.auth_window_seconds)
 
         clock = SystemClock()
+        provider = KrakenExchange(clock=clock)
         app.state.market_overview = partial(
             build_market_overview,
-            provider=KrakenExchange(clock=clock),
+            provider=provider,
             clock=clock,
             timeframe="1h",
             history_candles=30,
@@ -69,6 +74,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 max_abnormal_return=Decimal("0.5"),
             ),
             feature_window=20,
+        )
+        app.state.backtest_orchestrator = BacktestOrchestrator(
+            provider=provider,
+            data_root=config.historical_data_root,
+            resource_limits=DEFAULT_QUERY_LIMITS,
+            clock=clock,
+            id_generator=UuidIdGenerator(),
         )
         logger.info("API_STARTED")
         yield
@@ -151,7 +163,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     # Known rough edge: this must be bumped by hand on every new migration head.
                     # Resolving it dynamically via alembic's ScriptDirectory is a real improvement
                     # but out of scope for the migration that happens to need the bump.
-                    if revision != "0016_provider_price_api_grants":
+                    if revision != "0017_backtest_api_grants":
                         raise ValueError("Schema not ready")
                     if await db.scalar(text("SELECT id FROM control WHERE id = 1")) != 1:
                         raise ValueError("Control state not ready")
@@ -168,4 +180,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(system_router)
     app.include_router(market_router)
     app.include_router(intelligence_router)
+    app.include_router(backtest_router)
     return app

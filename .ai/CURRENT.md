@@ -532,8 +532,41 @@ user's real, logged-in profile.** No further live-browser automation was perform
 noticed; verification reverted to the isolated Testcontainers-backed Playwright e2e harness
 (port 3334) for the rest of the session.
 
-**What's realistically left for a "finished product"**: Phase 5 Slice 5 (backtest UI) and its
-strategy-registry-lifecycle remainder; connecting Wallet Registry/Entity Correlation Graph to the
+**Phase 5 Slice 5 delivered** (backtest/experiment UI) — see `docs/PHASE_5.md`'s "Delivered: Slice
+5". `wallybot/application/backtest_orchestrator.py`'s `BacktestOrchestrator` is the first code that
+actually wires Slice 1 (`read_candles`) → Slice 2 (`BacktestEngine`) → Slice 3 (optional bootstrap)
+end-to-end, returning a pure `ExperimentRecord` for the caller to persist (DB-free itself, same
+separation `ShadowDecisionService` uses). `POST /api/backtests` (CSRF-protected, any signed-in
+role) runs a real backtest and persists the result; `GET /api/backtests` lists recent history.
+**Real access-control gap found and fixed** (same recurring pattern as 0012/0013/0016, migration
+`0017_backtest_api_grants`): `wally_api` had no grant on `experiment_records` at all, and this
+table turned out to be the first API-write table with a Postgres-generated `SERIAL` id (every
+other API-writable table uses an app-generated UUID string) — `GRANT INSERT` alone doesn't include
+sequence `USAGE`, so the migration also grants `USAGE, SELECT ON SEQUENCE
+experiment_records_id_seq`. Found via the real integration test against the actual `wally_api`
+role (every earlier Phase 5 persistence test used the Postgres owner connection directly, so none
+of them could have caught this), not guessed. Bumped `apps/api/main.py`'s hardcoded Alembic
+revision check to `"0017_backtest_api_grants"`. Frontend: `BacktestsPage.tsx` (trigger form +
+result panel + history table) replaces the "research" nav slot's `Unavailable` placeholder;
+`useBacktestsData.ts` pairs a query (history) with this codebase's first non-`/control` mutation
+hook. Verified: full suite 510 passed (501→510), ruff/pyright clean, `tsc`/`eslint`/`next build`
+clean, full Playwright suite green including a new backtests test (loading → empty → run →
+history refresh → 422-as-alert). **Explicitly not built, on purpose, not silently skipped**: any
+production dataset-ingestion job that actually writes to the Parquet store — confirmed via
+`graphify query` that `HistoricalStore.write_partition` has no caller outside test code anywhere
+in this codebase (a pre-existing Phase 2 Slice 5 gap, not introduced by this slice) — so
+`POST /api/backtests` against a real deployment will honestly 422 with "insufficient historical
+data" until that ingestion job exists; no Docker volume was added for `WALLY_HISTORICAL_DATA_ROOT`
+either, since mounting one now with no writer would be placeholder infrastructure
+`ARCHITECTURE.md` says to avoid. Not yet committed.
+
+**Phase 5 status: all 5 slices delivered as `docs/PHASE_5.md`'s table originally scoped them.**
+Still open: Slice 4's "strategy registry lifecycle" bullet (meaningful only once a second strategy
+exists), and the pre-existing Parquet-ingestion-job gap noted above.
+
+**What's realistically left for a "finished product"**: the Parquet dataset-ingestion job that
+would make `POST /api/backtests` actually return non-empty results in production; connecting
+Wallet Registry/Entity Correlation Graph to the
 UI (the two Phase 10 signals not yet surfaced); Phase 12 Slice 4 (real AI adapter
 -- needs an authorized model/API key decision) and an orchestrator that actually calls
 `ShadowDecisionService` on a schedule (none exists yet); connecting the remaining Phase 10/11

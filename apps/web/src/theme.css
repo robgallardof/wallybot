@@ -739,6 +739,83 @@
   display: grid;
   gap: 24px;
 }
+:root .backtests-stack {
+  display: grid;
+  gap: 24px;
+}
+:root .backtest-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+  align-items: end;
+  gap: 14px;
+  margin: 22px 0;
+}
+:root .backtest-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+:root .backtest-form input,
+:root .backtest-form select {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 10px 12px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+:root .backtest-form .backtest-checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+:root .backtest-form .backtest-checkbox input {
+  width: auto;
+  min-height: 0;
+}
+:root .backtest-form button {
+  align-self: end;
+}
+:root .backtest-result {
+  margin-top: 22px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+}
+:root .backtest-result h3 {
+  margin: 0 0 12px;
+}
+:root .backtest-result-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 14px;
+  margin: 0;
+}
+:root .backtest-result-grid dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+:root .backtest-result-grid dd {
+  margin: 2px 0 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+@media (max-width: 900px) {
+  :root .backtest-form {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 600px) {
+  :root .backtest-form {
+    grid-template-columns: 1fr;
+  }
+}
 :root .system-groups h3 {
   margin: 0 0 12px;
 }

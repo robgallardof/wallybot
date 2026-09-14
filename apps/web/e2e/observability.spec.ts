@@ -72,6 +72,7 @@ async function shell(page: Page) {
       "/api/intelligence/token-risk": { rows: [] },
       "/api/intelligence/provider-reliability": { rows: [] },
       "/api/intelligence/price-consensus": { rows: [] },
+      "/api/backtests": { rows: [] },
     };
     if (!(path in responses))
       throw new Error(`Unexpected API request: ${path}`);
@@ -381,4 +382,98 @@ test("provider reliability and price consensus sections render populated and emp
   await expect(
     priceConsensusPanel.getByText("No hay consensos calculados todavía."),
   ).toBeVisible();
+});
+
+test("backtests page runs a backtest, refreshes history and surfaces a 422 as an alert", async ({
+  page,
+}) => {
+  await shell(page);
+  let historyRows: unknown[] = [];
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let runReply: "ok" | "error" = "ok";
+  const runResult = {
+    experiment_id: "exp-fixture-1",
+    instrument_venue: "kraken",
+    instrument_base: "XBT",
+    instrument_quote: "USD",
+    timeframe: "1h",
+    trade_count: 2,
+    starting_equity: "10000",
+    final_equity: "10500",
+    total_return_pct: "0.05",
+    max_drawdown_pct: "0.02",
+    win_rate: "0.5",
+    created_at: "2026-01-10T00:00:00Z",
+    bootstrap: null,
+  };
+  await page.route("**/api/backtests", async (route) => {
+    if (route.request().method() === "GET") {
+      await gate;
+      await route.fulfill({ json: { rows: historyRows } });
+      return;
+    }
+    if (runReply === "error") {
+      await route.fulfill({
+        status: 422,
+        json: { detail: "need at least 5 candles, got 0" },
+      });
+      return;
+    }
+    historyRows = [
+      {
+        experiment_id: runResult.experiment_id,
+        strategy_id: "trend_following",
+        instrument_venue: runResult.instrument_venue,
+        instrument_base: runResult.instrument_base,
+        instrument_quote: runResult.instrument_quote,
+        timeframe: runResult.timeframe,
+        window_start: "2026-01-01T00:00:00Z",
+        window_end: "2026-01-02T00:00:00Z",
+        trade_count: runResult.trade_count,
+        starting_equity: runResult.starting_equity,
+        final_equity: runResult.final_equity,
+        total_return_pct: runResult.total_return_pct,
+        max_drawdown_pct: runResult.max_drawdown_pct,
+        win_rate: runResult.win_rate,
+        created_at: runResult.created_at,
+      },
+    ];
+    await route.fulfill({ json: runResult });
+  });
+
+  expect((await page.goto("/research"))?.status()).toBe(200);
+  await expect(page.getByText("Cargando historial de backtests")).toBeVisible();
+  release();
+  await expect(
+    page.getByText("Todavía no se ejecutó ningún backtest."),
+  ).toBeVisible();
+
+  await page.getByLabel("Desde").fill("2026-01-01T00:00");
+  await page.getByLabel("Hasta").fill("2026-01-02T00:00");
+  await page
+    .getByRole("button", { name: "Ejecutar backtest", exact: true })
+    .click();
+  const resultPanel = page.getByRole("status").filter({ hasText: "XBT/USD · 1h" });
+  await expect(resultPanel).toBeVisible();
+  await expect(resultPanel).toContainText("10500.00");
+
+  const historyTable = page.getByRole("region", {
+    name: "Historial de experimentos",
+  });
+  await expect(historyTable.getByRole("row")).toHaveCount(2);
+  await expect(historyTable.getByText("XBT/USD")).toBeVisible();
+
+  runReply = "error";
+  const runPanel = page.locator("article.panel", {
+    hasText: "Ejecutar un backtest",
+  });
+  await runPanel
+    .getByRole("button", { name: "Ejecutar backtest", exact: true })
+    .click();
+  await expect(runPanel.getByRole("alert")).toContainText(
+    "need at least 5 candles",
+  );
 });

@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     session_absolute_seconds: int = 43200
     auth_limit: int = 10
     auth_window_seconds: int = 300
+    historical_data_root: Path = Path("/data/historical")
 
     @field_validator("encryption_key")
     @classmethod

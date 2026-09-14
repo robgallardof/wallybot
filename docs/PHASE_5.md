@@ -167,3 +167,81 @@ orchestrator wires dataset lookup → backtest → experiment save yet); any UI 
 Verified: full suite 495 passed (477→495), ruff/pyright clean across the whole repo (two
 pre-existing, unrelated pyright findings in `auth_routes.py`/`system_routes.py` predate this
 session), `docker compose build`/`up`/`/health/ready` all verified against the live stack.
+
+## Delivered: Slice 5 — backtest/experiment UI
+
+Per this table's own acceptance evidence: "Playwright: loading/error/empty states, ES/EN." Closes
+the gap every earlier slice's "Explicitly not built" section flagged: "no code that actually calls
+`BacktestEngine`/`ExperimentRepository` together end-to-end" -- until this slice, nothing wired
+Slices 1-4 into a runnable path, so there was no way to produce a real `ExperimentRecord` outside
+a unit test, and therefore nothing genuine for a UI to show.
+
+`wallybot/application/backtest_orchestrator.py`'s `BacktestOrchestrator.run()` is that missing
+wiring: looks up the real `Instrument` from an injected `MarketDataProvider` (never fabricates
+price/quantity increments from caller-supplied numbers -- the same discipline
+`historical_query.py` already documents), calls Slice 1's `read_candles` (via `asyncio.to_thread`,
+since DuckDB's query is blocking), runs Slice 2's `BacktestEngine`, optionally Slice 3's
+`bootstrap_trade_pnls`, and returns a pure `ExperimentRecord` for the caller to persist --
+deliberately DB-free itself, same separation `ShadowDecisionService` already uses (persistence is
+the API route's job, the one place that already owns a session).
+
+`POST /api/backtests` (`apps/api/backtest_routes.py`, CSRF-protected like `/api/control`, any
+signed-in role -- this is research, not a risk/execution action) runs a real backtest and persists
+the resulting `ExperimentRecord`; `GET /api/backtests` lists recent history
+(`ExperimentRepository.list_recent("trend_following")` -- this codebase has exactly one strategy,
+so no new listing method was needed). Both a missing instrument and an under-sized dataset window
+come back as a clear 422 with the real domain message, never a fabricated empty result.
+
+**Real access-control gap found and fixed, same recurring pattern as 0012/0013/0016** --
+`migrations/versions/0017_backtest_api_grants.py`: `wally_api` had no grant at all on
+`experiment_records` (only `wally_worker`/`wally_research` did, from Slice 4). This one had an
+extra wrinkle none of the earlier grant-gap fixes did: `experiment_records` is the first API-write
+table with a Postgres-generated (`SERIAL`) surrogate `id` -- every other table `wally_api` has ever
+inserted into (`events`, `users`, ...) uses an app-generated UUID string instead. `GRANT INSERT` on
+the table alone does not include `USAGE` on the sequence backing that column's `nextval()` default;
+without it, `POST /api/backtests` fails with "permission denied for sequence
+experiment_records_id_seq" even though the table grant looks sufficient. Found by writing the
+integration test against the real `wally_api`-scoped role (every earlier Phase 5 persistence test
+used the Postgres owner connection directly, per Slice 1-4's own test fixtures, so none of them
+could have caught this), not guessed. Bumped `apps/api/main.py`'s hardcoded Alembic revision check
+to `"0017_backtest_api_grants"` (same recurring rough edge as every migration before it).
+
+Frontend: `apps/web/src/components/dashboard/pages/BacktestsPage.tsx` -- a trigger form (instrument
+base/quote as free text, since real Kraken pairs use Kraken's own asset codes like `XBT`, not
+`BTC`) plus a result panel and a history table, replacing the "research" nav slot's previous
+`Unavailable` placeholder (its own copy already said "Los experimentos y backtests reproducibles
+se incorporan en la fase 5" -- this is that promise kept). `useBacktestsData.ts` pairs a
+`useQuery` (history) with a `useMutation` (run), the first mutation hook in this codebase's
+`apps/web/src/hooks/` beyond the dashboard's existing `/control` pattern.
+`tests/integration/test_backtest_route.py` (Testcontainers, real Parquet fixture written via
+`HistoricalStore`, `FakeExchange` injected the same way `test_markets_route.py` already does so
+this mandatory test never depends on live Kraken) and a new Playwright test in
+`observability.spec.ts` (loading → empty → run → history refresh → 422-as-alert).
+
+**Explicitly not built**: any dataset ingestion job that actually writes to the Parquet store in
+production -- confirmed via `graphify query` that `HistoricalStore.write_partition` has no caller
+outside test code anywhere in this codebase, a pre-existing gap from Phase 2 Slice 5, not something
+this slice introduced or was scoped to fix. `WALLY_HISTORICAL_DATA_ROOT` (new `Settings` field,
+default `/data/historical`) has no corresponding Docker volume yet either, on purpose: the `api`
+container is `read_only: true` with no writer for that path today, so mounting an empty volume now
+would be exactly the kind of placeholder infrastructure `ARCHITECTURE.md` says to avoid ("create
+modules when a real capability needs them"). Until a real ingestion job exists, `POST /api/backtests`
+against a real deployment will honestly 422 with "insufficient historical data" for any window --
+that is the correct behavior given the data genuinely isn't there, not a bug in this slice. Also
+not built: a strategy registry (this only ever runs `TrendFollowingStrategy` -- Phase 5 Slice 4's
+still-open "strategy registry lifecycle" bullet), and any UI to re-run/compare two experiments
+side by side.
+
+Verified: full suite 510 passed (501→510, `test_backtest_orchestrator.py` +
+`test_backtest_route.py`), ruff/pyright clean on every new/changed file (the same two pre-existing,
+unrelated `auth_routes.py`/`system_routes.py` pyright findings from Slice 4 are untouched),
+domain purity confirmed (`backtest_orchestrator.py` imports only stdlib + existing
+`wallybot.backtest`/`wallybot.data`/`wallybot.domain`/`wallybot.features`/`wallybot.strategies`
+modules -- it lives in `wallybot/application/`, not `wallybot/domain/`, precisely because it
+composes I/O). Frontend: `tsc --noEmit`, `eslint`, `next build` all clean; full Playwright suite
+(8 passed, 1 pre-existing production-only test skipped in this run mode) including the new
+backtests test.
+
+**Phase 5 status: all 5 slices delivered as this table originally scoped them.** The
+still-open "strategy registry lifecycle" bullet from Slice 4 remains open -- meaningful only once
+a second strategy exists to register.

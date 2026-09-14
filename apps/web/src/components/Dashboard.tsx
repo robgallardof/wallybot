@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { usePathname, useRouter } from "next/navigation";
 import type { z } from "zod";
 import type { meSchema } from "../lib/dto";
+import { useBacktestsData } from "../hooks/useBacktestsData";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { useMarketsData } from "../hooks/useMarketsData";
 import { useSmartMoneyData } from "../hooks/useSmartMoneyData";
@@ -16,6 +17,7 @@ import { EventsPage } from "./dashboard/pages/EventsPage";
 import { RiskPage } from "./dashboard/pages/RiskPage";
 import { MarketsPage } from "./dashboard/pages/MarketsPage";
 import { IntelligencePage } from "./dashboard/pages/IntelligencePage";
+import { BacktestsPage } from "./dashboard/pages/BacktestsPage";
 import { Unavailable } from "./dashboard/pages/Unavailable";
 
 export function Dashboard({
@@ -46,6 +48,9 @@ export function Dashboard({
   const tokenRisk = useTokenRiskData(page === "intelligence");
   const providerReliability = useProviderReliabilityData(page === "intelligence");
   const priceConsensus = usePriceConsensusData(page === "intelligence");
+  const { history: backtestHistory, run: runBacktest } = useBacktestsData(
+    page === "research",
+  );
   function navigate(next: string) {
     router.push(`/${next}`);
   }
@@ -77,9 +82,10 @@ export function Dashboard({
       {page === "risk" && (
         <RiskPage dashboard={dashboard} change={change} role={user.role} />
       )}
-      {(page === "portfolio" || page === "research") && (
-        <Unavailable page={page} />
+      {page === "research" && (
+        <BacktestsPage history={backtestHistory} run={runBacktest} />
       )}
+      {page === "portfolio" && <Unavailable />}
     </DashboardShell>
   );
 }

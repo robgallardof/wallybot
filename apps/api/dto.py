@@ -175,3 +175,51 @@ class PriceConsensusRowView(BaseModel):
 
 class PriceConsensusView(BaseModel):
     rows: list[PriceConsensusRowView]
+
+
+class BacktestBootstrapView(BaseModel):
+    sample_count: int
+    trades_per_sample: int
+    mean_total_pnl: str
+    median_total_pnl: str
+    p05_total_pnl: str
+    p95_total_pnl: str
+    probability_of_loss: str
+
+
+class BacktestRunView(BaseModel):
+    experiment_id: str
+    instrument_venue: str
+    instrument_base: str
+    instrument_quote: str
+    timeframe: str
+    trade_count: int
+    starting_equity: str
+    final_equity: str
+    total_return_pct: str
+    max_drawdown_pct: str
+    win_rate: str | None
+    created_at: str
+    bootstrap: BacktestBootstrapView | None
+
+
+class BacktestHistoryRowView(BaseModel):
+    experiment_id: str
+    strategy_id: str
+    instrument_venue: str
+    instrument_base: str
+    instrument_quote: str
+    timeframe: str
+    window_start: str
+    window_end: str
+    trade_count: int
+    starting_equity: str
+    final_equity: str
+    total_return_pct: str
+    max_drawdown_pct: str
+    win_rate: str | None
+    created_at: str
+
+
+class BacktestHistoryView(BaseModel):
+    rows: list[BacktestHistoryRowView]

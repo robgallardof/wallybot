@@ -116,3 +116,47 @@ export const priceConsensusRowSchema = z.object({
 export const priceConsensusSchema = z.object({
   rows: z.array(priceConsensusRowSchema),
 });
+export const backtestBootstrapSchema = z.object({
+  sample_count: z.number(),
+  trades_per_sample: z.number(),
+  mean_total_pnl: z.string(),
+  median_total_pnl: z.string(),
+  p05_total_pnl: z.string(),
+  p95_total_pnl: z.string(),
+  probability_of_loss: z.string(),
+});
+export const backtestRunSchema = z.object({
+  experiment_id: z.string(),
+  instrument_venue: z.string(),
+  instrument_base: z.string(),
+  instrument_quote: z.string(),
+  timeframe: z.string(),
+  trade_count: z.number(),
+  starting_equity: z.string(),
+  final_equity: z.string(),
+  total_return_pct: z.string(),
+  max_drawdown_pct: z.string(),
+  win_rate: z.string().nullable(),
+  created_at: z.string(),
+  bootstrap: backtestBootstrapSchema.nullable(),
+});
+export const backtestHistoryRowSchema = z.object({
+  experiment_id: z.string(),
+  strategy_id: z.string(),
+  instrument_venue: z.string(),
+  instrument_base: z.string(),
+  instrument_quote: z.string(),
+  timeframe: z.string(),
+  window_start: z.string(),
+  window_end: z.string(),
+  trade_count: z.number(),
+  starting_equity: z.string(),
+  final_equity: z.string(),
+  total_return_pct: z.string(),
+  max_drawdown_pct: z.string(),
+  win_rate: z.string().nullable(),
+  created_at: z.string(),
+});
+export const backtestHistorySchema = z.object({
+  rows: z.array(backtestHistoryRowSchema),
+});

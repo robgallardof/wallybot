@@ -1,4 +1,7 @@
 import re
+from datetime import datetime
+from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -38,3 +41,31 @@ class SetupFinish(Verification):
 
 class ControlChange(Input):
     status: Status
+
+
+class BacktestRun(Input):
+    instrument_base: str = Field(min_length=1, max_length=16)
+    instrument_quote: str = Field(min_length=1, max_length=16)
+    timeframe: Literal["1m", "5m", "1h", "1d"]
+    window_start: datetime
+    window_end: datetime
+    feature_window: int = Field(ge=1, le=500)
+    risk_off_threshold: Decimal = Field(gt=0)
+    starting_equity: Decimal = Field(gt=0)
+    allocation_pct: Decimal = Field(gt=0, le=1)
+    fee_rate: Decimal = Field(default=Decimal("0.001"), ge=0, le=1)
+    slippage_pct: Decimal = Field(default=Decimal("0.0005"), ge=0, le=1)
+    bootstrap_seed: int | None = None
+    bootstrap_samples: int = Field(default=2000, ge=100, le=20000)
+
+    @field_validator("window_start", "window_end")
+    @classmethod
+    def aware(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            raise ValueError("must be an aware datetime")
+        return value
+
+    @field_validator("instrument_base", "instrument_quote")
+    @classmethod
+    def upper(cls, value: str) -> str:
+        return value.strip().upper()
