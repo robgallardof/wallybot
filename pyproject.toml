@@ -26,9 +26,12 @@ dev = [
   "ruff>=0.11,<1", "pyright>=1.1.390,<2", "bandit>=1.8,<2", "pip-audit>=2.8,<3",
 ]
 # duckdb has no musl/Alpine wheel and needs a C++ toolchain to build from source -- kept out of
-# the base `dependencies` list (and thus out of the Alpine Docker images: docker/api.Dockerfile's
-# `uv sync` excludes this group) so `docker compose build` never tries to compile it. Backtesting
-# (Phase 5) is research/dev tooling for now, not something any running service container calls.
+# the default Alpine runtime image (docker/api.Dockerfile's `runtime` target, used by worker/
+# scheduler, excludes this group via `uv sync --no-group research`) so `docker compose build`
+# never tries to compile it there. The `runtime-research` target (glibc/Debian slim, used by api
+# and research_worker since Phase 5 Slice 5's POST /api/backtests calls wallybot/data/
+# historical_query.py synchronously) installs this group from a prebuilt wheel instead -- see
+# that Dockerfile's "research variant" comment and ADR-012.
 research = ["duckdb>=1.5.5", "pytz>=2026.3.post1"]
 
 [tool.uv]

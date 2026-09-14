@@ -558,7 +558,19 @@ in this codebase (a pre-existing Phase 2 Slice 5 gap, not introduced by this sli
 `POST /api/backtests` against a real deployment will honestly 422 with "insufficient historical
 data" until that ingestion job exists; no Docker volume was added for `WALLY_HISTORICAL_DATA_ROOT`
 either, since mounting one now with no writer would be placeholder infrastructure
-`ARCHITECTURE.md` says to avoid. Not yet committed.
+`ARCHITECTURE.md` says to avoid. Committed as `544fdb8`.
+
+**Real deployment bug found and fixed via an actual container start**: `docker compose up -d api`
+crash-looped (`ModuleNotFoundError: No module named 'duckdb'`) — `apps/api/main.py` now imports
+`backtest_orchestrator.py` → `historical_query.py` → `duckdb` at module load, and Slice 4 had
+deliberately kept `duckdb` out of the Alpine `api` image on the (now outdated) assumption that no
+running service container called the backtest engine. Confirmed live against PyPI that `duckdb`
+still ships no musllinux wheel. Fixed per ADR-012's own anticipated follow-up: `docker/
+api.Dockerfile` gained a `python:3.12.14-slim`-based `runtime-research` target; only `api` and
+`research` (research_worker) build from it (`wallybot-api-research:0.1.0`), `worker`/`scheduler`
+stay on the original Alpine target. Verified: both containers healthy, `/health/ready` → `ready`
+at `0017_backtest_api_grants`. Full record in ADR-012's "Update 2026-09-13" section. Not yet
+committed (this infra fix; Slice 5 itself already is).
 
 **Phase 5 status: all 5 slices delivered as `docs/PHASE_5.md`'s table originally scoped them.**
 Still open: Slice 4's "strategy registry lifecycle" bullet (meaningful only once a second strategy

@@ -4,6 +4,7 @@ x-app: &app
   build:
     context: .
     dockerfile: docker/api.Dockerfile
+    target: runtime
   image: wallybot-api:0.1.0
   restart: unless-stopped
   read_only: true
@@ -71,6 +72,13 @@ services:
 
   api:
     <<: *app
+    # glibc runtime so duckdb (Phase 5 backtesting) installs from a wheel instead of compiling
+    # from musl source -- see docker/api.Dockerfile's "research variant" comment and ADR-012.
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+      target: runtime-research
+    image: wallybot-api-research:0.1.0
     mem_limit: 1g
     secrets:
       - {source: api_database_url, target: database_url}
@@ -114,6 +122,13 @@ services:
   research:
     <<: *app
     command: [python, -m, apps.research_worker]
+    # Same glibc runtime as api, for the same duckdb reason -- research_worker is this
+    # dependency group's namesake process.
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+      target: runtime-research
+    image: wallybot-api-research:0.1.0
     mem_limit: 4g
     cpus: 1
     cpu_shares: 128

@@ -242,6 +242,25 @@ composes I/O). Frontend: `tsc --noEmit`, `eslint`, `next build` all clean; full 
 (8 passed, 1 pre-existing production-only test skipped in this run mode) including the new
 backtests test.
 
+**Real deployment bug found and fixed via an actual container start, not assumed**: the first
+`docker compose up -d api` after this slice crash-looped --
+`ModuleNotFoundError: No module named 'duckdb'`. `apps/api/main.py` now imports
+`backtest_orchestrator.py` at module load (to build `app.state.backtest_orchestrator`), which
+imports `wallybot/data/historical_query.py`, which imports `duckdb` -- and Slice 4's own dependency
+split had deliberately kept `duckdb`/`pytz` out of the Alpine runtime image precisely because
+"backtesting is research/dev tooling for now, not something any running service container calls."
+This slice makes that no longer true for the `api` process. Confirmed live against PyPI that
+`duckdb` (pinned `>=1.5.5`) still ships no `musllinux` wheel, so installing it into the existing
+Alpine image would mean compiling from source -- not viable in a normal build. Per ADR-012's own
+anticipated follow-up ("later numerical/research libraries may justify a separate glibc research
+image when their wheel support requires it"), `docker/api.Dockerfile` gained a second,
+`python:3.12.14-slim`-based `runtime-research` target; only the `api` and `research`
+(research_worker) compose services build from it (`wallybot-api-research:0.1.0`), while
+`worker`/`scheduler` stay on the original Alpine `runtime` target unchanged, since neither touches
+DuckDB. Verified end-to-end: `docker compose build api research` succeeds, both containers start
+and stay healthy, `/health/ready` reports `ready` at migration head `0017_backtest_api_grants`.
+See ADR-012's "Update 2026-09-13" section for the full record.
+
 **Phase 5 status: all 5 slices delivered as this table originally scoped them.** The
 still-open "strategy registry lifecycle" bullet from Slice 4 remains open -- meaningful only once
 a second strategy exists to register.
