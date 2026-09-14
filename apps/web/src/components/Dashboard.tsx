@@ -10,6 +10,8 @@ import { useWhaleFlowData } from "../hooks/useWhaleFlowData";
 import { useTokenRiskData } from "../hooks/useTokenRiskData";
 import { useProviderReliabilityData } from "../hooks/useProviderReliabilityData";
 import { usePriceConsensusData } from "../hooks/usePriceConsensusData";
+import { useWalletActivityData } from "../hooks/useWalletActivityData";
+import { useEntityGraphData } from "../hooks/useEntityGraphData";
 import { DashboardShell } from "./dashboard/DashboardShell";
 import { Overview } from "./dashboard/pages/Overview";
 import { SystemPage } from "./dashboard/pages/SystemPage";
@@ -48,6 +50,8 @@ export function Dashboard({
   const tokenRisk = useTokenRiskData(page === "intelligence");
   const providerReliability = useProviderReliabilityData(page === "intelligence");
   const priceConsensus = usePriceConsensusData(page === "intelligence");
+  const walletActivity = useWalletActivityData(page === "intelligence");
+  const entityGraph = useEntityGraphData(page === "intelligence");
   const { history: backtestHistory, run: runBacktest } = useBacktestsData(
     page === "research",
   );
@@ -77,6 +81,8 @@ export function Dashboard({
           tokenRisk={tokenRisk}
           providerReliability={providerReliability}
           priceConsensus={priceConsensus}
+          walletActivity={walletActivity}
+          entityGraph={entityGraph}
         />
       )}
       {page === "risk" && (

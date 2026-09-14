@@ -4,7 +4,7 @@ Insert-only, like `WalletRepository.save_cluster` -- a `Relationship` is one cla
 mutable, evolving identity like `Entity`/`Wallet`. Re-saving the same id is a caller error.
 """
 
-from sqlalchemy import select
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from wallybot.domain.entity import Attribution, VerificationStatus
@@ -69,6 +69,20 @@ class RelationshipRepository:
                             & (RelationshipRow.target_id == node_id)
                         )
                     )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return tuple(self._to_domain(row) for row in rows)
+
+    async def list_recent(self, limit: int = 100) -> tuple[Relationship, ...]:
+        """Newest-first across the whole graph -- a UI feed, as opposed to `find_by_node`'s
+        node-scoped traversal."""
+        rows = (
+            (
+                await self.session.execute(
+                    select(RelationshipRow).order_by(desc(RelationshipRow.created_at)).limit(limit)
                 )
             )
             .scalars()

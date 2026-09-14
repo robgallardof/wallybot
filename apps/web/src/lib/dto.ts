@@ -80,6 +80,35 @@ export const whaleTransferRowSchema = z.object({
 export const whaleFlowSchema = z.object({
   rows: z.array(whaleTransferRowSchema),
 });
+export const walletActivityRowSchema = z.object({
+  wallet_id: z.string(),
+  chain: z.string(),
+  token: z.string(),
+  action: z.string(),
+  amount: z.string(),
+  value_usd: z.string().nullable(),
+  price: z.string().nullable(),
+  occurred_at: z.string(),
+  attribution_source: z.string(),
+  attribution_confidence: z.string(),
+});
+export const walletActivitySchema = z.object({
+  rows: z.array(walletActivityRowSchema),
+});
+export const relationshipRowSchema = z.object({
+  id: z.string(),
+  source_type: z.string(),
+  source_id: z.string(),
+  relationship_type: z.string(),
+  target_type: z.string(),
+  target_id: z.string(),
+  attribution_source: z.string(),
+  attribution_confidence: z.string(),
+  created_at: z.string(),
+});
+export const entityGraphSchema = z.object({
+  rows: z.array(relationshipRowSchema),
+});
 export const tokenRiskRowSchema = z.object({
   token_id: z.string(),
   chain: z.string(),

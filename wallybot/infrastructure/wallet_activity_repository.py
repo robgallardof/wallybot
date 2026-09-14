@@ -5,7 +5,7 @@ enforces) is silently skipped rather than raising, since a monitoring sync's `si
 expected to overlap -- re-observing the same transaction is the normal case, not an error.
 """
 
-from sqlalchemy import select
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from wallybot.domain.entity import Attribution, VerificationStatus
@@ -54,6 +54,44 @@ class WalletActivityRepository:
             )
         )
         return result.scalar_one_or_none() is not None
+
+    async def list_recent(self, limit: int = 100) -> tuple[WalletActivityEvent, ...]:
+        """Newest-first across every monitored wallet -- the cross-wallet feed a UI needs, as
+        opposed to `list_for_wallet`'s per-wallet history."""
+        rows = (
+            (
+                await self.session.execute(
+                    select(WalletActivityEventRow)
+                    .order_by(desc(WalletActivityEventRow.occurred_at))
+                    .limit(limit)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return tuple(
+            WalletActivityEvent(
+                wallet_id=f"{row.chain}:{row.address}",
+                chain=row.chain,
+                transaction_hash=row.transaction_hash,
+                token=row.token,
+                action=OnChainActionType(row.action),
+                amount=row.amount,
+                value_usd=row.value_usd,
+                price=row.price,
+                liquidity_usd=row.liquidity_usd,
+                occurred_at=row.occurred_at,
+                attribution=Attribution(
+                    source=row.attribution_source,
+                    source_entity_id=row.attribution_source_entity_id,
+                    confidence=row.attribution_confidence,
+                    evidence=row.attribution_evidence,
+                    verification_status=VerificationStatus(row.attribution_verification_status),
+                    observed_at=row.attribution_observed_at,
+                ),
+            )
+            for row in rows
+        )
 
     async def list_for_wallet(self, chain: str, address: str) -> tuple[WalletActivityEvent, ...]:
         rows = (

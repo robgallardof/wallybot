@@ -72,6 +72,8 @@ async function shell(page: Page) {
       "/api/intelligence/token-risk": { rows: [] },
       "/api/intelligence/provider-reliability": { rows: [] },
       "/api/intelligence/price-consensus": { rows: [] },
+      "/api/intelligence/wallet-activity": { rows: [] },
+      "/api/intelligence/entity-graph": { rows: [] },
       "/api/backtests": { rows: [] },
     };
     if (!(path in responses))
@@ -381,6 +383,49 @@ test("provider reliability and price consensus sections render populated and emp
   });
   await expect(
     priceConsensusPanel.getByText("No hay consensos calculados todavía."),
+  ).toBeVisible();
+});
+
+test("wallet activity and entity graph sections render populated and empty states", async ({
+  page,
+}) => {
+  await shell(page);
+  await page.route("**/api/intelligence/wallet-activity", async (route) => {
+    await route.fulfill({
+      json: {
+        rows: [
+          {
+            wallet_id: "solana:abc123",
+            chain: "solana",
+            token: "SOL",
+            action: "SWAP",
+            amount: "1",
+            value_usd: "150",
+            price: "150",
+            occurred_at: "2026-01-10T00:00:00Z",
+            attribution_source: "helius",
+            attribution_confidence: "0.9",
+          },
+        ],
+      },
+    });
+  });
+  await page.route("**/api/intelligence/entity-graph", async (route) => {
+    await route.fulfill({ json: { rows: [] } });
+  });
+  expect((await page.goto("/intelligence"))?.status()).toBe(200);
+  const walletActivityPanel = page.locator("article.panel", {
+    hasText: "Actividad de wallets",
+  });
+  await expect(walletActivityPanel.getByText("solana:abc123")).toBeVisible();
+  await expect(
+    walletActivityPanel.getByText("SOL", { exact: true }),
+  ).toBeVisible();
+  const entityGraphPanel = page.locator("article.panel", {
+    hasText: "Grafo de correlación de entidades",
+  });
+  await expect(
+    entityGraphPanel.getByText("No hay relaciones registradas todavía."),
   ).toBeVisible();
 });
 

@@ -2,14 +2,18 @@ from fastapi import APIRouter, Request
 
 from apps.api.dependencies import SignedIn
 from apps.api.dto import (
+    EntityGraphView,
     PriceConsensusRowView,
     PriceConsensusView,
     ProviderReliabilityRowView,
     ProviderReliabilityView,
+    RelationshipRowView,
     SmartMoneyRowView,
     SmartMoneyView,
     TokenRiskRowView,
     TokenRiskView,
+    WalletActivityRowView,
+    WalletActivityView,
     WhaleFlowView,
     WhaleTransferRowView,
 )
@@ -17,8 +21,10 @@ from wallybot.infrastructure.price_consensus_repository import PriceConsensusRep
 from wallybot.infrastructure.provider_reliability_repository import (
     ProviderReliabilityRepository,
 )
+from wallybot.infrastructure.relationship_repository import RelationshipRepository
 from wallybot.infrastructure.smart_money_repository import SmartMoneyScoreRepository
 from wallybot.infrastructure.token_risk_repository import TokenRiskScoreRepository
+from wallybot.infrastructure.wallet_activity_repository import WalletActivityRepository
 from wallybot.infrastructure.whale_flow_repository import WhaleTransferRepository
 
 router = APIRouter(prefix="/api/intelligence", tags=["intelligence"])
@@ -137,5 +143,50 @@ async def price_consensus(request: Request, user: SignedIn) -> PriceConsensusVie
                 reasons=list(result.reasons),
             )
             for result in results
+        ]
+    )
+
+
+@router.get("/wallet-activity", response_model=WalletActivityView)
+async def wallet_activity(request: Request, user: SignedIn) -> WalletActivityView:
+    async with request.app.state.sessions() as db:
+        events = await WalletActivityRepository(db).list_recent()
+    return WalletActivityView(
+        rows=[
+            WalletActivityRowView(
+                wallet_id=event.wallet_id,
+                chain=event.chain,
+                token=event.token,
+                action=event.action.value,
+                amount=str(event.amount),
+                value_usd=str(event.value_usd) if event.value_usd is not None else None,
+                price=str(event.price) if event.price is not None else None,
+                occurred_at=event.occurred_at.isoformat(),
+                attribution_source=event.attribution.source,
+                attribution_confidence=str(event.attribution.confidence),
+            )
+            for event in events
+        ]
+    )
+
+
+@router.get("/entity-graph", response_model=EntityGraphView)
+async def entity_graph(request: Request, user: SignedIn) -> EntityGraphView:
+    async with request.app.state.sessions() as db:
+        relationships = await RelationshipRepository(db).list_recent()
+    return EntityGraphView(
+        rows=[
+            RelationshipRowView(
+                id=relationship.id,
+                source_type=relationship.source.node_type.value,
+                source_id=relationship.source.node_id,
+                relationship_type=relationship.relationship_type.value,
+                target_type=relationship.target.node_type.value,
+                target_id=relationship.target.node_id,
+                attribution_source=relationship.attribution.source,
+                attribution_confidence=str(relationship.attribution.confidence),
+                created_at=relationship.created_at.isoformat(),
+            )
+            for relationship in relationships
         ]
     )

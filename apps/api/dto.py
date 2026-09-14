@@ -177,6 +177,39 @@ class PriceConsensusView(BaseModel):
     rows: list[PriceConsensusRowView]
 
 
+class WalletActivityRowView(BaseModel):
+    wallet_id: str
+    chain: str
+    token: str
+    action: str
+    amount: str
+    value_usd: str | None
+    price: str | None
+    occurred_at: str
+    attribution_source: str
+    attribution_confidence: str
+
+
+class WalletActivityView(BaseModel):
+    rows: list[WalletActivityRowView]
+
+
+class RelationshipRowView(BaseModel):
+    id: str
+    source_type: str
+    source_id: str
+    relationship_type: str
+    target_type: str
+    target_id: str
+    attribution_source: str
+    attribution_confidence: str
+    created_at: str
+
+
+class EntityGraphView(BaseModel):
+    rows: list[RelationshipRowView]
+
+
 class BacktestBootstrapView(BaseModel):
     sample_count: int
     trades_per_sample: int
