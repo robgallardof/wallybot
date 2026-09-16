@@ -32,7 +32,7 @@ def test_setup_login_recovery_logout_and_persistence(client, settings, db):
     assert client.get("/api/dashboard").status_code == 401
     enrollment, result = enroll(client, settings)
     assert not client.get("/api/auth/setup-status").json()["setup_required"]
-    assert client.get("/api/dashboard").json()["environment"] == "PAPER"
+    assert client.get("/api/dashboard").json()["environment"] == "OBSERVE"
     assert client.post("/api/control", json={"status": "PAUSED"}).status_code == 403
     csrf = client.get("/api/auth/me").json()["csrf"]
     assert (
