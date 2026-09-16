@@ -25,8 +25,14 @@ async def assert_discovers_valid_instruments(provider: MarketDataProvider) -> No
     for instrument in instruments:
         assert instrument.venue
         assert instrument.base and instrument.quote
-        assert instrument.price_increment > 0
-        assert instrument.quantity_increment > 0
+        # Precision is optional at the domain level -- some providers (e.g. Tiingo) genuinely
+        # don't report tick/lot size. Only assert positivity when a provider does report it;
+        # never require presence here, that's per-adapter (Kraken's own test asserts it always
+        # has precision, since it always does).
+        if instrument.price_increment is not None:
+            assert instrument.price_increment > 0
+        if instrument.quantity_increment is not None:
+            assert instrument.quantity_increment > 0
         pair = f"{instrument.base}/{instrument.quote}"
         expected_id = f"{instrument.venue}:{instrument.market_type}:{pair}"
         assert instrument.id == expected_id

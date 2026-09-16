@@ -23,6 +23,24 @@ from wallybot.domain.market import (
 from wallybot.domain.order import OrderIntent, OrderKind, Side
 
 
+def _require_precision(instrument: Instrument) -> tuple[Decimal, Decimal, Decimal]:
+    """Narrow an Instrument's optional precision fields to real values or fail closed.
+
+    FakeExchange simulates real order execution, which is meaningless without a real tick/lot
+    size -- unlike a display-only path, there is no honest way to proceed with "unknown"
+    precision here. Every Instrument this simulator actually deals with (its own seeded fixtures)
+    always has real precision; this only guards against a caller passing in one that doesn't.
+    """
+    price_increment, quantity_increment, min_quantity = (
+        instrument.price_increment,
+        instrument.quantity_increment,
+        instrument.min_quantity,
+    )
+    if price_increment is None or quantity_increment is None or min_quantity is None:
+        raise ValueError(f"{instrument.id} has no reported precision; cannot simulate execution")
+    return price_increment, quantity_increment, min_quantity
+
+
 @dataclass(frozen=True)
 class ScriptedFill:
     """One fill to post for a scripted order. `price=None` uses the current reference quote,
@@ -107,6 +125,7 @@ class FakeExchange:
             raise ValueError(f"Unsupported timeframe: {timeframe}")
         if limit <= 0:
             raise ValueError("limit must be positive")
+        price_increment, quantity_increment, _min_quantity = _require_precision(instrument)
         step = TIMEFRAME_DURATIONS[timeframe]
         pair = f"{instrument.base}/{instrument.quote}"
         base_price = self._base_price.get(pair, Decimal("100"))
@@ -118,21 +137,21 @@ class FakeExchange:
         while len(candles) < limit and open_time + step <= now:
             close_time = open_time + step
             drift = Decimal(rng.uniform(-0.01, 0.01)) * price
-            close_price = max(price + drift, instrument.price_increment)
+            close_price = max(price + drift, price_increment)
             wick = Decimal(rng.uniform(0, 0.005)) * price
             high = max(price, close_price) + wick
-            low = max(min(price, close_price) - wick, instrument.price_increment)
-            volume = Decimal(rng.uniform(0.1, 10)).quantize(instrument.quantity_increment)
+            low = max(min(price, close_price) - wick, price_increment)
+            volume = Decimal(rng.uniform(0.1, 10)).quantize(quantity_increment)
             candles.append(
                 Candle(
                     instrument=instrument,
                     timeframe=timeframe,
                     open_time=open_time,
                     close_time=close_time,
-                    open=price.quantize(instrument.price_increment),
-                    high=high.quantize(instrument.price_increment),
-                    low=low.quantize(instrument.price_increment),
-                    close=close_price.quantize(instrument.price_increment),
+                    open=price.quantize(price_increment),
+                    high=high.quantize(price_increment),
+                    low=low.quantize(price_increment),
+                    close=close_price.quantize(price_increment),
                     volume=volume,
                     source="fake",
                     received_at=now,
@@ -143,13 +162,14 @@ class FakeExchange:
         return candles
 
     def _quote(self, instrument: Instrument) -> tuple[Decimal, Decimal]:
+        price_increment, _quantity_increment, _min_quantity = _require_precision(instrument)
         pair = f"{instrument.base}/{instrument.quote}"
         mid = self._base_price.get(pair, Decimal("100"))
         rng = random.Random(f"{self.seed}:{instrument.id}:snapshot:{self.clock.now().isoformat()}")
         half_spread = mid * Decimal(rng.uniform(0.0001, 0.0015))
         return (
-            (mid - half_spread).quantize(instrument.price_increment),
-            (mid + half_spread).quantize(instrument.price_increment),
+            (mid - half_spread).quantize(price_increment),
+            (mid + half_spread).quantize(price_increment),
         )
 
     async def fetch_snapshot(self, instrument: Instrument) -> MarketSnapshot:
@@ -163,7 +183,10 @@ class FakeExchange:
         return ask if side is Side.BUY else bid
 
     def _validate(self, intent: OrderIntent) -> str | None:
-        if intent.quantity < intent.instrument.min_quantity:
+        _price_increment, _quantity_increment, min_quantity = _require_precision(
+            intent.instrument
+        )
+        if intent.quantity < min_quantity:
             return "quantity below instrument minimum"
         price = (
             intent.limit_price
@@ -197,7 +220,10 @@ class FakeExchange:
         ):
             return
         self._fill_counter += 1
-        fee = (quantity * price * self.fee_rate).quantize(intent.instrument.price_increment)
+        price_increment, _quantity_increment, _min_quantity = _require_precision(
+            intent.instrument
+        )
+        fee = (quantity * price * self.fee_rate).quantize(price_increment)
         fill = Fill(
             fill_id=f"fake-fill-{self._fill_counter}",
             client_order_id=intent.client_order_id,

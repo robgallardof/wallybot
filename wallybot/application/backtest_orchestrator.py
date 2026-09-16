@@ -150,6 +150,18 @@ class BacktestOrchestrator:
                 result, request.bootstrap_samples, request.bootstrap_seed
             )
 
+        # Instrument precision is optional at the domain level (some market-data-only providers,
+        # e.g. Tiingo, don't report it) -- but a reproducible ExperimentRecord always needs it, so
+        # this fails closed rather than persisting a record a later re-run couldn't reconstruct.
+        if (
+            instrument.price_increment is None
+            or instrument.quantity_increment is None
+            or instrument.min_quantity is None
+        ):
+            raise InstrumentNotFound(
+                f"{instrument.id} has no reported precision; cannot backtest it"
+            )
+
         record = ExperimentRecord(
             experiment_id=self.id_generator.new_id(),
             strategy_id=STRATEGY_ID,

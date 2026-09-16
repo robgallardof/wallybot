@@ -122,6 +122,13 @@ class DeterministicRiskEngine:
     def _apply_instrument_precision(
         self, notional: Decimal, instrument: Instrument, context: RiskContext
     ) -> tuple[Decimal, Decimal, str | None]:
+        # Instrument.quantity_increment/min_quantity are optional at the domain level (some
+        # providers, e.g. Tiingo, don't report them) -- but real order sizing can never proceed
+        # without them, so this fails closed and loudly rather than guessing a step size.
+        if instrument.quantity_increment is None or instrument.min_quantity is None:
+            raise ValueError(
+                f"{instrument.id} has no reported precision; cannot size an order against it"
+            )
         mid_price = (context.snapshot.bid + context.snapshot.ask) / 2
         raw_quantity = notional / mid_price
         quantity = raw_quantity.quantize(instrument.quantity_increment, rounding=ROUND_DOWN)

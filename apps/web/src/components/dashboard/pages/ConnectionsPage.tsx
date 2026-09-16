@@ -5,7 +5,7 @@ import type { z } from "zod";
 import i18n from "../../../lib/i18n";
 import type { providerConnectionListSchema } from "../../../lib/dto";
 
-const PROVIDERS = ["BINANCE", "BITSO", "KRAKEN", "COINBASE", "WALLET"] as const;
+const PROVIDERS = ["BINANCE", "BITSO", "KRAKEN", "COINBASE", "WALLET", "TIINGO"] as const;
 
 /**
  * Lets the operator store their own broker/exchange/wallet credentials, read-only or PAPER only
@@ -30,6 +30,8 @@ export function ConnectionsPage({
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
   const isWallet = provider === "WALLET";
+  // TIINGO takes a single API key, same as a wallet address -- no secret field for either.
+  const singleCredential = provider === "WALLET" || provider === "TIINGO";
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -39,7 +41,7 @@ export function ConnectionsPage({
         label: label.trim(),
         mode: "READ_ONLY",
         api_key: apiKey.trim() || undefined,
-        api_secret: isWallet ? undefined : apiSecret.trim() || undefined,
+        api_secret: singleCredential ? undefined : apiSecret.trim() || undefined,
       },
       { onSuccess: () => { setLabel(""); setApiKey(""); setApiSecret(""); } },
     );
@@ -86,7 +88,7 @@ export function ConnectionsPage({
             maxLength={4096}
           />
         </label>
-        {!isWallet && (
+        {!singleCredential && (
           <label>
             {i18n.t("Secreto API")}
             <input

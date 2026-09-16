@@ -24,15 +24,23 @@ def _require_utc(value: datetime, field: str) -> None:
 
 @dataclass(frozen=True)
 class Instrument:
-    """Identity never assumes a bare symbol is unique across venues or market types."""
+    """Identity never assumes a bare symbol is unique across venues or market types.
+
+    Precision fields are optional: some providers (e.g. Tiingo's crypto metadata endpoint) don't
+    report exchange tick/lot size at all. `None` here means "genuinely unknown", never a guessed
+    value -- the exact "never fabricate a precision field" rule this codebase already applies
+    everywhere else. A caller that needs real precision (order sizing, quantization) must check
+    for `None` and fail closed rather than assume a default; display-only paths (market overview,
+    charts) can render "unknown" instead of a number.
+    """
 
     venue: str
     market_type: MarketType
     base: str
     quote: str
-    price_increment: Decimal
-    quantity_increment: Decimal
-    min_quantity: Decimal
+    price_increment: Decimal | None = None
+    quantity_increment: Decimal | None = None
+    min_quantity: Decimal | None = None
 
     def __post_init__(self) -> None:
         if not self.venue or not self.base or not self.quote:
@@ -42,8 +50,8 @@ class Instrument:
             ("quantity_increment", self.quantity_increment),
             ("min_quantity", self.min_quantity),
         ):
-            if value <= 0:
-                raise ValueError(f"{field} must be positive")
+            if value is not None and value <= 0:
+                raise ValueError(f"{field} must be positive when present")
 
     @property
     def id(self) -> str:
