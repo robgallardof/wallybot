@@ -11,6 +11,16 @@ export function SystemPage({
 }) {
   const { t, i18n } = useTranslation();
   const data = system.data;
+  const monitored = data
+    ? [
+        data.api,
+        data.database,
+        data.redis,
+        ...Object.values(data.services).map((service) => service.status),
+      ]
+    : [];
+  const healthy = monitored.filter((status) => status === "HEALTHY").length;
+  const attention = monitored.length - healthy;
   return (
     <article className="panel wide-panel system-panel">
       <div className="panel-heading">
@@ -57,50 +67,90 @@ export function SystemPage({
         </p>
       )}
       {data && (
-        <div className="system-groups">
-          <section aria-labelledby="system-connections">
-            <h3 id="system-connections">{t("Conexiones esenciales")}</h3>
-            <Service name="API" status={data.api} />
-            <Service name="PostgreSQL" status={data.database} />
-            <Service name="Redis" status={data.redis} />
-          </section>
-          <section aria-labelledby="system-processes">
-            <h3 id="system-processes">{t("Procesos en segundo plano")}</h3>
+        <>
+          <section
+            className="system-summary"
+            aria-labelledby="system-summary-title"
+          >
+            <h3 id="system-summary-title">
+              {system.isError
+                ? t("Resumen de la última consulta")
+                : t("Resumen de servicios")}
+            </h3>
+            <dl className="system-summary-counts">
+              <div>
+                <dt>{t("Servicios informados")}</dt>
+                <dd>{monitored.length}</dd>
+              </div>
+              <div>
+                <dt>{t("Disponibles")}</dt>
+                <dd>{healthy}</dd>
+              </div>
+              <div>
+                <dt>{t("Por revisar")}</dt>
+                <dd>{attention}</dd>
+              </div>
+            </dl>
             <p className="muted">
-              {t("La antigüedad de la señal se mide al consultar el sistema.")}
+              {t(
+                "Incluye conexiones esenciales y procesos informados. Las integraciones se muestran por separado.",
+              )}
             </p>
-            {Object.entries(data.services).map(([name, s]) => (
-              <Service
-                key={name}
-                name={name}
-                description={
-                  s.age_seconds === null
-                    ? t("Sin señal registrada")
-                    : t("Última señal hace {{seconds}} s", {
-                        seconds: s.age_seconds,
-                      })
-                }
-                status={s.status}
-              />
-            ))}
-            {Object.keys(data.services).length === 0 && (
-              <p className="muted">
-                {t("No se han recibido estados de procesos.")}
+            {attention > 0 && (
+              <p>
+                {t(
+                  "Revisa los servicios sin conexión o sin señal reciente en las secciones siguientes.",
+                )}
               </p>
             )}
           </section>
-          <section aria-labelledby="system-integrations">
-            <h3 id="system-integrations">{t("Integraciones")}</h3>
-            <Service name="Exchange" status={data.exchange} />
-            <Service name={t("Analista IA")} status={data.ai} />
-            <Service name="Telegram" status={data.telegram} />
-            <p className="muted">
-              {t(
-                "Estos estados son los informados por el sistema; no certifican acceso para operar.",
+          <div className="system-groups">
+            <section aria-labelledby="system-connections">
+              <h3 id="system-connections">{t("Conexiones esenciales")}</h3>
+              <Service name="API" status={data.api} />
+              <Service name="PostgreSQL" status={data.database} />
+              <Service name="Redis" status={data.redis} />
+            </section>
+            <section aria-labelledby="system-processes">
+              <h3 id="system-processes">{t("Procesos en segundo plano")}</h3>
+              <p className="muted">
+                {t(
+                  "La antigüedad de la señal se mide al consultar el sistema.",
+                )}
+              </p>
+              {Object.entries(data.services).map(([name, s]) => (
+                <Service
+                  key={name}
+                  name={name}
+                  description={
+                    s.age_seconds === null
+                      ? t("Sin señal registrada")
+                      : t("Última señal hace {{seconds}} s", {
+                          seconds: s.age_seconds,
+                        })
+                  }
+                  status={s.status}
+                />
+              ))}
+              {Object.keys(data.services).length === 0 && (
+                <p className="muted">
+                  {t("No se han recibido estados de procesos.")}
+                </p>
               )}
-            </p>
-          </section>
-        </div>
+            </section>
+            <section aria-labelledby="system-integrations">
+              <h3 id="system-integrations">{t("Integraciones")}</h3>
+              <Service name="Exchange" status={data.exchange} />
+              <Service name={t("Analista IA")} status={data.ai} />
+              <Service name="Telegram" status={data.telegram} />
+              <p className="muted">
+                {t(
+                  "Estos estados son los informados por el sistema; no certifican acceso para operar.",
+                )}
+              </p>
+            </section>
+          </div>
+        </>
       )}
     </article>
   );

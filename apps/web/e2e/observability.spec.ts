@@ -1,5 +1,119 @@
 import { expect, test, type Page } from "@playwright/test";
 
+test("intelligence index supports keyboard jumps, return links, locale and query failure", async ({ page }) => {
+  await shell(page);
+  let failed = false;
+  await page.route("**/api/intelligence/entity-graph", (route) => route.fulfill(failed
+    ? { status: 503, json: { detail: "fixture unavailable" } }
+    : { json: { rows: [] } }));
+  await page.goto("/intelligence");
+  const index = page.getByRole("navigation", { name: "Explorar inteligencia" });
+  await expect(index.getByRole("link")).toHaveCount(7);
+  await expect(index.getByRole("link").last()).toContainText("0 registros");
+  const link = index.getByRole("link", { name: /Grafo de correlación/ });
+  await link.focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/#signal-entities$/);
+  await expect(page.locator("#signal-entities")).toBeFocused();
+  await page.locator("#signal-entities").getByRole("link", { name: "Volver a las señales" }).click();
+  await expect(index).toBeFocused();
+  await page.getByLabel("Idioma").selectOption("en");
+  await expect(page.getByRole("navigation", { name: "Explore intelligence" })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: "test-results/intelligence-index-mobile.png", fullPage: true });
+  failed = true;
+  await page.locator("#signal-entities").getByRole("button", { name: "Refresh", exact: true }).click();
+  await expect(page.getByRole("navigation", { name: "Explore intelligence" }).getByRole("link").last()).toContainText("Query failed");
+});
+
+test("experiment history search, filters, keyboard details and stale data", async ({
+  page,
+}) => {
+  await shell(page);
+  const row = {
+    experiment_id: "older-exp",
+    strategy_id: "trend_following",
+    instrument_venue: "kraken",
+    instrument_base: "XBT",
+    instrument_quote: "USD",
+    timeframe: "1h",
+    window_start: "2026-01-01T00:00:00Z",
+    window_end: "2026-01-02T00:00:00Z",
+    trade_count: 0,
+    starting_equity: "9007199254740993.125",
+    final_equity: "9007199254740993.125",
+    total_return_pct: "0",
+    max_drawdown_pct: "0",
+    win_rate: null,
+    created_at: "2026-01-03T00:00:00Z",
+  };
+  let failed = false;
+  await page.route("**/api/backtests", (route) =>
+    route.fulfill(
+      failed
+        ? { status: 503, json: { detail: "fixture unavailable" } }
+        : {
+            json: {
+              rows: [
+                row,
+                {
+                  ...row,
+                  experiment_id: "newer-exp",
+                  instrument_base: "ETH",
+                  timeframe: "1d",
+                  created_at: "2026-01-04T00:00:00Z",
+                },
+              ],
+            },
+          },
+    ),
+  );
+  await page.goto("/research");
+  const history = page.locator(".backtest-history");
+  await expect(history.getByRole("status")).toHaveText("2 de 2 experimentos");
+  await expect(history.locator("tbody tr").first()).toContainText("ETH/USD");
+  await page.getByLabel("Orden del historial").selectOption("oldest");
+  await expect(history.locator("tbody tr").first()).toContainText("XBT/USD");
+  await page.getByLabel("Buscar experimentos").fill("missing");
+  await expect(
+    history.getByRole("heading", { name: "No hay experimentos que coincidan" }),
+  ).toBeVisible();
+  await history.getByRole("button", { name: "Limpiar filtros" }).click();
+  await page.getByLabel("Marco temporal del historial").selectOption("1h");
+  await expect(history.locator("tbody tr")).toHaveCount(1);
+  const details = history.getByText("Ver detalles", { exact: true });
+  await details.focus();
+  await page.keyboard.press("Enter");
+  await expect(history.locator("details")).toHaveAttribute("open", "");
+  await expect(
+    history.getByText("No disponible", { exact: true }),
+  ).toBeVisible();
+  await expect(history.locator("details")).toContainText(
+    "9007199254740993.125 USD",
+  );
+  await expect(history.locator("details time").first()).toHaveAttribute(
+    "datetime",
+    row.window_start,
+  );
+  await page.getByLabel("Idioma").selectOption("en");
+  await expect(history.getByText("Analyzed period (UTC)")).toBeVisible();
+  await expect(history.getByRole("status")).toHaveText("1 of 2 experiments");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Switch to dark mode" }).click();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(390);
+  await page.screenshot({
+    path: "test-results/backtest-history-mobile-dark.png",
+    fullPage: true,
+  });
+  failed = true;
+  await history.getByRole("button", { name: "Refresh", exact: true }).click();
+  await expect(history.getByRole("alert")).toContainText("may be outdated");
+  await expect(history.locator("tbody tr")).toHaveCount(1);
+});
+
 const snapshot = {
   as_of: "2026-09-13T12:00:00Z",
   rows: [
@@ -137,10 +251,14 @@ test("markets direct route, loading, filters, keyboard details, locales and stal
   });
   reply = "error";
   await page.getByRole("button", { name: "Refresh", exact: true }).click();
-  await expect(page.getByRole("main").getByRole("alert")).toContainText("may be outdated");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "may be outdated",
+  );
   await expect(page.getByRole("table")).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("main").getByRole("alert")).toContainText("Could not load markets");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "Could not load markets",
+  );
   reply = "empty";
   await page.getByRole("button", { name: "Retry" }).click();
   await expect(page.getByText("No instruments were discovered.")).toBeVisible();
@@ -165,6 +283,11 @@ test("system reports API status, refresh failures, empty processes and mobile la
     page.getByRole("heading", { name: "Essential connections" }),
   ).toBeVisible();
   await expect(page.getByText("Last heartbeat 42 s ago")).toBeVisible();
+  const summary = page.getByRole("region", {
+    name: "Service summary",
+    exact: true,
+  });
+  await expect(summary.locator("dd")).toHaveText(["4", "2", "2"]);
   await expect(
     page.locator(".service-row").filter({ hasText: "Exchange" }),
   ).toContainText("Available");
@@ -181,6 +304,9 @@ test("system reports API status, refresh failures, empty processes and mobile la
   await expect(page.locator(".system-panel [role=alert]")).toContainText(
     "last successful check",
   );
+  await expect(
+    page.getByRole("heading", { name: "Summary from the last check" }),
+  ).toBeVisible();
   await page.reload();
   await expect(page.locator(".system-panel [role=alert]")).toContainText(
     "Could not check the system",
@@ -189,6 +315,7 @@ test("system reports API status, refresh failures, empty processes and mobile la
   empty = true;
   await page.getByRole("button", { name: "Refresh", exact: true }).click();
   await expect(page.getByText("No process statuses received.")).toBeVisible();
+  await expect(summary.locator("dd")).toHaveText(["3", "2", "1"]);
 });
 
 test("activity empty/error states and translated search preserve original event codes", async ({
@@ -351,24 +478,27 @@ test("provider reliability and price consensus sections render populated and emp
   page,
 }) => {
   await shell(page);
-  await page.route("**/api/intelligence/provider-reliability", async (route) => {
-    await route.fulfill({
-      json: {
-        rows: [
-          {
-            provider: "kraken",
-            status: "HEALTHY",
-            call_count: 100,
-            error_rate: "0.01",
-            average_latency_ms: "120",
-            seconds_since_last_success: "5",
-            computed_at: "2026-01-10T00:00:00Z",
-            reasons: ["error_rate=0.01 below threshold"],
-          },
-        ],
-      },
-    });
-  });
+  await page.route(
+    "**/api/intelligence/provider-reliability",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          rows: [
+            {
+              provider: "kraken",
+              status: "HEALTHY",
+              call_count: 100,
+              error_rate: "0.01",
+              average_latency_ms: "120",
+              seconds_since_last_success: "5",
+              computed_at: "2026-01-10T00:00:00Z",
+              reasons: ["error_rate=0.01 below threshold"],
+            },
+          ],
+        },
+      });
+    },
+  );
   await page.route("**/api/intelligence/price-consensus", async (route) => {
     await route.fulfill({ json: { rows: [] } });
   });
@@ -439,6 +569,7 @@ test("backtests page runs a backtest, refreshes history and surfaces a 422 as an
     release = resolve;
   });
   let runReply: "ok" | "error" = "ok";
+  let submissions = 0;
   const runResult = {
     experiment_id: "exp-fixture-1",
     instrument_venue: "kraken",
@@ -467,6 +598,13 @@ test("backtests page runs a backtest, refreshes history and surfaces a 422 as an
       });
       return;
     }
+    submissions += 1;
+    expect(route.request().postDataJSON()).toMatchObject({
+      allocation_pct: "0.1",
+      fee_rate: "0.001",
+      slippage_pct: "0.0005",
+    });
+    expect(route.request().postDataJSON().window_start).toMatch(/Z$/);
     historyRows = [
       {
         experiment_id: runResult.experiment_id,
@@ -497,13 +635,30 @@ test("backtests page runs a backtest, refreshes history and surfaces a 422 as an
   ).toBeVisible();
 
   await page.getByLabel("Desde").fill("2026-01-01T00:00");
+  await page.getByLabel("Hasta").fill("2025-12-31T00:00");
+  await page
+    .getByRole("button", { name: "Ejecutar backtest", exact: true })
+    .click();
+  await expect(page.locator("#backtest-date-error")).toHaveText(
+    "La fecha final debe ser posterior a la fecha inicial.",
+  );
+  expect(submissions).toBe(0);
+  await page.getByLabel("Idioma").selectOption("en");
+  await expect(page.locator("#backtest-date-error")).toHaveText(
+    "The end date must be after the start date.",
+  );
+  await expect(page.getByLabel("Allocation (fraction)")).toHaveValue("0.1");
+  await page.getByLabel("Language").selectOption("es");
   await page.getByLabel("Hasta").fill("2026-01-02T00:00");
   await page
     .getByRole("button", { name: "Ejecutar backtest", exact: true })
     .click();
-  const resultPanel = page.getByRole("status").filter({ hasText: "XBT/USD · 1h" });
+  const resultPanel = page
+    .getByRole("status")
+    .filter({ hasText: "XBT/USD · 1h" });
   await expect(resultPanel).toBeVisible();
   await expect(resultPanel).toContainText("10500.00");
+  expect(submissions).toBe(1);
 
   const historyTable = page.getByRole("region", {
     name: "Historial de experimentos",

@@ -63,3 +63,8 @@ CI gates: lockfile install → lint/type-check → unit/property → real-servic
 - Unit, property where applicable, integration, browser, lint, types, image build and security gates pass on CI.
 
 Track evidence and actual counts in `docs/stats/testing.md` when tests exist; never invent counts. LIVE has the additional [risk evidence gate](RISK.md).
+
+
+## Frontend-only observability checks
+
+From `apps/web`, run `pnpm exec playwright test --config playwright.ui.config.ts` to exercise observability screens with intercepted synthetic API responses. This mode starts only Next.js on port 3334 and requires no Docker, database or credentials. It is limited to `observability.spec.ts`; it does not replace the default authenticated integration or production CSP suites.

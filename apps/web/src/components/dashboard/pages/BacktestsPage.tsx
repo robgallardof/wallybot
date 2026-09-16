@@ -3,8 +3,12 @@ import { useTranslation } from "react-i18next";
 import type { UseMutationResult, UseQueryResult } from "@tanstack/react-query";
 import type { z } from "zod";
 import i18n from "../../../lib/i18n";
-import type { backtestHistorySchema, backtestRunSchema } from "../../../lib/dto";
+import type {
+  backtestHistorySchema,
+  backtestRunSchema,
+} from "../../../lib/dto";
 import type { RunBacktestInput } from "../../../hooks/useBacktestsData";
+import { BacktestHistory } from "../BacktestHistory";
 import { ApiError } from "../../../lib/api-client";
 
 function toIsoOrEmpty(localValue: string): string {
@@ -18,7 +22,11 @@ export function BacktestsPage({
   run,
 }: {
   history: UseQueryResult<z.infer<typeof backtestHistorySchema>>;
-  run: UseMutationResult<z.infer<typeof backtestRunSchema>, Error, RunBacktestInput>;
+  run: UseMutationResult<
+    z.infer<typeof backtestRunSchema>,
+    Error,
+    RunBacktestInput
+  >;
 }) {
   useTranslation();
   const [base, setBase] = useState("XBT");
@@ -34,15 +42,24 @@ export function BacktestsPage({
   const [slippagePct, setSlippagePct] = useState("0.0005");
   const [bootstrap, setBootstrap] = useState(false);
   const [bootstrapSeed, setBootstrapSeed] = useState("42");
+  const [dateError, setDateError] = useState(false);
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
+    const start = toIsoOrEmpty(windowStart);
+    const end = toIsoOrEmpty(windowEnd);
+    if (!start || !end || start >= end) {
+      setDateError(true);
+      return;
+    }
+    setDateError(false);
     run.mutate({
       instrument_base: base.trim().toUpperCase(),
       instrument_quote: quote.trim().toUpperCase(),
       timeframe,
-      window_start: toIsoOrEmpty(windowStart),
-      window_end: toIsoOrEmpty(windowEnd),
+      window_start: start,
+      window_end: end,
       feature_window: Number(featureWindow),
       risk_off_threshold: riskOffThreshold,
       starting_equity: startingEquity,
@@ -53,7 +70,6 @@ export function BacktestsPage({
     });
   }
 
-  const rows = history.data?.rows ?? [];
   const result = run.data;
 
   return (
@@ -72,6 +88,16 @@ export function BacktestsPage({
             "Resultado de una simulación histórica, nunca una orden real ni una recomendación de inversión.",
           )}
         </p>
+        <p className="muted" id="backtest-timezone">
+          {i18n.t("Fechas en tu zona horaria: {{zone}}. Se envían en UTC.", {
+            zone: timeZone,
+          })}
+        </p>
+        {dateError && (
+          <p className="error" role="alert" id="backtest-date-error">
+            {i18n.t("La fecha final debe ser posterior a la fecha inicial.")}
+          </p>
+        )}
         <form className="backtest-form" onSubmit={submit}>
           <label>
             {i18n.t("Base")}
@@ -79,6 +105,9 @@ export function BacktestsPage({
               value={base}
               onChange={(event) => setBase(event.target.value)}
               placeholder="XBT"
+              required
+              maxLength={16}
+              pattern=".*\S.*"
             />
           </label>
           <label>
@@ -87,6 +116,9 @@ export function BacktestsPage({
               value={quote}
               onChange={(event) => setQuote(event.target.value)}
               placeholder="USD"
+              required
+              maxLength={16}
+              pattern=".*\S.*"
             />
           </label>
           <label>
@@ -106,7 +138,16 @@ export function BacktestsPage({
             <input
               type="datetime-local"
               value={windowStart}
-              onChange={(event) => setWindowStart(event.target.value)}
+              onChange={(event) => {
+                setWindowStart(event.target.value);
+                setDateError(false);
+              }}
+              aria-invalid={dateError}
+              aria-describedby={
+                dateError
+                  ? "backtest-timezone backtest-date-error"
+                  : "backtest-timezone"
+              }
               required
             />
           </label>
@@ -115,7 +156,16 @@ export function BacktestsPage({
             <input
               type="datetime-local"
               value={windowEnd}
-              onChange={(event) => setWindowEnd(event.target.value)}
+              onChange={(event) => {
+                setWindowEnd(event.target.value);
+                setDateError(false);
+              }}
+              aria-invalid={dateError}
+              aria-describedby={
+                dateError
+                  ? "backtest-timezone backtest-date-error"
+                  : "backtest-timezone"
+              }
               required
             />
           </label>
@@ -124,6 +174,8 @@ export function BacktestsPage({
             <input
               type="number"
               min={1}
+              max={500}
+              required
               value={featureWindow}
               onChange={(event) => setFeatureWindow(event.target.value)}
             />
@@ -143,22 +195,45 @@ export function BacktestsPage({
             />
           </label>
           <label>
-            {i18n.t("% de asignación")}
+            {i18n.t("Asignación (fracción)")}
             <input
+              inputMode="decimal"
+              aria-describedby="backtest-allocation-help"
+              aria-label={i18n.t("Asignación (fracción)")}
               value={allocationPct}
               onChange={(event) => setAllocationPct(event.target.value)}
             />
+            <small id="backtest-allocation-help" className="muted">
+              {i18n.t(
+                "0.1 equivale al 10 %. Usa un valor mayor que 0 y hasta 1.",
+              )}
+            </small>
           </label>
           <label>
             {i18n.t("Comisión")}
-            <input value={feeRate} onChange={(event) => setFeeRate(event.target.value)} />
+            <input
+              inputMode="decimal"
+              aria-describedby="backtest-fee-help"
+              aria-label={i18n.t("Comisión")}
+              value={feeRate}
+              onChange={(event) => setFeeRate(event.target.value)}
+            />
+            <small id="backtest-fee-help" className="muted">
+              {i18n.t("Fracción: 0.001 equivale al 0.1 %.")}
+            </small>
           </label>
           <label>
             {i18n.t("Slippage")}
             <input
               value={slippagePct}
+              inputMode="decimal"
+              aria-describedby="backtest-slippage-help"
+              aria-label={i18n.t("Slippage")}
               onChange={(event) => setSlippagePct(event.target.value)}
             />
+            <small id="backtest-slippage-help" className="muted">
+              {i18n.t("Fracción: 0.0005 equivale al 0.05 %.")}
+            </small>
           </label>
           <label className="backtest-checkbox">
             <input
@@ -178,7 +253,11 @@ export function BacktestsPage({
               />
             </label>
           )}
-          <button className="button button-primary" type="submit" disabled={run.isPending}>
+          <button
+            className="button button-primary"
+            type="submit"
+            disabled={run.isPending}
+          >
             {i18n.t(run.isPending ? "Ejecutando…" : "Ejecutar backtest")}
           </button>
         </form>
@@ -192,7 +271,8 @@ export function BacktestsPage({
         {result && (
           <div className="backtest-result" role="status">
             <h3>
-              {result.instrument_base}/{result.instrument_quote} · {result.timeframe}
+              {result.instrument_base}/{result.instrument_quote} ·{" "}
+              {result.timeframe}
             </h3>
             <dl className="backtest-result-grid">
               <div>
@@ -227,7 +307,9 @@ export function BacktestsPage({
                   {
                     samples: result.bootstrap.sample_count,
                     mean: Number(result.bootstrap.mean_total_pnl).toFixed(2),
-                    loss: (Number(result.bootstrap.probability_of_loss) * 100).toFixed(0),
+                    loss: (
+                      Number(result.bootstrap.probability_of_loss) * 100
+                    ).toFixed(0),
                   },
                 )}
               </p>
@@ -236,88 +318,7 @@ export function BacktestsPage({
         )}
       </article>
 
-      <article className="panel wide-panel">
-        <div className="panel-heading">
-          <h2>{i18n.t("Historial de experimentos")}</h2>
-          <button
-            className="button button-outline"
-            onClick={() => void history.refetch()}
-            disabled={history.isFetching}
-          >
-            {i18n.t(history.isFetching ? "Actualizando…" : "Actualizar")}
-          </button>
-        </div>
-        {history.isPending ? (
-          <p className="muted" role="status">
-            {i18n.t("Cargando historial de backtests…")}
-          </p>
-        ) : history.isError && !history.data ? (
-          <p role="alert" className="error">
-            {i18n.t("No se pudo cargar el historial de backtests.")}
-          </p>
-        ) : (
-          <>
-            {history.isError && (
-              <p role="alert" className="error">
-                {i18n.t(
-                  "No se pudo actualizar. Se muestra el último historial recibido; puede estar desactualizado.",
-                )}
-              </p>
-            )}
-            {rows.length === 0 ? (
-              <p className="muted">
-                {i18n.t("Todavía no se ejecutó ningún backtest.")}
-              </p>
-            ) : (
-              <div
-                className="markets-table-wrap"
-                role="region"
-                aria-label={i18n.t("Historial de experimentos")}
-                tabIndex={0}
-              >
-                <table className="markets-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">{i18n.t("Instrumento")}</th>
-                      <th scope="col">{i18n.t("Marco temporal")}</th>
-                      <th scope="col">{i18n.t("Operaciones")}</th>
-                      <th scope="col">{i18n.t("Capital final")}</th>
-                      <th scope="col">{i18n.t("Retorno")}</th>
-                      <th scope="col">{i18n.t("Drawdown")}</th>
-                      <th scope="col">{i18n.t("Ejecutado")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row) => (
-                      <tr key={row.experiment_id}>
-                        <td>
-                          <strong>
-                            {row.instrument_base}/{row.instrument_quote}
-                          </strong>
-                          <small>{row.instrument_venue}</small>
-                        </td>
-                        <td>{row.timeframe}</td>
-                        <td>{row.trade_count}</td>
-                        <td>{Number(row.final_equity).toFixed(2)}</td>
-                        <td>{(Number(row.total_return_pct) * 100).toFixed(2)}%</td>
-                        <td>{(Number(row.max_drawdown_pct) * 100).toFixed(2)}%</td>
-                        <td>
-                          {new Intl.DateTimeFormat(i18n.resolvedLanguage, {
-                            dateStyle: "short",
-                            timeStyle: "short",
-                            timeZone: "UTC",
-                          }).format(new Date(row.created_at))}{" "}
-                          UTC
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
-        )}
-      </article>
+      <BacktestHistory history={history} />
     </div>
   );
 }
