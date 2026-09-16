@@ -144,7 +144,13 @@ class HistoricalStore:
         )
         final_path = partition_dir / f"part-{part_id}.parquet"
         tmp_path = partition_dir / f".tmp-{part_id}.parquet"
-        pq.write_table(table, tmp_path)
+        # fsync before the atomic rename: without it, a container kill/VM pause between the
+        # rename and the OS flushing dirty pages can leave a *renamed* (i.e. seemingly published)
+        # partition with truncated or zero-byte content -- observed in production on this host.
+        with open(tmp_path, "wb") as f:
+            pq.write_table(table, f)
+            f.flush()
+            os.fsync(f.fileno())
         sha256 = hashlib.sha256(tmp_path.read_bytes()).hexdigest()
         os.replace(tmp_path, final_path)
         return sha256
@@ -171,5 +177,8 @@ class HistoricalStore:
         }
         final_path = partition_dir / f"part-{part_id}.manifest.json"
         tmp_path = partition_dir / f".tmp-{part_id}.manifest.json"
-        tmp_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            f.write(json.dumps(payload, indent=2))
+            f.flush()
+            os.fsync(f.fileno())
         os.replace(tmp_path, final_path)

@@ -6,7 +6,7 @@ export const meSchema = z.object({
   csrf: z.string(),
 });
 export const dashboardSchema = z.object({
-  environment: z.literal("PAPER"),
+  environment: z.enum(["OBSERVE", "PAPER"]),
   status: z.enum(["RUNNING", "PAUSED"]),
   trading_available: z.literal(false),
   equity: z.null(),
@@ -189,3 +189,9 @@ export const backtestHistoryRowSchema = z.object({
 export const backtestHistorySchema = z.object({
   rows: z.array(backtestHistoryRowSchema),
 });
+
+export const providerConnectionSchema = z.object({
+  id: z.string(), provider: z.string(), label: z.string(), mode: z.string(),
+  status: z.string(), created_at: z.number(),
+});
+export const providerConnectionListSchema = z.object({ rows: z.array(providerConnectionSchema) });

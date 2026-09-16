@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import {
   Activity,
   Brain,
+  Cable,
   FlaskConical,
   LayoutDashboard,
   LineChart,
@@ -20,6 +21,7 @@ import { ThemeToggle } from "../ThemeToggle";
 const navigation = [
   ["dashboard", "Resumen", LayoutDashboard],
   ["portfolio", "Portafolio", Wallet],
+  ["connections", "Conexiones", Cable],
   ["markets", "Mercados", LineChart],
   ["intelligence", "Inteligencia", Brain],
   ["research", "Investigación", FlaskConical],
@@ -117,7 +119,7 @@ export function DashboardShell({
           </span>
           <div>
             <span className="paper-pill">
-              <i /> PAPER
+              <i /> OBSERVE
             </span>
             <span className="top-date">
               {new Intl.DateTimeFormat(i18n.resolvedLanguage, {
@@ -178,7 +180,7 @@ export function DashboardShell({
               <span>
                 {" "}
                 {i18n.t(
-                  "Modo PAPER. No hay conexión de ejecución ni dinero real en uso.",
+                  "Observando mercados reales. Activa PAPER en configuración para simular.",
                 )}
               </span>
             </div>

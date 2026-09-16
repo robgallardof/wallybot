@@ -16,3 +16,6 @@ Accepted for the design baseline; runtime evidence remains pending. Supersede a 
 | [010](010-ledger-and-outbox.md) | Balanced ledger and transactional outbox |
 | [011](011-bootstrap-and-live.md) | Protected bootstrap and explicit LIVE rearm |
 | [012](012-runtime-base.md) | Updated Alpine foundation runtime and security gate |
+| [013](013-managed-investment-scope.md) | Managed investment scope and no-withdrawal boundary |
+| [014](014-multi-provider-investment-platform.md) | Multi-provider connectivity, token management and copy-signal controls |
+| [015](015-tenant-isolation.md) | Per-user investment workspaces and secret isolation |

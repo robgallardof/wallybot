@@ -42,8 +42,8 @@ export function Overview({
           ],
           [
             i18n.t("Modo de operación"),
-            "PAPER",
-            i18n.t("Ejecución real deshabilitada"),
+            "OBSERVAR",
+            i18n.t("Datos reales; no se enviarán órdenes"),
           ],
         ].map(([label, value, note], i) => (
           <article className="metric" key={label}>

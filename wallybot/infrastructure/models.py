@@ -26,12 +26,12 @@ class ControlRow(Base):
     __tablename__ = "control"
     __table_args__ = (
         CheckConstraint("id = 1"),
-        CheckConstraint("environment = 'PAPER'"),
+        CheckConstraint("environment IN ('OBSERVE', 'PAPER')"),
         CheckConstraint("status IN ('RUNNING', 'PAUSED')"),
     )
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     setup_complete: Mapped[bool] = mapped_column(Boolean, default=False)
-    environment: Mapped[str] = mapped_column(String(16), default="PAPER")
+    environment: Mapped[str] = mapped_column(String(16), default="OBSERVE")
     status: Mapped[str] = mapped_column(String(16), default="RUNNING")
 
 
@@ -97,6 +97,30 @@ class JobRow(Base):
     scheduled_at: Mapped[int] = mapped_column(BigInteger)
     status: Mapped[str] = mapped_column(String(16), default="PENDING")
     attempts: Mapped[int] = mapped_column(Integer, default=0)
+    payload: Mapped[dict] = mapped_column(JSONB, default=dict)
+    cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False)
+    claimed_at: Mapped[int | None] = mapped_column(BigInteger)
+    completed_at: Mapped[int | None] = mapped_column(BigInteger)
+    artifact_uri: Mapped[str | None] = mapped_column(Text)
+    error: Mapped[str | None] = mapped_column(Text)
+
+
+class ProviderConnectionRow(Base):
+    """A user-owned connection descriptor. Credentials remain outside this table."""
+
+    __tablename__ = "provider_connections"
+    __table_args__ = (
+        UniqueConstraint("user_id", "provider", "label", name="uq_provider_connections_owner"),
+        CheckConstraint("mode IN ('READ_ONLY', 'PAPER', 'TRADE_ONLY')"),
+        CheckConstraint("status IN ('PENDING', 'HEALTHY', 'UNAVAILABLE')"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True)
+    provider: Mapped[str] = mapped_column(String(32))
+    label: Mapped[str] = mapped_column(String(100))
+    mode: Mapped[str] = mapped_column(String(16))
+    status: Mapped[str] = mapped_column(String(16), default="PENDING")
+    created_at: Mapped[int] = mapped_column(BigInteger)
 
 
 class OrderIntentRow(Base):
@@ -594,6 +618,17 @@ class ShadowDecisionRow(Base):
     risk_final_quantity: Mapped[Decimal | None] = mapped_column(Numeric)
     risk_reasons: Mapped[list | None] = mapped_column(JSONB)
     as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class HistoricalIngestionCursorRow(Base):
+    """Tracks the last successfully ingested candle `close_time` per (instrument, timeframe), so
+    a periodic re-fetch of an overlapping window never re-writes a Parquet partition
+    `HistoricalStore` already published -- see `wallybot.application.market_ingestion`."""
+
+    __tablename__ = "historical_ingestion_cursors"
+    instrument_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    timeframe: Mapped[str] = mapped_column(String(16), primary_key=True)
+    last_close_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class ExperimentRecordRow(Base):

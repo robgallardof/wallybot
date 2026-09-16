@@ -16,16 +16,23 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from apps.api.auth_routes import router as auth_router
 from apps.api.backtest_routes import router as backtest_router
+from apps.api.connection_routes import router as connection_router
 from apps.api.dependencies import SignedIn
 from apps.api.intelligence_routes import router as intelligence_router
 from apps.api.market_routes import router as market_router
+from apps.api.research_routes import router as research_router
 from apps.api.system_routes import router as system_router
 from wallybot.application.backtest_orchestrator import BacktestOrchestrator
+from wallybot.application.market_ingestion import ingest_market_data
 from wallybot.application.market_overview import build_market_overview
+from wallybot.data.historical import HistoricalStore
 from wallybot.data.historical_query import DEFAULT_QUERY_LIMITS
 from wallybot.data.quality import QualityPolicy
 from wallybot.exchanges.kraken import KrakenExchange
 from wallybot.infrastructure.database import database
+from wallybot.infrastructure.historical_ingestion_cursor_repository import (
+    HistoricalIngestionCursorRepository,
+)
 from wallybot.infrastructure.logging import configure_logging
 from wallybot.infrastructure.settings import Settings, load_settings
 from wallybot.infrastructure.system_clock import SystemClock
@@ -35,6 +42,49 @@ from wallybot.security.auth import AuthError, AuthService
 from wallybot.security.throttle import Throttle, Throttled
 
 REQUESTS = Counter("wallybot_http_requests_total", "Requests by status class", ["status_class"])
+
+# `worker`/`scheduler` sit on the `operational` Docker network, which is internal-only (no
+# internet egress) by design -- `api` is the only backend process on `edge`, so the ingestion job
+# that persists Kraken candles to Parquet has to live here, next to the KrakenExchange instance
+# `build_market_overview` already uses. Same timeframe/thresholds as that overview, since this job
+# persists what that endpoint only ever showed ephemerally.
+MARKET_INGESTION_TIMEFRAME = "1h"
+MARKET_INGESTION_INTERVAL_SECONDS = 3600
+
+
+async def _market_ingestion_loop(
+    provider: KrakenExchange,
+    store: HistoricalStore,
+    clock: SystemClock,
+    quality_policy: QualityPolicy,
+    cursor_store: HistoricalIngestionCursorRepository,
+    logger,
+) -> None:
+    while True:
+        try:
+            summary = await ingest_market_data(
+                provider=provider,
+                store=store,
+                clock=clock,
+                timeframe=MARKET_INGESTION_TIMEFRAME,
+                quality_policy=quality_policy,
+                cursor_store=cursor_store,
+            )
+            written = sum(len(o.written_part_ids) for o in summary.outcomes)
+            errors = sum(1 for o in summary.outcomes if o.error)
+            logger.info(
+                "MARKET_DATA_INGESTED",
+                extra={
+                    "instruments": len(summary.outcomes),
+                    "partitions_written": written,
+                    "errors": errors,
+                },
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.warning("MARKET_DATA_INGESTION_FAILED")
+        await asyncio.sleep(MARKET_INGESTION_INTERVAL_SECONDS)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -54,6 +104,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         clock = SystemClock()
         provider = KrakenExchange(clock=clock)
+        quality_policy = QualityPolicy(
+            version=1,
+            timeframe=MARKET_INGESTION_TIMEFRAME,
+            max_stale_age=timedelta(hours=3),
+            max_clock_drift=timedelta(minutes=5),
+            max_abnormal_return=Decimal("0.5"),
+        )
         app.state.market_overview = partial(
             build_market_overview,
             provider=provider,
@@ -66,13 +123,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 min_average_quote_volume=Decimal("0"),
                 max_spread_ratio=Decimal("0.05"),
             ),
-            quality_policy=QualityPolicy(
-                version=1,
-                timeframe="1h",
-                max_stale_age=timedelta(hours=3),
-                max_clock_drift=timedelta(minutes=5),
-                max_abnormal_return=Decimal("0.5"),
-            ),
+            quality_policy=quality_policy,
             feature_window=20,
         )
         app.state.backtest_orchestrator = BacktestOrchestrator(
@@ -82,8 +133,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             clock=clock,
             id_generator=UuidIdGenerator(),
         )
+        ingestion_task = asyncio.create_task(
+            _market_ingestion_loop(
+                provider=provider,
+                store=HistoricalStore(config.historical_data_root, clock, UuidIdGenerator()),
+                clock=clock,
+                quality_policy=quality_policy,
+                cursor_store=HistoricalIngestionCursorRepository(sessions),
+                logger=logger,
+            )
+        )
         logger.info("API_STARTED")
         yield
+        ingestion_task.cancel()
+        try:
+            await ingestion_task
+        except asyncio.CancelledError:
+            pass
         await redis.aclose()
         await engine.dispose()
 
@@ -163,7 +229,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     # Known rough edge: this must be bumped by hand on every new migration head.
                     # Resolving it dynamically via alembic's ScriptDirectory is a real improvement
                     # but out of scope for the migration that happens to need the bump.
-                    if revision != "0018_wallet_relationship_grants":
+                    if revision != "0022_observe_default":
                         raise ValueError("Schema not ready")
                     if await db.scalar(text("SELECT id FROM control WHERE id = 1")) != 1:
                         raise ValueError("Control state not ready")
@@ -177,8 +243,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return Response(generate_latest(), media_type="text/plain; version=0.0.4")
 
     app.include_router(auth_router)
+    app.include_router(connection_router)
     app.include_router(system_router)
     app.include_router(market_router)
+    app.include_router(research_router)
     app.include_router(intelligence_router)
     app.include_router(backtest_router)
     return app

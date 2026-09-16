@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from wallybot.domain.control import Status
+from wallybot.domain.control import Environment, Status
 
 
 class Input(BaseModel):
@@ -41,6 +41,7 @@ class SetupFinish(Verification):
 
 class ControlChange(Input):
     status: Status
+    environment: Environment | None = None
 
 
 class BacktestRun(Input):
@@ -69,3 +70,14 @@ class BacktestRun(Input):
     @classmethod
     def upper(cls, value: str) -> str:
         return value.strip().upper()
+
+
+class ResearchJobCreate(Input):
+    experiment_id: str = Field(min_length=1, max_length=100)
+    purpose: str = Field(min_length=1, max_length=256)
+
+
+class ProviderConnectionCreate(Input):
+    provider: Literal["BINANCE", "BITSO", "KRAKEN", "COINBASE", "WALLET"]
+    label: str = Field(min_length=1, max_length=100)
+    mode: Literal["READ_ONLY", "PAPER"] = "READ_ONLY"

@@ -20,6 +20,8 @@ import { RiskPage } from "./dashboard/pages/RiskPage";
 import { MarketsPage } from "./dashboard/pages/MarketsPage";
 import { IntelligencePage } from "./dashboard/pages/IntelligencePage";
 import { BacktestsPage } from "./dashboard/pages/BacktestsPage";
+import { ConnectionsPage } from "./dashboard/pages/ConnectionsPage";
+import { useConnectionsData } from "../hooks/useConnectionsData";
 import { Unavailable } from "./dashboard/pages/Unavailable";
 
 export function Dashboard({
@@ -40,6 +42,7 @@ export function Dashboard({
     "markets",
     "intelligence",
     "risk",
+    "connections",
   ].includes(initial)
     ? initial
     : "dashboard";
@@ -55,6 +58,7 @@ export function Dashboard({
   const { history: backtestHistory, run: runBacktest } = useBacktestsData(
     page === "research",
   );
+  const { connections, add: addConnection } = useConnectionsData(page === "connections");
   function navigate(next: string) {
     router.push(`/${next}`);
   }
@@ -92,6 +96,7 @@ export function Dashboard({
         <BacktestsPage history={backtestHistory} run={runBacktest} />
       )}
       {page === "portfolio" && <Unavailable />}
+      {page === "connections" && <ConnectionsPage connections={connections} add={addConnection} />}
     </DashboardShell>
   );
 }

@@ -57,5 +57,9 @@ COPY --from=research-builder --chown=wally:wally /app /app
 COPY --chown=wally:wally migrations ./migrations
 COPY --chown=wally:wally alembic.ini ./
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+# Pre-created so a fresh named volume mounted here (docker-compose.yml's historical_data, api's
+# only writable path under its read_only root fs) inherits wally ownership instead of root's --
+# Docker copies an image directory's existing content and ownership into a volume on first mount.
+RUN mkdir -p /data/historical && chown wally:wally /data/historical
 USER wally
 CMD ["uvicorn", "apps.api.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--no-access-log", "--no-proxy-headers"]

@@ -85,6 +85,8 @@ services:
       - redis_url
       - encryption_key
       - bootstrap_token
+    volumes:
+      - historical_data:/data/historical
     networks: [edge, operational]
     healthcheck:
       test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=5)"]
@@ -184,6 +186,7 @@ services:
 
 volumes:
   postgres:
+  historical_data:
 networks:
   edge:
   operational: {internal: true}

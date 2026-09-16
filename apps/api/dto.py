@@ -9,7 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from wallybot.domain.control import Status
+from wallybot.domain.control import Environment, Status
 
 
 class SetupStatusView(BaseModel):
@@ -46,7 +46,7 @@ class LogoutView(BaseModel):
 
 
 class DashboardView(BaseModel):
-    environment: Literal["PAPER"]
+    environment: Environment
     status: Status
     trading_available: Literal[False]
     exchange: str
@@ -80,7 +80,7 @@ class EventView(BaseModel):
 
 class ControlView(BaseModel):
     status: Status
-    environment: Literal["PAPER"]
+    environment: Environment
 
 
 class MarketRowView(BaseModel):
@@ -256,3 +256,34 @@ class BacktestHistoryRowView(BaseModel):
 
 class BacktestHistoryView(BaseModel):
     rows: list[BacktestHistoryRowView]
+
+
+class ResearchJobView(BaseModel):
+    id: str
+    experiment_id: str
+    purpose: str
+    status: str
+    attempts: int
+    cancel_requested: bool
+    artifact_uri: str | None
+    error: str | None
+    created_at: int
+    claimed_at: int | None
+    completed_at: int | None
+
+
+class ResearchJobListView(BaseModel):
+    rows: list[ResearchJobView]
+
+
+class ProviderConnectionView(BaseModel):
+    id: str
+    provider: str
+    label: str
+    mode: str
+    status: str
+    created_at: int
+
+
+class ProviderConnectionListView(BaseModel):
+    rows: list[ProviderConnectionView]

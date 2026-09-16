@@ -6,7 +6,7 @@ from sqlalchemy import select, text
 from apps.api.dependencies import Admin, SignedIn
 from apps.api.dto import ControlView, DashboardView, EventView, ServiceStatusView, SystemView
 from apps.api.schemas import ControlChange
-from wallybot.domain.control import Control, Role, Status
+from wallybot.domain.control import Control, Environment, Role, Status
 from wallybot.infrastructure.models import ControlRow, EventRow, HeartbeatRow
 from wallybot.security.auth import AuthError, audit
 
@@ -82,9 +82,10 @@ async def control(body: ControlChange, request: Request, user: Admin) -> Control
         row = await db.get(ControlRow, 1, with_for_update=True)
         if row is None:
             raise AuthError("System not initialized", 503)
-        current = Control(row.environment, Status(row.status))
-        changed = current.change(body.status, Role(user.role))
-        if row.status != changed.status:
+        current = Control(Environment(row.environment), Status(row.status))
+        changed = current.change(body.status, Role(user.role), body.environment)
+        if row.status != changed.status or row.environment != changed.environment:
+            row.environment = changed.environment
             row.status = changed.status
             audit(db, "BOT_PAUSED" if changed.status == Status.PAUSED else "BOT_RESUMED", user.id)
     return ControlView(status=changed.status, environment=changed.environment)

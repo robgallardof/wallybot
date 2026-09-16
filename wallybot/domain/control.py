@@ -12,16 +12,23 @@ class Status(StrEnum):
     PAUSED = "PAUSED"
 
 
+class Environment(StrEnum):
+    OBSERVE = "OBSERVE"
+    PAPER = "PAPER"
+
+
 @dataclass(frozen=True)
 class Control:
-    environment: str = "PAPER"
+    environment: Environment = Environment.OBSERVE
     status: Status = Status.RUNNING
 
     def __post_init__(self) -> None:
-        if self.environment != "PAPER":
-            raise ValueError("This release supports PAPER only")
+        if self.environment not in {Environment.OBSERVE, Environment.PAPER}:
+            raise ValueError("environment must be OBSERVE or PAPER")
 
-    def change(self, status: Status, role: Role) -> "Control":
+    def change(
+        self, status: Status, role: Role, environment: Environment | None = None
+    ) -> "Control":
         if role != Role.ADMIN:
             raise PermissionError("Administrator required")
-        return Control(status=status)
+        return Control(environment=environment or self.environment, status=status)

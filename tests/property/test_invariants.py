@@ -11,7 +11,7 @@ def test_control_sequence_never_enters_live(changes):
     control = Control()
     for status in changes:
         control = control.change(status, Role.ADMIN)
-        assert control.environment == "PAPER"
+        assert control.environment == "OBSERVE"
 
 
 @given(st.sampled_from(list(Status)))
