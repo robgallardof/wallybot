@@ -106,7 +106,11 @@ class JobRow(Base):
 
 
 class ProviderConnectionRow(Base):
-    """A user-owned connection descriptor. Credentials remain outside this table."""
+    """A user-owned connection descriptor. `encrypted_key`/`encrypted_secret` hold
+    Fernet-encrypted credential material (see `wallybot.security.crypto.Crypto`) -- an exchange
+    connection uses both (API key + secret), a wallet connection uses only `encrypted_key` (the
+    address). Never decrypted or returned by any API response; only the adapter process that
+    needs them would decrypt them."""
 
     __tablename__ = "provider_connections"
     __table_args__ = (
@@ -120,7 +124,22 @@ class ProviderConnectionRow(Base):
     label: Mapped[str] = mapped_column(String(100))
     mode: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="PENDING")
+    encrypted_key: Mapped[str | None] = mapped_column(Text)
+    encrypted_secret: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[int] = mapped_column(BigInteger)
+
+
+class TelegramConfigRow(Base):
+    """Singleton (id=1, like ControlRow) holding the operator's own Telegram bot token and
+    destination chat, entered via Settings. Storing this does not by itself wire up sending
+    notifications -- see wallybot.notifications.telegram.TelegramNotifier for that adapter."""
+
+    __tablename__ = "telegram_config"
+    __table_args__ = (CheckConstraint("id = 1"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    encrypted_bot_token: Mapped[str | None] = mapped_column(Text)
+    chat_id: Mapped[int | None] = mapped_column(BigInteger)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class OrderIntentRow(Base):

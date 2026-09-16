@@ -19,6 +19,7 @@ def _view(row: ProviderConnectionRow) -> ProviderConnectionView:
         label=row.label,
         mode=row.mode,
         status=row.status,
+        has_credentials=row.encrypted_key is not None,
         created_at=row.created_at,
     )
 
@@ -34,6 +35,7 @@ async def list_connections(request: Request, user: SignedIn) -> ProviderConnecti
 async def add_connection(
     body: ProviderConnectionCreate, request: Request, user: Admin
 ) -> ProviderConnectionView:
+    crypto = request.app.state.auth.crypto
     connection = ProviderConnectionRow(
         id=str(uuid4()),
         user_id=user.id,
@@ -41,6 +43,8 @@ async def add_connection(
         label=body.label.strip(),
         mode=body.mode,
         status="PENDING",
+        encrypted_key=crypto.encrypt(body.api_key) if body.api_key else None,
+        encrypted_secret=crypto.encrypt(body.api_secret) if body.api_secret else None,
         created_at=int(time.time()),
     )
     async with request.app.state.sessions.begin() as db:

@@ -24,6 +24,7 @@ from apps.api.intelligence_routes import router as intelligence_router
 from apps.api.market_routes import router as market_router
 from apps.api.research_routes import router as research_router
 from apps.api.system_routes import router as system_router
+from apps.api.telegram_routes import router as telegram_router
 from wallybot.application.backtest_orchestrator import BacktestOrchestrator
 from wallybot.application.market_ingestion import ingest_market_data
 from wallybot.application.market_overview import build_market_overview
@@ -251,4 +252,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(research_router)
     app.include_router(intelligence_router)
     app.include_router(backtest_router)
+    app.include_router(telegram_router)
     return app

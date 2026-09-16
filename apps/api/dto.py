@@ -282,8 +282,15 @@ class ProviderConnectionView(BaseModel):
     label: str
     mode: str
     status: str
+    has_credentials: bool
     created_at: int
 
 
 class ProviderConnectionListView(BaseModel):
     rows: list[ProviderConnectionView]
+
+
+class TelegramConfigView(BaseModel):
+    has_bot_token: bool
+    chat_id: int | None
+    enabled: bool

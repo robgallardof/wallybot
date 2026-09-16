@@ -22,6 +22,7 @@ import { IntelligencePage } from "./dashboard/pages/IntelligencePage";
 import { BacktestsPage } from "./dashboard/pages/BacktestsPage";
 import { ConnectionsPage } from "./dashboard/pages/ConnectionsPage";
 import { useConnectionsData } from "../hooks/useConnectionsData";
+import { useTelegramData } from "../hooks/useTelegramData";
 import { SettingsPage } from "./dashboard/pages/SettingsPage";
 import { DocsPage } from "./dashboard/pages/DocsPage";
 import { Unavailable } from "./dashboard/pages/Unavailable";
@@ -63,6 +64,7 @@ export function Dashboard({
     page === "research",
   );
   const { connections, add: addConnection } = useConnectionsData(page === "connections");
+  const { telegram, save: saveTelegram } = useTelegramData(page === "settings");
   function navigate(next: string) {
     router.push(`/${next}`);
   }
@@ -103,7 +105,13 @@ export function Dashboard({
       {page === "portfolio" && <Unavailable />}
       {page === "connections" && <ConnectionsPage connections={connections} add={addConnection} />}
       {page === "settings" && (
-        <SettingsPage dashboard={dashboard} change={change} role={user.role} />
+        <SettingsPage
+          dashboard={dashboard}
+          change={change}
+          role={user.role}
+          telegram={telegram}
+          saveTelegram={saveTelegram}
+        />
       )}
       {page === "docs" && <DocsPage />}
     </DashboardShell>

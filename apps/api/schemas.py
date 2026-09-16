@@ -81,3 +81,13 @@ class ProviderConnectionCreate(Input):
     provider: Literal["BINANCE", "BITSO", "KRAKEN", "COINBASE", "WALLET"]
     label: str = Field(min_length=1, max_length=100)
     mode: Literal["READ_ONLY", "PAPER"] = "READ_ONLY"
+    # For an exchange: API key + secret (read-only/PAPER scope only -- never trade-only here).
+    # For a wallet: only api_key is used, holding the public address.
+    api_key: str | None = Field(default=None, max_length=4096)
+    api_secret: str | None = Field(default=None, max_length=4096)
+
+
+class TelegramConfigUpdate(Input):
+    bot_token: str | None = Field(default=None, max_length=4096)
+    chat_id: int | None = None
+    enabled: bool = False

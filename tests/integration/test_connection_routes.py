@@ -89,6 +89,39 @@ def test_viewer_can_read_but_cannot_create_connections(client, settings, db) -> 
     assert db.execute("SELECT count(*) FROM provider_connections").fetchone()[0] == 0
 
 
+def test_credentials_are_encrypted_and_never_returned(client, settings, db) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+
+    created = create_connection(
+        client, csrf, provider="BINANCE", api_key="my-api-key", api_secret="my-api-secret"
+    )
+
+    assert created["has_credentials"] is True
+    assert "api_key" not in created
+    assert "api_secret" not in created
+    assert "encrypted_key" not in created
+    assert "encrypted_secret" not in created
+    row = db.execute(
+        "SELECT encrypted_key, encrypted_secret FROM provider_connections WHERE id = %s",
+        (created["id"],),
+    ).fetchone()
+    assert row[0] not in (None, "my-api-key")
+    assert row[1] not in (None, "my-api-secret")
+
+    listed = client.get("/api/connections").json()["rows"]
+    assert listed == [created]
+
+
+def test_a_connection_with_no_credentials_reports_has_credentials_false(client, settings) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+
+    created = create_connection(client, csrf)
+
+    assert created["has_credentials"] is False
+
+
 def test_connections_are_scoped_to_the_signed_in_user(client, settings, db) -> None:
     enroll(client, settings)
     csrf = client.get("/api/auth/me").json()["csrf"]

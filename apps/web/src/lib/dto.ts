@@ -192,6 +192,12 @@ export const backtestHistorySchema = z.object({
 
 export const providerConnectionSchema = z.object({
   id: z.string(), provider: z.string(), label: z.string(), mode: z.string(),
-  status: z.string(), created_at: z.number(),
+  status: z.string(), has_credentials: z.boolean(), created_at: z.number(),
 });
 export const providerConnectionListSchema = z.object({ rows: z.array(providerConnectionSchema) });
+
+export const telegramConfigSchema = z.object({
+  has_bot_token: z.boolean(),
+  chat_id: z.number().nullable(),
+  enabled: z.boolean(),
+});
