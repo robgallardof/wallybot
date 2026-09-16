@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 
 import pytest
 from pydantic import SecretStr
@@ -10,13 +11,21 @@ from wallybot.infrastructure.settings import ProcessSettings
 
 pytestmark = pytest.mark.integration
 
+_UNUSED_DATA_ROOT = Path("/tmp/unused")
+
 
 def test_scheduler_deduplicates_and_workers_apply_once(db, dependencies):
     async def exercise():
         engine, sessions = database(ProcessSettings(database_url=SecretStr(dependencies[0])))
         try:
-            await asyncio.gather(tick("scheduler", sessions, 120), tick("scheduler", sessions, 120))
-            await asyncio.gather(tick("worker", sessions, 120), tick("worker", sessions, 120))
+            await asyncio.gather(
+                tick("scheduler", sessions, 120, _UNUSED_DATA_ROOT),
+                tick("scheduler", sessions, 120, _UNUSED_DATA_ROOT),
+            )
+            await asyncio.gather(
+                tick("worker", sessions, 120, _UNUSED_DATA_ROOT),
+                tick("worker", sessions, 120, _UNUSED_DATA_ROOT),
+            )
         finally:
             await engine.dispose()
 
@@ -27,14 +36,14 @@ def test_scheduler_deduplicates_and_workers_apply_once(db, dependencies):
 
 def test_worker_does_not_claim_unknown_or_future_work(db, dependencies):
     db.execute(
-        "INSERT INTO jobs VALUES ('unknown', 'OTHER', 0, 'PENDING', 0), "
-        "('future', 'CLEANUP', 9999, 'PENDING', 0)"
+        "INSERT INTO jobs (id, kind, scheduled_at, status, attempts) VALUES "
+        "('unknown', 'OTHER', 0, 'PENDING', 0), ('future', 'CLEANUP', 9999, 'PENDING', 0)"
     )
 
     async def exercise():
         engine, sessions = database(ProcessSettings(database_url=SecretStr(dependencies[0])))
         try:
-            await tick("worker", sessions, 100)
+            await tick("worker", sessions, 100, _UNUSED_DATA_ROOT)
         finally:
             await engine.dispose()
 

@@ -12,6 +12,14 @@ backtest has none). The result summary is stored alongside so a later re-run can
 against it rather than only re-derived -- catching a silent regression in the engine itself, not
 just re-proving the strategy "worked."
 
+`instrument_market_type`/`price_increment`/`quantity_increment`/`min_quantity` capture the full
+`Instrument` identity a re-run needs, not only venue/base/quote: an isolated research worker (no
+internet egress, per PENDING.md's Fase 7 network isolation) cannot call a live exchange adapter's
+`discover_instruments()` to look these up again, and reconstructing them with guessed values would
+repeat the exact "never fabricate a precision field" mistake `historical_query.py` already
+documents avoiding. Storing the values this run actually used is the only way to reproduce it
+offline.
+
 Pure domain: no framework imports, no I/O.
 """
 
@@ -30,8 +38,12 @@ class ExperimentRecord:
     feature_engine_version: int
     backtest_engine_version: int
     instrument_venue: str
+    instrument_market_type: str
     instrument_base: str
     instrument_quote: str
+    price_increment: Decimal
+    quantity_increment: Decimal
+    min_quantity: Decimal
     timeframe: str
     window_start: datetime
     window_end: datetime
@@ -54,6 +66,7 @@ class ExperimentRecord:
             ("experiment_id", self.experiment_id),
             ("strategy_id", self.strategy_id),
             ("instrument_venue", self.instrument_venue),
+            ("instrument_market_type", self.instrument_market_type),
             ("instrument_base", self.instrument_base),
             ("instrument_quote", self.instrument_quote),
             ("timeframe", self.timeframe),
@@ -67,6 +80,13 @@ class ExperimentRecord:
             ("feature_window", self.feature_window),
         ):
             if value < 1:
+                raise ValueError(f"{field} must be positive")
+        for field, value in (
+            ("price_increment", self.price_increment),
+            ("quantity_increment", self.quantity_increment),
+            ("min_quantity", self.min_quantity),
+        ):
+            if value <= 0:
                 raise ValueError(f"{field} must be positive")
         require_aware_datetime(self.window_start, "window_start")
         require_aware_datetime(self.window_end, "window_end")

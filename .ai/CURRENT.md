@@ -49,6 +49,70 @@ commit unilaterally per repo convention). Longer-lived gap to flag to the user: 
 only has ~17 hours of real history right now, not the 30-day backtest window Phase 5 implicitly
 assumed — worth deciding if/when to reset the cursor to backfill.
 
+## Research job consumer wired up (2026-09-16, later the same day)
+
+Closed the gap flagged above: `research_routes.py` (Codex, previous slice) let an Admin enqueue a
+RESEARCH job via `POST /api/research/jobs`, but nothing ever consumed it -- `apps/research_worker`
+did nothing but heartbeat. User decision (asked explicitly): the consumer re-runs the backtest an
+existing `ExperimentRecord` describes and saves the result as a new record.
+
+- **Network isolation constraint found and resolved per user decision**: `BacktestOrchestrator`
+  normally resolves the traded `Instrument` (including price/quantity precision) via a live
+  `discover_instruments()` call -- but `research`'s Docker network is `internal: true` (Fase 7
+  isolation, PENDING.md), so it can never reach Kraken. Fix: `ExperimentRecord` now stores the
+  full `Instrument` identity (`instrument_market_type`/`price_increment`/`quantity_increment`/
+  `min_quantity`, migration `0023_experiment_precision` -- kept to 26 chars, the same
+  varchar(32) `alembic_version` gotcha 0019 already documents) so a re-run reconstructs it
+  offline instead of calling a live adapter. `BacktestOrchestrator.run()` now accepts an optional
+  pre-resolved `Instrument` to skip discovery entirely (backward compatible: the live
+  `POST /api/backtests` route passes none, unchanged behavior).
+- New `wallybot/application/research_runner.py`: claims one RESEARCH job, looks up its
+  `ExperimentRecord`, re-runs the backtest offline, saves the new record, and always reaches
+  `complete` or `fail` on the job (never leaves it RUNNING). Wired into
+  `wallybot/infrastructure/jobs.py`'s `tick()` for `service == "research"` -- **as a lazy/local
+  import**, not module-level: `research_runner` pulls in `duckdb` via `backtest_orchestrator`,
+  which only exists in the `runtime-research` image (api/research), not the base image
+  worker/scheduler run on. A module-level import crashed both of those on redeploy (caught and
+  fixed this slice, see below).
+- Added a `fail()` transition to `wallybot/domain/research_job.py` and a matching
+  `ResearchJobRepository.fail()` -- neither existed before; a job that couldn't complete had no
+  defined way to stop being RUNNING.
+- `research`'s Docker network never had the `historical_data` volume mounted (added, read-only)
+  and `ProcessSettings` (worker/scheduler/research's settings, distinct from the api-only
+  `Settings`) never had `historical_data_root` (added).
+- Migration 0023 also grants `wally_research` `USAGE`/`SELECT` on `experiment_records_id_seq` --
+  it had SELECT/INSERT on the table since migration 0015 but never the sequence, so it could
+  never actually have inserted a row even before this slice (same gap 0017 already found and
+  fixed for `wally_api`).
+
+**Bugs found and fixed while verifying this end-to-end against the live Docker stack** (not just
+unit tests -- this repo's own convention, see the 0018/0019 grant gotchas):
+1. Migration revision id `0023_experiment_instrument_precision` (36 chars) exceeded
+   `alembic_version.version_num`'s varchar(32) and failed `alembic upgrade head` with
+   `StringDataRightTruncation` -- renamed to `0023_experiment_precision` (both the revision id
+   and the file).
+2. `jobs.py` importing `research_runner` at module level crashed `worker`/`scheduler` on startup
+   (`ModuleNotFoundError: No module named 'duckdb'` -- those run the base image, not
+   `runtime-research`). Fixed with a local import inside the `service == "research"` branch.
+3. The pre-fsync-fix corrupted run (documented earlier in this file) left not just 60 zero-byte
+   `.parquet` files (already cleaned) but 62 sibling zero-byte `.manifest.json` files that were
+   never cleaned -- `json.loads("")` on one of them broke every `read_candles` call. Found via a
+   real end-to-end smoke test (seeded a real `ExperimentRecord` + `JobRow` in the live DB,
+   watched `research_worker` claim and fail it, read the actual error), cleaned up, re-verified:
+   `research_worker` claimed a fresh job, re-ran the backtest from real local Parquet data with
+   zero network access, saved a new `ExperimentRecord`, marked the job COMPLETED. Smoke-test rows
+   deleted afterward.
+
+Verified: full suite 557 passed (444 unit/property + 113 integration, up from 105 -- new
+`test_research_runner.py` plus updated `test_experiment.py`/`test_backtest_orchestrator.py`/
+`test_research_job.py`/`test_jobs.py`/`test_experiment_persistence.py` for the new
+`ExperimentRecord` fields and `tick()` signature). Ruff/pyright clean (same one pre-existing
+unrelated `auth_routes.py` error confirmed present on `master` before any of this session's
+changes). All four backend services (api/worker/scheduler/research) rebuilt, redeployed, healthy.
+
+**Not yet committed** — this slice, on top of everything else already described in this file,
+still sits uncommitted. Still true: never commit without the user asking first.
+
 **This session's delivery:** connected the last two Phase 10 OBSERVE-only signals that were not
 yet surfaced in the UI — wallet activity (on-chain feed) and the Entity Correlation Graph. Same
 end-to-end pattern as Smart Money/whale flow/token risk/provider reliability/price consensus:

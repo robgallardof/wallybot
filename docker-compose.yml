@@ -135,6 +135,8 @@ services:
     cpus: 1
     cpu_shares: 128
     pids_limit: 64
+    volumes:
+      - historical_data:/data/historical:ro
     environment:
       <<: *environment
       OMP_NUM_THREADS: 1

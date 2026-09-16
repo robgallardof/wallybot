@@ -634,10 +634,10 @@ class HistoricalIngestionCursorRow(Base):
 class ExperimentRecordRow(Base):
     """Persists `wallybot.domain.experiment.ExperimentRecord`. Insert-only: an experiment is a
     fact about a run that happened, never corrected in place -- re-running with the same
-    configuration produces a new record to compare against the old one, not an overwrite. Unlike
-    `TradeProposalRow`, this table stores no `Instrument`-shaped object at all -- only plain
-    venue/base/quote identity strings a caller already has -- so it fully round-trips without any
-    fabrication concern."""
+    configuration produces a new record to compare against the old one, not an overwrite. Stores
+    the full `Instrument` identity (including precision) this run actually used -- see
+    `ExperimentRecord`'s docstring on why an isolated research re-run needs it stored here rather
+    than looked up again from a live exchange adapter."""
 
     __tablename__ = "experiment_records"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -647,8 +647,12 @@ class ExperimentRecordRow(Base):
     feature_engine_version: Mapped[int] = mapped_column(Integer)
     backtest_engine_version: Mapped[int] = mapped_column(Integer)
     instrument_venue: Mapped[str] = mapped_column(String(32))
+    instrument_market_type: Mapped[str] = mapped_column(String(16))
     instrument_base: Mapped[str] = mapped_column(String(16))
     instrument_quote: Mapped[str] = mapped_column(String(16))
+    price_increment: Mapped[Decimal] = mapped_column(Numeric)
+    quantity_increment: Mapped[Decimal] = mapped_column(Numeric)
+    min_quantity: Mapped[Decimal] = mapped_column(Numeric)
     timeframe: Mapped[str] = mapped_column(String(16))
     window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))

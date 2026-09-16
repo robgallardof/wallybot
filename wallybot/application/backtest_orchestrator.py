@@ -16,7 +16,11 @@ registry lifecycle" bullet, not built here.
 
 The `Instrument` is looked up from the injected `MarketDataProvider` (the same real venue
 precision data `DecisionPipeline` already trusts), never fabricated from caller-supplied numbers --
-the exact mistake `historical_query.py`'s own docstring documents avoiding.
+the exact mistake `historical_query.py`'s own docstring documents avoiding. `run()` accepts an
+optional pre-resolved `Instrument` instead, for the one caller that cannot reach a live adapter at
+all: an isolated research re-run (wallybot.infrastructure.jobs, no internet egress) reconstructs it
+from the original `ExperimentRecord`'s own stored identity/precision rather than skip validation --
+still never fabricated, just sourced from an earlier real discovery instead of a fresh one.
 
 `read_candles` is a synchronous, blocking DuckDB call (file I/O + query) -- run via
 `asyncio.to_thread` so it never blocks the event loop this orchestrator's `run()` is awaited on.
@@ -34,7 +38,7 @@ from wallybot.data.historical_query import QueryResourceLimits, read_candles
 from wallybot.domain.clock import Clock
 from wallybot.domain.experiment import ExperimentRecord
 from wallybot.domain.id_generator import IdGenerator
-from wallybot.domain.market import MarketDataProvider
+from wallybot.domain.market import Instrument, MarketDataProvider
 from wallybot.features.simple import FEATURE_VERSION, SimpleFeatureEngine
 from wallybot.strategies.trend_following import (
     STRATEGY_ID,
@@ -80,7 +84,7 @@ class BacktestOutcome:
 class BacktestOrchestrator:
     def __init__(
         self,
-        provider: MarketDataProvider,
+        provider: MarketDataProvider | None,
         data_root: Path,
         resource_limits: QueryResourceLimits,
         clock: Clock,
@@ -92,21 +96,29 @@ class BacktestOrchestrator:
         self.clock = clock
         self.id_generator = id_generator
 
-    async def run(self, request: BacktestRequest) -> BacktestOutcome:
-        instruments = await self.provider.discover_instruments()
-        instrument = next(
-            (
-                candidate
-                for candidate in instruments
-                if candidate.base == request.instrument_base
-                and candidate.quote == request.instrument_quote
-            ),
-            None,
-        )
+    async def run(
+        self, request: BacktestRequest, instrument: Instrument | None = None
+    ) -> BacktestOutcome:
         if instrument is None:
-            raise InstrumentNotFound(
-                f"no instrument discovered for {request.instrument_base}/{request.instrument_quote}"
+            if self.provider is None:
+                raise InstrumentNotFound(
+                    "no MarketDataProvider configured and no Instrument supplied"
+                )
+            instruments = await self.provider.discover_instruments()
+            instrument = next(
+                (
+                    candidate
+                    for candidate in instruments
+                    if candidate.base == request.instrument_base
+                    and candidate.quote == request.instrument_quote
+                ),
+                None,
             )
+            if instrument is None:
+                raise InstrumentNotFound(
+                    f"no instrument discovered for "
+                    f"{request.instrument_base}/{request.instrument_quote}"
+                )
 
         candles = await asyncio.to_thread(
             read_candles,
@@ -145,8 +157,12 @@ class BacktestOrchestrator:
             feature_engine_version=FEATURE_VERSION,
             backtest_engine_version=result.version,
             instrument_venue=instrument.venue,
+            instrument_market_type=str(instrument.market_type),
             instrument_base=instrument.base,
             instrument_quote=instrument.quote,
+            price_increment=instrument.price_increment,
+            quantity_increment=instrument.quantity_increment,
+            min_quantity=instrument.min_quantity,
             timeframe=request.timeframe,
             window_start=request.window_start,
             window_end=request.window_end,

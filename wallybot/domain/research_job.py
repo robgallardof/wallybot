@@ -79,3 +79,16 @@ class ResearchJob:
             completed_at=at,
             cancel_requested=True,
         )
+
+    def fail(self, at: datetime, reason: str) -> "ResearchJob":
+        require_aware_datetime(at, "at")
+        if self.status is not ResearchJobStatus.RUNNING:
+            raise ValueError("only a running research job can fail")
+        if not reason:
+            raise ValueError("a failed research job requires a reason")
+        return replace(
+            self,
+            status=ResearchJobStatus.FAILED,
+            completed_at=at,
+            failure_reason=reason,
+        )

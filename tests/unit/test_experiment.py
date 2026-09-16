@@ -18,8 +18,12 @@ def make_record(**overrides) -> ExperimentRecord:
         "feature_engine_version": 1,
         "backtest_engine_version": 1,
         "instrument_venue": "kraken",
+        "instrument_market_type": "SPOT",
         "instrument_base": "BTC",
         "instrument_quote": "USD",
+        "price_increment": Decimal("0.01"),
+        "quantity_increment": Decimal("0.0001"),
+        "min_quantity": Decimal("0.0001"),
         "timeframe": "1h",
         "window_start": WINDOW_START,
         "window_end": WINDOW_END,
@@ -52,11 +56,25 @@ def test_a_record_with_no_bootstrap_seed_constructs() -> None:
 
 
 @pytest.mark.parametrize(
-    "field", ["experiment_id", "strategy_id", "instrument_venue", "instrument_base", "timeframe"]
+    "field",
+    [
+        "experiment_id",
+        "strategy_id",
+        "instrument_venue",
+        "instrument_market_type",
+        "instrument_base",
+        "timeframe",
+    ],
 )
 def test_required_identifier_fields_reject_empty_string(field: str) -> None:
     with pytest.raises(ValueError, match="required"):
         make_record(**{field: ""})
+
+
+@pytest.mark.parametrize("field", ["price_increment", "quantity_increment", "min_quantity"])
+def test_nonpositive_precision_fields_rejected(field: str) -> None:
+    with pytest.raises(ValueError, match="positive"):
+        make_record(**{field: Decimal("0")})
 
 
 def test_window_end_before_start_rejected() -> None:

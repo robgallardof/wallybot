@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -5,7 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from wallybot.infrastructure.models import ChallengeRow, HeartbeatRow, JobRow, SessionRow
 
 
-async def tick(service: str, sessions: async_sessionmaker[AsyncSession], now: int) -> None:
+async def tick(
+    service: str, sessions: async_sessionmaker[AsyncSession], now: int, data_root: Path
+) -> None:
     """Durable heartbeat and bounded DB-only maintenance, committed atomically."""
     async with sessions.begin() as db:
         await db.execute(
@@ -42,3 +46,14 @@ async def tick(service: str, sessions: async_sessionmaker[AsyncSession], now: in
                 await db.execute(
                     delete(JobRow).where(JobRow.status == "DONE", JobRow.scheduled_at < now - 86400)
                 )
+
+    if service == "research":
+        # Local import: research_runner pulls in duckdb via backtest_orchestrator, which is only
+        # installed in the runtime-research image (api/research), not the base image worker and
+        # scheduler run on -- a module-level import here would crash both of those on startup.
+        # Also runs after the heartbeat transaction commits, not inside it -- a backtest re-run
+        # does DuckDB file I/O and real computation, which must never hold the heartbeat's row
+        # lock or connection open for its duration.
+        from wallybot.application.research_runner import run_pending_research_job
+
+        await run_pending_research_job(sessions, data_root, now)

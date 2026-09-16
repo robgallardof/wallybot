@@ -34,7 +34,7 @@ async def run(service: str) -> None:
         while not stopping.is_set():
             try:
                 now = int(time.time())
-                await tick(service, sessions, now)
+                await tick(service, sessions, now, settings.historical_data_root)
                 await asyncio.to_thread(write_heartbeat, service, now)
                 if service == "scheduler":
                     try:

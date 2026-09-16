@@ -78,6 +78,7 @@ class ProcessSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="WALLY_", env_file=".env", extra="ignore")
     database_url: SecretStr
     redis_url: SecretStr = SecretStr("redis://localhost:6379/0")
+    historical_data_root: Path = Path("/data/historical")
 
 
 def load_process_settings() -> ProcessSettings:

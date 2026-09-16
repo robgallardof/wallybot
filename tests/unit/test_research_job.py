@@ -31,3 +31,19 @@ def test_running_job_with_cancel_request_cannot_complete() -> None:
     running = pending().start(NOW).request_cancellation()
     with pytest.raises(ValueError, match="non-cancelled"):
         running.complete(NOW, "research://artifacts/job-1.json")
+
+
+def test_running_job_can_fail_with_a_reason() -> None:
+    failed = pending().start(NOW).fail(NOW, "InsufficientHistoricalData: too few candles")
+    assert failed.status is ResearchJobStatus.FAILED
+    assert failed.failure_reason == "InsufficientHistoricalData: too few candles"
+
+
+def test_pending_job_cannot_fail() -> None:
+    with pytest.raises(ValueError, match="running"):
+        pending().fail(NOW, "boom")
+
+
+def test_fail_requires_a_reason() -> None:
+    with pytest.raises(ValueError, match="reason"):
+        pending().start(NOW).fail(NOW, "")

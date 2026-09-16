@@ -73,6 +73,20 @@ class ResearchJobRepository:
             row.completed_at = now
             return True
 
+    async def fail(self, job_id: str, now: int, error: str) -> bool:
+        async with self.sessions.begin() as db:
+            row = await db.get(JobRow, job_id, with_for_update=True)
+            if row is None or row.kind != _KIND or row.status != ResearchJobStatus.RUNNING.value:
+                return False
+            row.status = (
+                ResearchJobStatus.CANCELLED.value
+                if row.cancel_requested
+                else ResearchJobStatus.FAILED.value
+            )
+            row.error = error
+            row.completed_at = now
+            return True
+
     async def get(self, job_id: str) -> JobRow | None:
         async with self.sessions() as db:
             row = await db.get(JobRow, job_id)

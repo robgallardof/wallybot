@@ -152,3 +152,34 @@ async def test_a_window_with_no_written_data_is_rejected_as_insufficient(tmp_pat
 
     with pytest.raises(InsufficientHistoricalData):
         await orchestrator.run(make_request())
+
+
+async def test_a_supplied_instrument_skips_provider_discovery_entirely(tmp_path) -> None:
+    write_fixture(tmp_path)
+    orchestrator = BacktestOrchestrator(
+        provider=None,
+        data_root=tmp_path,
+        resource_limits=DEFAULT_QUERY_LIMITS,
+        clock=FixedClock(datetime(2026, 1, 2, tzinfo=UTC)),
+        id_generator=SequentialIds(),
+    )
+
+    outcome = await orchestrator.run(make_request(), instrument=INSTRUMENT)
+
+    assert outcome.record.instrument_venue == "fake"
+    assert outcome.record.price_increment == Decimal("0.01")
+
+
+async def test_no_provider_and_no_instrument_is_rejected_rather_than_calling_none(
+    tmp_path,
+) -> None:
+    orchestrator = BacktestOrchestrator(
+        provider=None,
+        data_root=tmp_path,
+        resource_limits=DEFAULT_QUERY_LIMITS,
+        clock=FixedClock(datetime(2026, 1, 2, tzinfo=UTC)),
+        id_generator=SequentialIds(),
+    )
+
+    with pytest.raises(InstrumentNotFound):
+        await orchestrator.run(make_request())
