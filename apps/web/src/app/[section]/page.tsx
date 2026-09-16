@@ -6,12 +6,14 @@ const sections = [
   "login",
   "dashboard",
   "portfolio",
+  "connections",
   "markets",
   "intelligence",
   "research",
   "risk",
   "events",
   "system",
+  "settings",
 ];
 
 export default async function Page({

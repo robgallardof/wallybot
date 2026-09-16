@@ -21,11 +21,15 @@ export function useDashboardData() {
     refetchInterval: 10000,
   });
   const change = useMutation({
-    mutationFn: (status: string) =>
+    // `environment` was previously never sent -- the backend requires `status` on every call
+    // (it changes together, per wallybot.domain.control.Control.change) but treats a missing
+    // `environment` as "leave unchanged", so this must always send the CURRENT environment
+    // unless the caller explicitly wants to switch it.
+    mutationFn: (body: { status: string; environment?: string }) =>
       api(
         "/control",
         z.object({ status: z.string(), environment: z.string() }),
-        { status },
+        body,
       ),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["dashboard"] });

@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   LineChart,
   LogOut,
+  Settings,
   Settings2,
   ShieldCheck,
   Wallet,
@@ -28,6 +29,7 @@ const navigation = [
   ["risk", "Riesgo", ShieldCheck],
   ["events", "Actividad", Activity],
   ["system", "Sistema", Settings2],
+  ["settings", "Configuración", Settings],
 ] as const;
 
 export function DashboardShell({
@@ -37,6 +39,7 @@ export function DashboardShell({
   navigate,
   hasError,
   mutationError,
+  environment,
   children,
 }: {
   user: z.infer<typeof meSchema>;
@@ -45,6 +48,7 @@ export function DashboardShell({
   navigate: (next: string) => void;
   hasError: boolean;
   mutationError?: string;
+  environment?: "OBSERVE" | "PAPER";
   children: ReactNode;
 }) {
   useTranslation();
@@ -119,7 +123,7 @@ export function DashboardShell({
           </span>
           <div>
             <span className="paper-pill">
-              <i /> OBSERVE
+              <i /> {environment ?? "OBSERVE"}
             </span>
             <span className="top-date">
               {new Intl.DateTimeFormat(i18n.resolvedLanguage, {
@@ -179,9 +183,13 @@ export function DashboardShell({
               </strong>
               <span>
                 {" "}
-                {i18n.t(
-                  "Observando mercados reales. Activa PAPER en configuración para simular.",
-                )}
+                {environment === "PAPER"
+                  ? i18n.t(
+                      "Simulando órdenes en modo PAPER. Desactívalo en Configuración para volver a solo observar.",
+                    )
+                  : i18n.t(
+                      "Observando mercados reales. Activa PAPER en Configuración para simular.",
+                    )}
               </span>
             </div>
           </div>

@@ -12,7 +12,7 @@ export function RiskPage({
   role,
 }: {
   dashboard: UseQueryResult<z.infer<typeof dashboardSchema>>;
-  change: UseMutationResult<unknown, Error, string>;
+  change: UseMutationResult<unknown, Error, { status: string; environment?: string }>;
   role: string;
 }) {
   useTranslation();
@@ -36,9 +36,10 @@ export function RiskPage({
         <Button
           disabled={!dashboard.data || change.isPending}
           onClick={() =>
-            change.mutate(
-              dashboard.data?.status === "PAUSED" ? "RUNNING" : "PAUSED",
-            )
+            change.mutate({
+              status: dashboard.data?.status === "PAUSED" ? "RUNNING" : "PAUSED",
+              environment: dashboard.data?.environment,
+            })
           }
         >
           {dashboard.data?.status === "PAUSED" ? (
@@ -47,7 +48,7 @@ export function RiskPage({
             <Pause size={16} />
           )}
           {dashboard.data?.status === "PAUSED"
-            ? i18n.t("Reanudar instancia PAPER")
+            ? i18n.t("Reanudar instancia")
             : i18n.t("Pausar instancia")}
         </Button>
       ) : (

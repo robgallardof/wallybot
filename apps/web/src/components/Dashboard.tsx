@@ -22,6 +22,7 @@ import { IntelligencePage } from "./dashboard/pages/IntelligencePage";
 import { BacktestsPage } from "./dashboard/pages/BacktestsPage";
 import { ConnectionsPage } from "./dashboard/pages/ConnectionsPage";
 import { useConnectionsData } from "../hooks/useConnectionsData";
+import { SettingsPage } from "./dashboard/pages/SettingsPage";
 import { Unavailable } from "./dashboard/pages/Unavailable";
 
 export function Dashboard({
@@ -43,6 +44,7 @@ export function Dashboard({
     "intelligence",
     "risk",
     "connections",
+    "settings",
   ].includes(initial)
     ? initial
     : "dashboard";
@@ -71,6 +73,7 @@ export function Dashboard({
       navigate={navigate}
       hasError={Boolean(dashboard.error || system.error || events.error)}
       mutationError={change.error?.message}
+      environment={dashboard.data?.environment}
     >
       {page === "dashboard" && (
         <Overview system={system} events={events} navigate={navigate} />
@@ -97,6 +100,9 @@ export function Dashboard({
       )}
       {page === "portfolio" && <Unavailable />}
       {page === "connections" && <ConnectionsPage connections={connections} add={addConnection} />}
+      {page === "settings" && (
+        <SettingsPage dashboard={dashboard} change={change} role={user.role} />
+      )}
     </DashboardShell>
   );
 }

@@ -115,7 +115,7 @@
   "Instancia pausada": "Instance paused",
   "Instancia en preparación": "Instance in preparation",
   "Pausar registra el estado de control. La monitorización y el mantenimiento siguen activos. Esta fase aún no genera operaciones.": "Pausing records the control state. Monitoring and maintenance remain active. This phase does not generate trades yet.",
-  "Reanudar instancia PAPER": "Resume PAPER instance",
+  "Reanudar instancia": "Resume instance",
   "Pausar instancia": "Pause instance",
   "Tu rol VIEWER permite consultar, pero no cambiar controles.": "Your VIEWER role allows viewing, but cannot change controls.",
   "Requiere una sesión verificada con MFA en los últimos 5 minutos. Los límites de cartera y RiskEngine se implementan en la fase 3.": "Requires a session verified with MFA in the last 5 minutes. Portfolio limits and RiskEngine are implemented in phase 3.",
@@ -325,5 +325,16 @@
   "Cargando…": "Loading…",
   "Consulta con error": "Query failed",
   "{{count}} registros": "{{count}} records",
-  "Volver a las señales": "Back to signals"
+  "Volver a las señales": "Back to signals",
+  "Configuración": "Settings",
+  "Modo de simulación": "Simulation mode",
+  "Simulación PAPER activada": "PAPER simulation enabled",
+  "Observando mercados reales (OBSERVE)": "Observing real markets (OBSERVE)",
+  "Por defecto tu instancia solo observa datos reales de mercado: no genera ni simula operaciones. Activa PAPER si querés que el sistema simule órdenes sobre esos mismos datos, sin dinero real ni conexión de ejecución.": "By default your instance only observes real market data: it never generates or simulates trades. Enable PAPER if you want the system to simulate orders over that same data, with no real money or execution connection.",
+  "Desactivar simulación (volver a OBSERVE)": "Disable simulation (back to OBSERVE)",
+  "Activar simulación PAPER": "Enable PAPER simulation",
+  "Tu rol VIEWER permite consultar, pero no cambiar la configuración.": "Your VIEWER role allows viewing, but not changing settings.",
+  "PAPER nunca envía órdenes reales ni requiere claves de ejecución. La ejecución real (LIVE) no está disponible en esta fase.": "PAPER never sends real orders or requires execution keys. Real (LIVE) execution is not available at this phase.",
+  "Observando mercados reales. Activa PAPER en Configuración para simular.": "Observing real markets. Enable PAPER in Settings to simulate.",
+  "Simulando órdenes en modo PAPER. Desactívalo en Configuración para volver a solo observar.": "Simulating orders in PAPER mode. Disable it in Settings to go back to observing only."
 }

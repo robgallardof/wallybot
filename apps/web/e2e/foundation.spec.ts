@@ -148,7 +148,7 @@ test("setup, MFA, dashboard, controls, activity, logout and recovery login", asy
   await expect(
     page.getByRole("heading", { name: "Instancia pausada" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Reanudar instancia PAPER" }).click();
+  await page.getByRole("button", { name: "Reanudar instancia", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Instancia en preparación" }),
   ).toBeVisible();
@@ -186,6 +186,26 @@ test("setup, MFA, dashboard, controls, activity, logout and recovery login", asy
   await expect(
     page.getByRole("heading", { name: "Servicios y dependencias" }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Configuración", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Observando mercados reales (OBSERVE)" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Activar simulación PAPER" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Simulación PAPER activada" }),
+  ).toBeVisible();
+  await expect(page.locator(".paper-pill")).toHaveText("PAPER");
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Simulación PAPER activada" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Desactivar simulación (volver a OBSERVE)" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Observando mercados reales (OBSERVE)" }),
+  ).toBeVisible();
+  await expect(page.locator(".paper-pill")).toHaveText("OBSERVE");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Resumen", exact: true }).click();
   await expect(
