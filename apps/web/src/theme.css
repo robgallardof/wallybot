@@ -1022,3 +1022,53 @@
     margin-left: 44px;
   }
 }
+:root .docs-panel section {
+  margin-top: 24px;
+}
+:root .docs-panel h3 {
+  align-items: center;
+  color: var(--text);
+  display: flex;
+  font-size: 15px;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+:root .docs-panel h3 svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+:root .docs-panel p {
+  color: var(--muted);
+  line-height: 1.6;
+}
+:root .docs-steps {
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  line-height: 1.6;
+  padding-left: 20px;
+}
+:root .docs-panel code {
+  background: var(--surface-2, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 13px;
+  padding: 1px 6px;
+}
+:root .docs-code {
+  background: var(--surface-2, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow-x: auto;
+  padding: 14px 16px;
+}
+:root .docs-code code {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.7;
+  padding: 0;
+  white-space: pre;
+}

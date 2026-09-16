@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Activity,
+  BookOpen,
   Brain,
   Cable,
   FlaskConical,
@@ -30,6 +31,7 @@ const navigation = [
   ["events", "Actividad", Activity],
   ["system", "Sistema", Settings2],
   ["settings", "Configuración", Settings],
+  ["docs", "Documentación", BookOpen],
 ] as const;
 
 export function DashboardShell({

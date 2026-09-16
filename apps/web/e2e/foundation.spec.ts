@@ -206,6 +206,11 @@ test("setup, MFA, dashboard, controls, activity, logout and recovery login", asy
     page.getByRole("heading", { name: "Observando mercados reales (OBSERVE)" }),
   ).toBeVisible();
   await expect(page.locator(".paper-pill")).toHaveText("OBSERVE");
+  await page.getByRole("button", { name: "Documentación", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Documentación y primeros pasos" }),
+  ).toBeVisible();
+  await expect(page.getByText("uv tool install graphifyy")).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Resumen", exact: true }).click();
   await expect(

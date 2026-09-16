@@ -14,6 +14,7 @@ const sections = [
   "events",
   "system",
   "settings",
+  "docs",
 ];
 
 export default async function Page({

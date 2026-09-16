@@ -23,6 +23,7 @@ import { BacktestsPage } from "./dashboard/pages/BacktestsPage";
 import { ConnectionsPage } from "./dashboard/pages/ConnectionsPage";
 import { useConnectionsData } from "../hooks/useConnectionsData";
 import { SettingsPage } from "./dashboard/pages/SettingsPage";
+import { DocsPage } from "./dashboard/pages/DocsPage";
 import { Unavailable } from "./dashboard/pages/Unavailable";
 
 export function Dashboard({
@@ -45,6 +46,7 @@ export function Dashboard({
     "risk",
     "connections",
     "settings",
+    "docs",
   ].includes(initial)
     ? initial
     : "dashboard";
@@ -103,6 +105,7 @@ export function Dashboard({
       {page === "settings" && (
         <SettingsPage dashboard={dashboard} change={change} role={user.role} />
       )}
+      {page === "docs" && <DocsPage />}
     </DashboardShell>
   );
 }

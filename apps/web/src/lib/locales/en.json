@@ -336,5 +336,22 @@
   "Tu rol VIEWER permite consultar, pero no cambiar la configuración.": "Your VIEWER role allows viewing, but not changing settings.",
   "PAPER nunca envía órdenes reales ni requiere claves de ejecución. La ejecución real (LIVE) no está disponible en esta fase.": "PAPER never sends real orders or requires execution keys. Real (LIVE) execution is not available at this phase.",
   "Observando mercados reales. Activa PAPER en Configuración para simular.": "Observing real markets. Enable PAPER in Settings to simulate.",
-  "Simulando órdenes en modo PAPER. Desactívalo en Configuración para volver a solo observar.": "Simulating orders in PAPER mode. Disable it in Settings to go back to observing only."
+  "Simulando órdenes en modo PAPER. Desactívalo en Configuración para volver a solo observar.": "Simulating orders in PAPER mode. Disable it in Settings to go back to observing only.",
+  "Documentación": "Documentation",
+  "Documentación y primeros pasos": "Documentation and first steps",
+  "Esta página resume cómo levantar tu propia instancia y dónde encontrar el resto de la documentación en el repositorio. Es contenido fijo, no depende del backend.": "This page summarizes how to run your own instance and where to find the rest of the documentation in the repository. It's static content and doesn't depend on the backend.",
+  "Primeros pasos": "First steps",
+  "Requisitos: Docker Engine/Desktop con Compose y Python 3.12+.": "Requirements: Docker Engine/Desktop with Compose, and Python 3.12+.",
+  "genera tus secretos locales (nunca los subas al repo).": "generates your local secrets (never commit them).",
+  "construye y levanta todos los servicios.": "builds and starts every service.",
+  "Abre": "Open",
+  "lee el token en .secrets/bootstrap_token, crea tu administrador e inscribe tu autenticador (TOTP). Guarda los códigos de recuperación: no se muestran una segunda vez.": "read the token in .secrets/bootstrap_token, create your administrator and enroll your authenticator (TOTP). Save the recovery codes: they are shown only once.",
+  "Por defecto la instancia arranca en modo OBSERVE (solo observa, nunca simula ni ejecuta). Activá el modo PAPER desde": "By default the instance starts in OBSERVE mode (observes only, never simulates or executes). Enable PAPER mode from",
+  " si querés que simule operaciones.": " if you want it to simulate trades.",
+  "Arquitectura, en breve": "Architecture, in short",
+  "WallyBot es un monolito modular: procesos independientes (api, worker, scheduler, research_worker, web) que comparten paquetes tipados de dominio/aplicación/infraestructura bajo wallybot/. El dominio (wallybot/domain) nunca importa FastAPI, SQLAlchemy, CCXT ni SDKs de IA -- es una regla de arquitectura, no una preferencia de estilo.": "WallyBot is a modular monolith: independent processes (api, worker, scheduler, research_worker, web) sharing typed domain/application/infrastructure packages under wallybot/. The domain layer (wallybot/domain) never imports FastAPI, SQLAlchemy, CCXT or AI SDKs -- that's an architecture rule, not a style preference.",
+  "El detalle completo vive en archivos Markdown en la raíz del repo, no en esta página: ARCHITECTURE.md (diseño y capas), DATA.md (datos de mercado), SECURITY.md, RISK.md, TESTING.md y DEPLOYMENT.md. Ábrelos directamente en tu editor o en GitHub.": "The full detail lives in Markdown files at the repo root, not on this page: ARCHITECTURE.md (design and layers), DATA.md (market data), SECURITY.md, RISK.md, TESTING.md and DEPLOYMENT.md. Open them directly in your editor or on GitHub.",
+  "Explorar el código con Graphify": "Exploring the code with Graphify",
+  "Graphify es una herramienta de línea de comandos (no forma parte del stack que corre en producción) que convierte el repositorio en un grafo de conocimiento navegable -- útil para entender cómo se relacionan los módulos antes de tocar código.": "Graphify is a command-line tool (not part of the production stack) that turns the repository into a navigable knowledge graph -- useful for understanding how modules relate before touching code.",
+  "El primer comando genera un diagrama interactivo (graphify-out/graph.html) y un reporte en texto plano (graphify-out/GRAPH_REPORT.md) que podés abrir en el navegador o en tu editor. Es una herramienta de desarrollo opcional, no un requisito para correr tu bot.": "The first command generates an interactive diagram (graphify-out/graph.html) and a plain-text report (graphify-out/GRAPH_REPORT.md) you can open in your browser or editor. It's an optional development tool, not a requirement to run your bot."
 }
