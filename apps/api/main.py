@@ -5,6 +5,8 @@ from decimal import Decimal
 from functools import partial
 from uuid import uuid4
 
+from alembic.config import Config as AlembicConfig
+from alembic.script import ScriptDirectory
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
@@ -90,6 +92,9 @@ async def _market_ingestion_loop(
 def create_app(settings: Settings | None = None) -> FastAPI:
     config = settings or load_settings()
     logger = configure_logging("api")
+    # Resolved once from migrations/versions at process start rather than hardcoded -- previously
+    # this had to be bumped by hand on every migration (0016 through 0022, five times).
+    expected_revision = ScriptDirectory.from_config(AlembicConfig("alembic.ini")).get_current_head()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -226,10 +231,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             async with asyncio.timeout(5):
                 async with request.app.state.sessions() as db:
                     revision = await db.scalar(text("SELECT version_num FROM alembic_version"))
-                    # Known rough edge: this must be bumped by hand on every new migration head.
-                    # Resolving it dynamically via alembic's ScriptDirectory is a real improvement
-                    # but out of scope for the migration that happens to need the bump.
-                    if revision != "0022_observe_default":
+                    if revision != expected_revision:
                         raise ValueError("Schema not ready")
                     if await db.scalar(text("SELECT id FROM control WHERE id = 1")) != 1:
                         raise ValueError("Control state not ready")
