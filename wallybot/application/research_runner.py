@@ -23,10 +23,22 @@ from wallybot.infrastructure.uuid_id_generator import UuidIdGenerator
 
 
 class ExperimentNotFound(ValueError):
-    """No experiment_records row matches the research job's experiment_id."""
+    """Raised when a research job's ``experiment_id`` has no matching row in
+    ``experiment_records``.
+
+    :param args: Passed through to :class:`ValueError`; the message identifies the missing
+        ``experiment_id``.
+    """
 
 
 def _request_from_record(record: ExperimentRecord) -> BacktestRequest:
+    """Rebuild the :class:`BacktestRequest` a prior backtest run used, from its persisted
+    :class:`ExperimentRecord`.
+
+    :param record: The original experiment to reproduce.
+    :returns: A request equivalent to the one that produced ``record``, ready to hand to
+        :class:`BacktestOrchestrator`.
+    """
     return BacktestRequest(
         instrument_base=record.instrument_base,
         instrument_quote=record.instrument_quote,
@@ -44,6 +56,13 @@ def _request_from_record(record: ExperimentRecord) -> BacktestRequest:
 
 
 def _instrument_from_record(record: ExperimentRecord) -> Instrument:
+    """Reconstruct the exact :class:`Instrument` (identity and precision) a prior backtest run
+    used, from its persisted :class:`ExperimentRecord` -- never a fresh live lookup, since the
+    research worker has no internet egress.
+
+    :param record: The original experiment to reproduce.
+    :returns: An :class:`Instrument` equal in every field to the one the original run resolved.
+    """
     return Instrument(
         venue=record.instrument_venue,
         market_type=MarketType(record.instrument_market_type),
@@ -58,6 +77,21 @@ def _instrument_from_record(record: ExperimentRecord) -> Instrument:
 async def run_pending_research_job(
     sessions: async_sessionmaker[AsyncSession], data_root: Path, now: int
 ) -> None:
+    """Claim and execute at most one pending ``RESEARCH`` job.
+
+    Looks up the job's ``experiment_id``, re-runs that backtest entirely from local Parquet data
+    (no live exchange call, no network), persists the new result as a fresh
+    :class:`ExperimentRecord`, and marks the job ``COMPLETED`` with the new record's id as its
+    artifact. Any failure along the way -- missing experiment, insufficient historical data, an
+    unexpected error -- marks the job ``FAILED`` with the exception message as the reason instead
+    of raising, so a bad job never crashes the calling process's tick loop.
+
+    :param sessions: Session factory scoped to the caller's database role (``wally_research`` in
+        production).
+    :param data_root: Root directory of the checksummed Parquet dataset (``HISTORICAL_DATA_ROOT``).
+    :param now: Current Unix timestamp, used for the job's ``claimed_at``/``completed_at``.
+    :returns: ``None`` in every case; outcomes are observable only via the job row itself.
+    """
     research_jobs = ResearchJobRepository(sessions)
     job = await research_jobs.claim_next(now)
     if job is None:

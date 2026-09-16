@@ -11,6 +11,13 @@ from typing import Protocol
 
 
 class NotificationSeverity(StrEnum):
+    """How urgently a :class:`Notification` should be treated by its reader.
+
+    :cvar INFO: Routine status, no action implied.
+    :cvar WARNING: Worth attention, not necessarily urgent.
+    :cvar CRITICAL: Requires prompt attention.
+    """
+
     INFO = "INFO"
     WARNING = "WARNING"
     CRITICAL = "CRITICAL"
@@ -18,6 +25,14 @@ class NotificationSeverity(StrEnum):
 
 @dataclass(frozen=True)
 class Notification:
+    """A single outbound notification, independent of transport.
+
+    :ivar severity: See :class:`NotificationSeverity`.
+    :ivar title: Non-empty short summary.
+    :ivar body: Non-empty full message.
+    :raises ValueError: If ``title`` or ``body`` is empty.
+    """
+
     severity: NotificationSeverity
     title: str
     body: str
@@ -28,11 +43,18 @@ class Notification:
 
     @property
     def text(self) -> str:
+        """Render as the single plain-text string :class:`TelegramNotifier` sends."""
         return f"[{self.severity}] {self.title}\n{self.body}"
 
 
 class TelegramTransport(Protocol):
-    async def post_form(self, url: str, form: dict[str, str]) -> None: ...
+    async def post_form(self, url: str, form: dict[str, str]) -> None:
+        """Submit ``form`` as a form-encoded POST to ``url``.
+
+        :param url: Full destination URL.
+        :param form: Form fields to submit.
+        """
+        ...
 
 
 class TelegramNotifier:
@@ -41,6 +63,12 @@ class TelegramNotifier:
     def __init__(
         self, token: str, allowed_chat_ids: frozenset[int], transport: TelegramTransport
     ) -> None:
+        """
+        :param token: Telegram bot token; injected by the composition root, never logged.
+        :param allowed_chat_ids: Chats this notifier may send to; must be non-empty.
+        :param transport: HTTP transport to send through; see :class:`TelegramTransport`.
+        :raises ValueError: If ``token`` is empty or ``allowed_chat_ids`` is empty.
+        """
         if not token:
             raise ValueError("Telegram token is required")
         if not allowed_chat_ids:
@@ -50,6 +78,13 @@ class TelegramNotifier:
         self._transport = transport
 
     async def notify(self, chat_id: int, notification: Notification) -> None:
+        """Send ``notification`` to ``chat_id``.
+
+        :param chat_id: Destination chat; must be on the allowlist passed to the constructor.
+        :param notification: The message to send; see :class:`Notification`.
+        :raises PermissionError: If ``chat_id`` is not allowlisted.
+        :raises ValueError: If the rendered text exceeds Telegram's 4096-character limit.
+        """
         if chat_id not in self._allowed_chat_ids:
             raise PermissionError("Telegram chat is not allowlisted")
         text = notification.text
