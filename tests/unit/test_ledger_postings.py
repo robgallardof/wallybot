@@ -4,7 +4,10 @@ from typing import Any
 
 import pytest
 
-from wallybot.application.ledger_postings import build_fill_ledger_transaction
+from wallybot.application.ledger_postings import (
+    build_fill_ledger_transaction,
+    build_initial_funding_transaction,
+)
 from wallybot.domain.execution import Fill
 from wallybot.domain.ledger import AccountPurpose
 from wallybot.domain.market import Instrument, MarketType
@@ -99,3 +102,42 @@ def test_a_non_quote_fee_currency_is_rejected_rather_than_silently_mis_booked() 
     fill = make_fill(fee_currency="BTC")
     with pytest.raises(ValueError, match="fee currency"):
         build_fill_ledger_transaction(fill, account_id="acct-1")
+
+
+def test_initial_funding_credits_cash_against_a_balanced_clearing_leg() -> None:
+    transaction = build_initial_funding_transaction(
+        account_id="paper:user-1",
+        currency="USD",
+        amount=Decimal("10000"),
+        transaction_id="txn-1",
+        now=NOW,
+    )
+
+    assert transaction.reason == "INITIAL_FUNDING"
+    assert len(transaction.postings) == 2
+    cash_leg = next(p for p in transaction.postings if p.account.account_id == "paper:user-1")
+    assert cash_leg.account.purpose == AccountPurpose.CASH
+    assert cash_leg.amount == Decimal("10000")
+    clearing_leg = next(p for p in transaction.postings if p.account.account_id != "paper:user-1")
+    assert clearing_leg.account.purpose == AccountPurpose.CLEARING
+    assert clearing_leg.amount == Decimal("-10000")
+
+
+def test_initial_funding_reference_id_is_fixed_per_account_for_db_level_idempotency() -> None:
+    first = build_initial_funding_transaction(
+        account_id="paper:user-1",
+        currency="USD",
+        amount=Decimal("10000"),
+        transaction_id="txn-1",
+        now=NOW,
+    )
+    second = build_initial_funding_transaction(
+        account_id="paper:user-1",
+        currency="USD",
+        amount=Decimal("5000"),
+        transaction_id="txn-2",
+        now=NOW,
+    )
+    # Same reference_id despite different transaction_id/amount -- a second real INSERT attempt
+    # for the same account collides on (account_id, reference_id), never silently re-funding it.
+    assert first.reference_id == second.reference_id == "initial-funding-paper:user-1"

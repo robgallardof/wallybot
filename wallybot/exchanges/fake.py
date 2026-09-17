@@ -17,6 +17,7 @@ from wallybot.domain.market import (
     TIMEFRAME_DURATIONS,
     Candle,
     Instrument,
+    MarketDataProvider,
     MarketSnapshot,
     MarketType,
 )
@@ -71,6 +72,13 @@ class FakeExchange:
     partial fills, rejections and "accept-then-timeout" ambiguity with `submission_script`,
     `cancel_script` and `fill_script`, keyed by `client_order_id` per TESTING.md's "Inject a clock
     and scripted outcomes."
+
+    Per ARCHITECTURE.md ("PAPER uses an exchange simulator") and PENDING.md Fase 4 ("Extender el
+    exchange simulado ... con saldos, ejecución, comisiones"), this same class is also the intended
+    production PAPER gateway, not only a test double -- pass `market_data` (a real
+    `MarketDataProvider`, e.g. `KrakenExchange`) to price fills off real market conditions instead
+    of the built-in seeded random walk. Balances/fills/fees/order-state simulation are identical
+    either way; only instrument discovery and quoting change source.
     """
 
     def __init__(
@@ -82,6 +90,7 @@ class FakeExchange:
         submission_script: dict[str, SubmissionOutcome] | None = None,
         cancel_script: dict[str, CancelOutcome] | None = None,
         fill_script: dict[str, list[ScriptedFill]] | None = None,
+        market_data: MarketDataProvider | None = None,
     ) -> None:
         self.clock = clock
         self.seed = seed
@@ -93,6 +102,7 @@ class FakeExchange:
         self._orders: dict[str, _SimulatedOrder] = {}
         self._fills: dict[str, list[Fill]] = {}
         self._fill_counter = 0
+        self.market_data = market_data
         self._instruments = [
             Instrument(
                 venue="fake",
@@ -116,11 +126,15 @@ class FakeExchange:
         self._base_price = {"BTC/USD": Decimal("60000"), "ETH/USD": Decimal("3000")}
 
     async def discover_instruments(self) -> list[Instrument]:
+        if self.market_data is not None:
+            return await self.market_data.discover_instruments()
         return list(self._instruments)
 
     async def fetch_candles(
         self, instrument: Instrument, timeframe: str, since: datetime, limit: int
     ) -> list[Candle]:
+        if self.market_data is not None:
+            return await self.market_data.fetch_candles(instrument, timeframe, since, limit)
         if timeframe not in TIMEFRAME_DURATIONS:
             raise ValueError(f"Unsupported timeframe: {timeframe}")
         if limit <= 0:
@@ -161,7 +175,10 @@ class FakeExchange:
             open_time = close_time
         return candles
 
-    def _quote(self, instrument: Instrument) -> tuple[Decimal, Decimal]:
+    async def _quote(self, instrument: Instrument) -> tuple[Decimal, Decimal]:
+        if self.market_data is not None:
+            snapshot = await self.market_data.fetch_snapshot(instrument)
+            return snapshot.bid, snapshot.ask
         price_increment, _quantity_increment, _min_quantity = _require_precision(instrument)
         pair = f"{instrument.base}/{instrument.quote}"
         mid = self._base_price.get(pair, Decimal("100"))
@@ -173,16 +190,16 @@ class FakeExchange:
         )
 
     async def fetch_snapshot(self, instrument: Instrument) -> MarketSnapshot:
-        bid, ask = self._quote(instrument)
+        bid, ask = await self._quote(instrument)
         return MarketSnapshot(
             instrument=instrument, bid=bid, ask=ask, timestamp=self.clock.now(), source="fake"
         )
 
-    def _reference_price(self, instrument: Instrument, side: Side) -> Decimal:
-        bid, ask = self._quote(instrument)
+    async def _reference_price(self, instrument: Instrument, side: Side) -> Decimal:
+        bid, ask = await self._quote(instrument)
         return ask if side is Side.BUY else bid
 
-    def _validate(self, intent: OrderIntent) -> str | None:
+    async def _validate(self, intent: OrderIntent) -> str | None:
         _price_increment, _quantity_increment, min_quantity = _require_precision(
             intent.instrument
         )
@@ -191,7 +208,7 @@ class FakeExchange:
         price = (
             intent.limit_price
             if intent.kind is OrderKind.LIMIT
-            else self._reference_price(intent.instrument, intent.side)
+            else await self._reference_price(intent.instrument, intent.side)
         )
         assert price is not None
         if intent.side is Side.BUY:
@@ -254,7 +271,7 @@ class FakeExchange:
             status=new_status,
         )
 
-    def _apply_scripted_or_default_fills(self, intent: OrderIntent) -> None:
+    async def _apply_scripted_or_default_fills(self, intent: OrderIntent) -> None:
         plan = self._fill_script.get(intent.client_order_id)
         if plan is None:
             plan = (
@@ -264,12 +281,12 @@ class FakeExchange:
             price = (
                 scripted.price
                 if scripted.price is not None
-                else self._reference_price(intent.instrument, intent.side)
+                else await self._reference_price(intent.instrument, intent.side)
             )
             self._post_fill(intent, scripted.quantity, price)
 
     async def submit_order(self, intent: OrderIntent) -> SubmissionResult:
-        rejection_reason = self._validate(intent)
+        rejection_reason = await self._validate(intent)
         if rejection_reason is not None:
             self._orders[intent.client_order_id] = _SimulatedOrder(
                 instrument=intent.instrument,
@@ -308,7 +325,7 @@ class FakeExchange:
             average_fill_price=None,
         )
         self._fills.setdefault(intent.client_order_id, [])
-        self._apply_scripted_or_default_fills(intent)
+        await self._apply_scripted_or_default_fills(intent)
 
         if scripted_outcome is SubmissionOutcome.UNKNOWN:
             # The order really was accepted at the venue; only the response telling the caller

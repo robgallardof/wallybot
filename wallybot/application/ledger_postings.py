@@ -10,6 +10,7 @@ section reads that column directly), so a separate ledger leg would be redundant
 slice has no real consumer for yet.
 """
 
+from datetime import datetime
 from decimal import Decimal
 
 from wallybot.domain.execution import Fill
@@ -65,4 +66,32 @@ def build_fill_ledger_transaction(fill: Fill, account_id: str) -> LedgerTransact
             LedgerPosting(account=clearing_base, amount=-position_amount),
         ),
         recorded_at=fill.filled_at,
+    )
+
+
+def build_initial_funding_transaction(
+    account_id: str, currency: str, amount: Decimal, transaction_id: str, now: datetime
+) -> LedgerTransaction:
+    """One-time explicit PAPER cash funding -- PENDING.md Fase 4's "efectivo inicial explícito."
+
+    `reference_id` is fixed per account (never derived from `transaction_id`/a random value), so
+    the table's own `(account_id, reference_id)` unique constraint is the enforcement mechanism
+    for "one-time": a second call for the same account always collides, never silently re-funds
+    it. Same clearing-account convention as a fill: cash arrives from a `CLEARING` counter-account,
+    never manufactured as a single unbalanced posting.
+    """
+    cash = LedgerAccount(account_id=account_id, currency=currency, purpose=AccountPurpose.CASH)
+    clearing = LedgerAccount(
+        account_id=_CLEARING_ACCOUNT_ID, currency=currency, purpose=AccountPurpose.CLEARING
+    )
+    return LedgerTransaction(
+        transaction_id=transaction_id,
+        account_id=account_id,
+        reason="INITIAL_FUNDING",
+        reference_id=f"initial-funding-{account_id}",
+        postings=(
+            LedgerPosting(account=cash, amount=amount),
+            LedgerPosting(account=clearing, amount=-amount),
+        ),
+        recorded_at=now,
     )

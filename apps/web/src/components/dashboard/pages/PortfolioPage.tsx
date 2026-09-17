@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { UseQueryResult } from "@tanstack/react-query";
+import type { UseMutationResult, UseQueryResult } from "@tanstack/react-query";
 import { ArrowRight, CircleDollarSign, WalletCards } from "lucide-react";
 import type { z } from "zod";
 import i18n from "../../../lib/i18n";
@@ -15,15 +16,23 @@ function displayAmount(amount: string): string {
 
 export function PortfolioPage({
   portfolio,
+  fund,
   navigate,
 }: {
   portfolio: UseQueryResult<z.infer<typeof portfolioSchema>>;
+  fund: UseMutationResult<z.infer<typeof portfolioSchema>, Error, { amount: string }>;
   navigate: (page: string) => void;
 }) {
   useTranslation();
+  const [amount, setAmount] = useState("10000");
   const data = portfolio.data;
   const balances = data?.balances ?? [];
   const positions = balances.filter((balance) => balance.purpose === "POSITION");
+
+  function submitFunding(event: React.FormEvent) {
+    event.preventDefault();
+    fund.mutate({ amount });
+  }
 
   return (
     <div className="portfolio-stack">
@@ -72,6 +81,27 @@ export function PortfolioPage({
                 "Conectar un proveedor conserva tus credenciales cifradas, pero no importa fondos automáticamente. Cuando una simulación PAPER registre actividad, aparecerá aquí.",
               )}
             </p>
+            <form className="settings-form" onSubmit={submitFunding}>
+              <label>
+                {i18n.t("Efectivo inicial (USD)")}
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={amount}
+                  onChange={(event) => setAmount(event.target.value)}
+                  required
+                />
+              </label>
+              <button className="button button-primary" disabled={fund.isPending}>
+                {i18n.t("Fondear cuenta PAPER")}
+              </button>
+            </form>
+            {fund.isError && (
+              <p className="error" role="alert">
+                {i18n.t(fund.error.message)}
+              </p>
+            )}
             <button className="button button-secondary" onClick={() => navigate("connections")}>
               {i18n.t("Ver conexiones")} <ArrowRight size={16} />
             </button>

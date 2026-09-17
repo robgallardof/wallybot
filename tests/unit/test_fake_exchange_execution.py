@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Any
 
 from wallybot.domain.execution import CancelOutcome, SubmissionOutcome, VenueOrderStatus
-from wallybot.domain.market import Instrument
+from wallybot.domain.market import Instrument, MarketSnapshot, MarketType
 from wallybot.domain.order import OrderIntent, OrderKind, Side
 from wallybot.exchanges.fake import FakeExchange, ScriptedFill
 
@@ -176,3 +176,71 @@ async def test_looking_up_unknown_order_id_returns_not_found() -> None:
     exchange, _ = await gateway()
     lookup = await exchange.lookup_order("never-submitted")
     assert lookup.status is VenueOrderStatus.NOT_FOUND
+
+
+class _RealMarketData:
+    """A stand-in for a real MarketDataProvider (e.g. KrakenExchange) with its own fixed
+    instrument universe and quote, unrelated to FakeExchange's own built-in seeded prices."""
+
+    def __init__(self, instrument: Instrument, bid: Decimal, ask: Decimal) -> None:
+        self.instrument = instrument
+        self.bid = bid
+        self.ask = ask
+        self.snapshot_calls = 0
+
+    async def discover_instruments(self) -> list[Instrument]:
+        return [self.instrument]
+
+    async def fetch_candles(self, instrument, timeframe, since, limit):
+        return []
+
+    async def fetch_snapshot(self, instrument: Instrument) -> MarketSnapshot:
+        self.snapshot_calls += 1
+        return MarketSnapshot(
+            instrument=instrument, bid=self.bid, ask=self.ask, timestamp=NOW, source="real"
+        )
+
+
+async def test_with_market_data_discovers_the_real_providers_instruments() -> None:
+    real_instrument = Instrument(
+        venue="kraken",
+        market_type=MarketType.SPOT,
+        base="BTC",
+        quote="USD",
+        price_increment=Decimal("0.1"),
+        quantity_increment=Decimal("0.00001"),
+        min_quantity=Decimal("0.00001"),
+    )
+    real = _RealMarketData(real_instrument, bid=Decimal("109990"), ask=Decimal("110010"))
+    exchange = FakeExchange(clock=FixedClock(NOW), market_data=real)
+
+    instruments = await exchange.discover_instruments()
+
+    assert instruments == [real_instrument]
+
+
+async def test_with_market_data_fills_at_the_real_providers_quote_not_the_seeded_price() -> None:
+    real_instrument = Instrument(
+        venue="kraken",
+        market_type=MarketType.SPOT,
+        base="BTC",
+        quote="USD",
+        price_increment=Decimal("0.1"),
+        quantity_increment=Decimal("0.00001"),
+        min_quantity=Decimal("0.00001"),
+    )
+    real = _RealMarketData(real_instrument, bid=Decimal("109990"), ask=Decimal("110010"))
+    exchange = FakeExchange(
+        clock=FixedClock(NOW), balances={"USD": Decimal("1000000")}, market_data=real
+    )
+    intent = make_intent(real_instrument, quantity=Decimal("0.01"))
+
+    result = await exchange.submit_order(intent)
+
+    assert result.outcome is SubmissionOutcome.ACCEPTED
+    fills = await exchange.list_fills(intent.client_order_id)
+    assert len(fills) == 1
+    # A BUY fills at the real provider's ask (110010), far from FakeExchange's own seeded
+    # BTC/USD base price (60000) -- proving the fill priced off the injected real feed.
+    assert fills[0].price == Decimal("110010")
+    assert real.snapshot_calls > 0

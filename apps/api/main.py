@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse, Response
 from prometheus_client import Counter, generate_latest
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from apps.api.auth_routes import router as auth_router
@@ -24,24 +24,31 @@ from apps.api.connection_routes import router as connection_router
 from apps.api.dependencies import SignedIn
 from apps.api.intelligence_routes import router as intelligence_router
 from apps.api.market_routes import router as market_router
+from apps.api.portfolio_routes import paper_account_id
 from apps.api.portfolio_routes import router as portfolio_router
 from apps.api.research_routes import router as research_router
 from apps.api.system_routes import router as system_router
 from apps.api.telegram_routes import router as telegram_router
 from wallybot.application.backtest_orchestrator import BacktestOrchestrator
+from wallybot.application.decision_loop import run_decision_tick
+from wallybot.application.execution_service import ExecutionService
 from wallybot.application.market_ingestion import ingest_market_data
 from wallybot.application.market_overview import build_market_overview
 from wallybot.application.price_consensus_job import ProviderSource, run_price_consensus_tick
+from wallybot.application.reconciliation_service import ReconciliationService
 from wallybot.data.historical import HistoricalStore
 from wallybot.data.historical_query import DEFAULT_QUERY_LIMITS
 from wallybot.data.quality import QualityPolicy
+from wallybot.domain.control import Environment, Status
 from wallybot.domain.provider_reliability import ProviderCallOutcome
+from wallybot.exchanges.fake import FakeExchange
 from wallybot.exchanges.kraken import KrakenExchange
 from wallybot.infrastructure.database import database
 from wallybot.infrastructure.historical_ingestion_cursor_repository import (
     HistoricalIngestionCursorRepository,
 )
 from wallybot.infrastructure.logging import configure_logging
+from wallybot.infrastructure.models import ControlRow, UserRow
 from wallybot.infrastructure.settings import Settings, load_settings
 from wallybot.infrastructure.system_clock import SystemClock
 from wallybot.infrastructure.uuid_id_generator import UuidIdGenerator
@@ -136,6 +143,86 @@ async def _price_consensus_loop(
         await asyncio.sleep(PRICE_CONSENSUS_INTERVAL_SECONDS)
 
 
+# The first closed loop from market data to a submitted PAPER order (`DecisionPipeline`,
+# Phase 3 Slice 9) had no live caller anywhere -- every downstream piece (allocator, risk engine,
+# execution service, ledger) was real and tested, but nothing ever actually ran the loop in
+# production. Lives in `apps/api` for the same reason as `_market_ingestion_loop`/
+# `_price_consensus_loop`: only this process has internet egress to reach Kraken. The tick itself
+# (`run_decision_tick`) lives in `wallybot.application.decision_loop`, same split as
+# `ingest_market_data`/`run_price_consensus_tick`; this wrapper only resolves "which account" from
+# real control/user state and re-arms the gateway/execution/reconciliation objects once.
+#
+# Single admin, single account: there is no multi-user account administration yet (PENDING.md
+# Fase 1) to pick a different one.
+DECISION_INTERVAL_SECONDS = 300
+
+
+async def _decision_loop(
+    sessions,
+    provider: KrakenExchange,
+    clock: SystemClock,
+    id_generator: UuidIdGenerator,
+    quality_policy: QualityPolicy,
+    universe_config: UniverseFilterConfig,
+    logger,
+) -> None:
+    paper_gateway: FakeExchange | None = None
+    execution: ExecutionService | None = None
+    reconciliation: ReconciliationService | None = None
+    while True:
+        try:
+            async with sessions() as db:
+                control = await db.get(ControlRow, 1)
+                admin_id = await db.scalar(
+                    select(UserRow.id).where(UserRow.role == "ADMIN").order_by(UserRow.created_at)
+                )
+            if (
+                control is None
+                or not control.setup_complete
+                or control.status != Status.RUNNING
+                or control.environment != Environment.PAPER
+                or admin_id is None
+            ):
+                await asyncio.sleep(DECISION_INTERVAL_SECONDS)
+                continue
+
+            if paper_gateway is None:
+                paper_gateway = FakeExchange(clock=clock, market_data=provider)
+                execution = ExecutionService(gateway=paper_gateway, sessions=sessions, clock=clock)
+                reconciliation = ReconciliationService(execution=execution, sessions=sessions)
+            assert execution is not None and reconciliation is not None
+
+            result = await run_decision_tick(
+                sessions=sessions,
+                provider=provider,
+                paper_gateway=paper_gateway,
+                execution=execution,
+                reconciliation=reconciliation,
+                clock=clock,
+                id_generator=id_generator,
+                quality_policy=quality_policy,
+                universe_config=universe_config,
+                account_id=paper_account_id(admin_id),
+                now=clock.now(),
+            )
+            orders_placed = sum(
+                1 for outcome in result.outcomes if outcome.order_status is not None
+            )
+            logger.info(
+                "DECISION_TICK_COMPLETED",
+                extra={
+                    "instruments_evaluated": len(result.outcomes),
+                    "orders_placed": orders_placed,
+                    "reconciliation_healthy": result.reconciliation_healthy,
+                },
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.warning("DECISION_TICK_FAILED")
+        await asyncio.sleep(DECISION_INTERVAL_SECONDS)
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     config = settings or load_settings()
     logger = configure_logging("api")
@@ -165,18 +252,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             max_clock_drift=timedelta(minutes=5),
             max_abnormal_return=Decimal("0.5"),
         )
+        # Shared with `_decision_loop` below -- same liquidity/history/spread eligibility bar for
+        # whatever the pipeline may actually trade as what the Markets page already shows browsing.
+        decision_universe_config = UniverseFilterConfig(
+            version=1,
+            min_history_candles=20,
+            min_average_quote_volume=Decimal("0"),
+            max_spread_ratio=Decimal("0.05"),
+        )
         app.state.market_overview = partial(
             build_market_overview,
             provider=KrakenExchange(clock=clock, pairs=MARKET_OVERVIEW_PAIRS),
             clock=clock,
             timeframe="1h",
             history_candles=30,
-            universe_config=UniverseFilterConfig(
-                version=1,
-                min_history_candles=20,
-                min_average_quote_volume=Decimal("0"),
-                max_spread_ratio=Decimal("0.05"),
-            ),
+            universe_config=decision_universe_config,
             quality_policy=quality_policy,
             feature_window=20,
         )
@@ -216,8 +306,33 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 )
             )
         )
+        # Same reasoning and same test-suite exclusion as price_consensus_task immediately above:
+        # a real-clock tick against the shared test Postgres container would flake unrelated tests,
+        # and this job also submits real PAPER orders -- something no test in this suite expects
+        # to happen on its own. Tests exercise DecisionPipeline directly instead.
+        decision_task = (
+            None
+            if config.environment == "test"
+            else asyncio.create_task(
+                _decision_loop(
+                    sessions,
+                    provider,
+                    clock,
+                    UuidIdGenerator(),
+                    quality_policy,
+                    decision_universe_config,
+                    logger,
+                )
+            )
+        )
         logger.info("API_STARTED")
         yield
+        if decision_task is not None:
+            decision_task.cancel()
+            try:
+                await decision_task
+            except asyncio.CancelledError:
+                pass
         if price_consensus_task is not None:
             price_consensus_task.cancel()
             try:

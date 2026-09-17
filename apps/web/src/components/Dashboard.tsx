@@ -70,7 +70,7 @@ export function Dashboard({
     page === "connections",
   );
   const { telegram, save: saveTelegram } = useTelegramData(page === "settings");
-  const portfolio = usePortfolioData(page === "portfolio");
+  const { portfolio, fund: fundPortfolio } = usePortfolioData(page === "portfolio");
   function navigate(next: string) {
     router.push(`/${next}`);
   }
@@ -108,7 +108,9 @@ export function Dashboard({
       {page === "research" && (
         <BacktestsPage history={backtestHistory} run={runBacktest} />
       )}
-      {page === "portfolio" && <PortfolioPage portfolio={portfolio} navigate={navigate} />}
+      {page === "portfolio" && (
+        <PortfolioPage portfolio={portfolio} fund={fundPortfolio} navigate={navigate} />
+      )}
       {page === "connections" && (
         <ConnectionsPage connections={connections} add={addConnection} />
       )}

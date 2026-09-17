@@ -1,15 +1,25 @@
-"""The signed-in user's read-only PAPER portfolio view."""
+"""The signed-in user's read-only PAPER portfolio view, plus one-time initial PAPER funding."""
 
+from datetime import UTC, datetime
 from typing import Literal, cast
+from uuid import uuid4
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
+from sqlalchemy.exc import IntegrityError
 
-from apps.api.dependencies import SignedIn
+from apps.api.dependencies import Admin, SignedIn
 from apps.api.dto import PortfolioActivityView, PortfolioBalanceView, PortfolioView
+from apps.api.schemas import PortfolioFund
+from wallybot.application.ledger_postings import build_initial_funding_transaction
 from wallybot.infrastructure.portfolio_repository import PortfolioRepository
 from wallybot.infrastructure.provider_connection_repository import ProviderConnectionRepository
+from wallybot.infrastructure.unit_of_work import unit_of_work
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
+
+# The only cash currency this pipeline trades against, same assumption
+# `wallybot.application.equity_tracker` and every existing strategy/pair already make.
+CASH_CURRENCY = "USD"
 
 
 def paper_account_id(user_id: str) -> str:
@@ -59,3 +69,31 @@ async def get_portfolio(request: Request, user: SignedIn) -> PortfolioView:
             for fill in fills
         ],
     )
+
+
+@router.post("/fund", response_model=PortfolioView, status_code=201)
+async def fund_portfolio(body: PortfolioFund, request: Request, user: Admin) -> PortfolioView:
+    """Seed the signed-in admin's PAPER account with an explicit starting cash balance.
+
+    One-time per account: `build_initial_funding_transaction` gives the transaction a fixed
+    `reference_id`, so the table's own unique constraint -- not a racy check-then-act read --
+    rejects a second attempt. There is no separate withdrawal/adjustment route; correcting a
+    mistaken amount means starting a fresh PAPER account, the same manual-reset posture the rest
+    of this codebase uses for PAPER state.
+    """
+    account_id = paper_account_id(user.id)
+    now = datetime.now(UTC)
+    transaction = build_initial_funding_transaction(
+        account_id=account_id,
+        currency=CASH_CURRENCY,
+        amount=body.amount,
+        transaction_id=str(uuid4()),
+        now=now,
+    )
+    try:
+        async with unit_of_work(request.app.state.sessions) as uow:
+            await uow.save_ledger_transaction(transaction)
+    except IntegrityError as exc:
+        raise HTTPException(status_code=409, detail="This account is already funded") from exc
+
+    return await get_portfolio(request, user)

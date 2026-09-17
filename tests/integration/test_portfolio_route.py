@@ -86,6 +86,47 @@ def test_portfolio_requires_auth(client) -> None:
     assert client.get("/api/portfolio").status_code == 401
 
 
+def test_fund_requires_auth(client) -> None:
+    assert client.post("/api/portfolio/fund", json={"amount": "1000"}).status_code == 401
+
+
+def test_fund_credits_the_signed_in_users_cash_balance(client, settings, db) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+
+    response = client.post(
+        "/api/portfolio/fund", json={"amount": "10000"}, headers={"X-CSRF-Token": csrf}
+    )
+
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["balances"] == [{"currency": "USD", "purpose": "CASH", "amount": "10000"}]
+
+
+def test_fund_rejects_a_second_attempt_for_the_same_account(client, settings, db) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    headers = {"X-CSRF-Token": csrf}
+    first = client.post("/api/portfolio/fund", json={"amount": "10000"}, headers=headers)
+    assert first.status_code == 201, first.text
+
+    second = client.post("/api/portfolio/fund", json={"amount": "5000"}, headers=headers)
+
+    assert second.status_code == 409
+    # The rejected second attempt never touched the balance already recorded.
+    portfolio = client.get("/api/portfolio").json()
+    assert portfolio["balances"] == [{"currency": "USD", "purpose": "CASH", "amount": "10000"}]
+
+
+def test_fund_rejects_a_non_positive_amount(client, settings, db) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    response = client.post(
+        "/api/portfolio/fund", json={"amount": "0"}, headers={"X-CSRF-Token": csrf}
+    )
+    assert response.status_code == 422
+
+
 def test_portfolio_reads_only_the_signed_in_users_paper_ledger(client, settings, db) -> None:
     enroll(client, settings)
     user_id = db.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()[0]

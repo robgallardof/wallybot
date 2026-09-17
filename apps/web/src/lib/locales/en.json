@@ -458,5 +458,7 @@
   "Fecha": "Date",
   "Mercado": "Market",
   "Lado": "Side",
-  "Precio": "Price"
+  "Precio": "Price",
+  "Efectivo inicial (USD)": "Starting cash (USD)",
+  "Fondear cuenta PAPER": "Fund PAPER account"
 }
