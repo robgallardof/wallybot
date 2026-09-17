@@ -1,5 +1,54 @@
 # Claude handoff — 2026-09-16 (new session)
 
+## Portfolio slice committed, working tree backlog cleared — 2026-09-17 (new session)
+
+Picked up a fresh session with no prior chat context, user said "continua con lo pendiente acaba
+todas las fases." Found the same lesson this file already documents below: `.ai/CURRENT.md` said
+the Tiingo network-bug fix was "not yet committed" but `git log` showed it was already at `e7c78f0`
+-- always cross-check against `git log`, this file and `CURRENT.md` lag reality.
+
+What was actually still uncommitted: the Portfolio page (Codex's slice, described in the entry
+this replaces) plus a small, unrelated Backtests UX fix (suggested date window + clearer
+empty-candles error) that had landed in the same working tree. Split into two commits after
+finishing both properly:
+
+1. `9ad0c56` -- Portfolio page + `docs/AI-DEVELOPMENT.md`. Found and fixed real gaps before
+   committing, not just wired what was there: two `pyright` errors (`portfolio_routes.py` passing
+   plain `str` DB columns into Pydantic `Literal` fields -- fixed with `typing.cast`, safe because
+   `ledger_postings.py` only ever writes CASH/POSITION under a user's own `account_id`, CLEARING
+   always uses the fixed `"clearing"` id) and **~30 missing English translations** for both the
+   Portfolio page and the Docs page's new flow panel (the working-tree diff had added the Spanish
+   UI text and wired `i18n.t()` calls but never touched `en.json` -- EN locale would have silently
+   fallen back to Spanish strings). Also removed two now-dead `en.json` entries left over from the
+   GitHub-link panel the Docs redesign removed. One pre-existing gap *not* fixed (out of scope for
+   this commit): `"TU INSTANCIA PRIVADA"` on the Docs hero has no EN translation either, predates
+   this diff.
+2. `8460293` -- Backtests form now defaults to a real available window (last 48h) and only offers
+   the 1h timeframe (the only one actually ingested); the empty-candles 422 explains the likely
+   cause instead of a bare exception string.
+
+**Verified before each commit**: full suite 595 passed (Docker had to be started first -- was not
+running at session start), ruff clean (also fixed one pre-existing `E501` in migration `0026`),
+pyright clean (same one known pre-existing `auth_routes.py:65` error, nothing else), frontend
+eslint/tsc clean. Rebuilt **both** `wallybot-api:0.1.0` and `wallybot-api-research:0.1.0` (this
+session's own recurring lesson about the compose `&app` anchor), `docker compose up -d` applied
+migration `0026` and redeployed all 8 services healthy. `claude-in-chrome` was not connected this
+session, so the Portfolio/Docs pages were **not** visually confirmed in a live browser -- only
+`curl`-verified that `/api/portfolio` returns `401` unauthenticated (route is mounted) and
+`/docs` returns `200`. Worth a visual pass next session if the extension reconnects.
+
+`graphify update .` run after all code changes.
+
+**Immediate next actions:** `docs/PENDING.md` (last reviewed 2026-09-12) is now significantly
+stale relative to `git log` -- most of its Fase 1/2/4/10 checkboxes read as still-open but
+substantial pieces are already shipped (Portfolio, price consensus, wallet/entity intelligence,
+Telegram, research runner). Before starting a new phase, re-audit `PENDING.md` against actual code
+rather than trusting its checkboxes. The user asked to "finish all phases" -- flagged back to them
+that Fase 9 (LIVE trading) is explicitly gated behind human-only steps (`RISK.md`/`SECURITY.md`:
+trade-only key evidence, TOTP+account confirmation, small-capital test) that no agent can clear
+unilaterally per `AGENTS.md`'s "never grant execution/withdrawal capability to research code
+paths" -- can build LIVE's supporting infrastructure but not "complete" activation alone.
+
 ## Control-center UX + fresh-MFA confirmation — 2026-09-17
 
 The user asked for a polished, aligned UI on every Control Center page and explicitly authorized

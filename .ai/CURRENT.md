@@ -1,5 +1,23 @@
 # Current task
 
+## Portfolio slice committed; working-tree backlog cleared (2026-09-17, new session)
+
+Fresh session, no prior chat history. User: "continua con lo pendiente acaba todas las fases."
+Cross-checked `.ai/CURRENT.md`/`HANDOFF.md` against `git log` first (this file's own recurring
+lesson) -- found the Tiingo fix below was already committed (`e7c78f0`) despite this file saying
+otherwise; the only real uncommitted work was the Portfolio slice plus a small unrelated Backtests
+UX fix. Committed both (`9ad0c56`, `8460293`) after finishing them properly -- see `.ai/HANDOFF.md`
+for the full detail (fixed 2 real pyright errors, ~30 missing EN translations, one lint error in
+migration 0026). Full stack rebuilt/redeployed, all 8 services healthy, full suite 595 passed.
+
+**Not yet started this session**: any new phase work. `docs/PENDING.md` (last reviewed 2026-09-12)
+is stale relative to `git log` -- re-audit it against actual code before picking the next
+increment, don't trust its checkboxes at face value. Raised to the user: "finish all phases"
+includes Fase 9 (LIVE trading), which `RISK.md`/`SECURITY.md`/`AGENTS.md` gate behind human-only
+steps (trade-only key evidence, TOTP+account confirmation, small-capital test, explicit
+authorization) -- an agent can build LIVE's supporting infrastructure but cannot clear those gates
+or "finish" activation unilaterally.
+
 ## Real Tiingo bug found from user-reported Inteligencia screenshot (2026-09-17, later still)
 
 User pasted the live Confiabilidad/Consenso panels: Tiingo showed "Saludable, 0.0% error, 6
