@@ -211,6 +211,11 @@ test("settings and first-steps pages keep actions aligned on desktop and mobile"
     page.getByText("Identidad confirmada. Ya podés repetir la acción que había fallado."),
   ).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
+  const navigation = page.locator("#control-navigation");
+  await expect(navigation).toBeHidden();
+  await page.getByRole("button", { name: "Abrir navegación" }).click();
+  await expect(navigation).toBeVisible();
+  await expect(navigation.getByRole("button", { name: "Mercados" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 
   await page.goto("/docs");

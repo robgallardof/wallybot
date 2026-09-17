@@ -5,6 +5,9 @@
 - Reworked **Configuración** into responsive state/action cards for OBSERVE/PAPER, Telegram, and
   recent MFA confirmation. Forms now remain aligned at phone widths and Telegram data hydrates
   after its query completes.
+- Refined the shared visual rhythm across Control Center pages and rebuilt the sidebar: compact
+  desktop rail, a closed-by-default mobile navigation menu, and smaller accessible switches. The
+  shared component primitive is used for the mobile navigation trigger.
 - Replaced developer-facing Docs content with product-first onboarding: five setup steps, a map to
   each Control Center area, and explicit OBSERVE/PAPER/no-withdrawal boundaries. Connections use
   their own responsive form grid rather than the market-filter layout.

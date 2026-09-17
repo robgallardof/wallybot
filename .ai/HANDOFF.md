@@ -8,6 +8,10 @@ product onboarding map rather than developer tooling; Connections no longer reus
 market form. The MFA refresh endpoint is intentionally CSRF-protected and updates the existing
 session only after a fresh TOTP code. No withdrawal or live-execution capability was added.
 
+Follow-up UI polish rebuilt the sidebar as a compact desktop rail and a closed-by-default mobile
+menu, reduced the visual size of the Telegram switch without reducing its tap target, and made the
+layout rhythm/tables/forms consistent across Control Center pages.
+
 Verification completed: integration auth suite 8 passed; focused frontend TypeScript/ESLint and
 the mocked Playwright suite passed, including the new 390px layout test. `pyright` retains the
 known pre-existing literal-role error in `apps/api/auth_routes.py:65`. The code graph was updated.

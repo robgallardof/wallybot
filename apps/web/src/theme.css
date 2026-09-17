@@ -1223,28 +1223,28 @@
 :root .settings-toggle span {
   background: var(--border);
   border-radius: 999px;
-  height: 22px;
+  height: 20px;
   position: relative;
   transition: background 150ms ease;
-  width: 40px;
+  width: 34px;
 }
 :root .settings-toggle span::after {
   background: var(--surface);
   border-radius: 50%;
   box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
   content: "";
-  height: 16px;
+  height: 14px;
   left: 3px;
   position: absolute;
   top: 3px;
   transition: transform 150ms ease;
-  width: 16px;
+  width: 14px;
 }
 :root .settings-toggle input:checked + span {
   background: var(--accent);
 }
 :root .settings-toggle input:checked + span::after {
-  transform: translateX(18px);
+  transform: translateX(14px);
 }
 :root .settings-toggle input:focus-visible + span {
   outline: 3px solid var(--accent);
@@ -1279,6 +1279,150 @@
   }
   :root .settings-form .button {
     width: 100%;
+  }
+}
+
+/* Navigation: a compact desktop rail becomes an intentional menu on small screens. */
+:root .sidebar {
+  padding: 22px 14px 14px;
+  width: 252px;
+}
+:root .sidebar-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 8px 18px;
+}
+:root .sidebar .brand {
+  padding: 0;
+}
+:root .workspace {
+  margin: 0 4px;
+  padding: 11px 10px;
+}
+:root .nav-caption {
+  margin: 24px 12px 10px;
+}
+:root .sidebar-nav {
+  display: grid;
+  gap: 3px;
+}
+:root .nav-item {
+  gap: 11px;
+  margin: 0;
+  min-height: 42px;
+  padding: 10px 12px;
+}
+:root .sidebar-bottom {
+  padding: 0 4px;
+}
+:root .safety-note {
+  margin: 16px 0;
+  padding: 14px;
+}
+:root .safety-note svg {
+  margin-bottom: 8px;
+}
+:root .mobile-menu-toggle {
+  align-items: center;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--text);
+  display: none;
+  height: 40px;
+  justify-content: center;
+  padding: 0;
+  width: 40px;
+}
+:root .main {
+  margin-left: 252px;
+}
+@media (max-width: 1120px) and (min-width: 801px) {
+  :root .sidebar {
+    padding-inline: 12px;
+    width: 224px;
+  }
+  :root .main {
+    margin-left: 224px;
+  }
+  :root .sidebar-header {
+    padding-inline: 6px;
+  }
+  :root .nav-item {
+    font-size: 13px;
+  }
+}
+@media (max-width: 800px) {
+  :root .app-layout {
+    display: block;
+  }
+  :root .sidebar {
+    height: auto;
+    inset: auto;
+    overflow: visible;
+    padding: 10px 14px;
+    position: sticky;
+    top: 0;
+    width: 100%;
+    z-index: 30;
+  }
+  :root .sidebar-header {
+    min-height: 44px;
+    padding: 0 2px;
+  }
+  :root .sidebar .brand {
+    font-size: 25px;
+  }
+  :root .brand i {
+    margin-top: 11px;
+  }
+  :root .mobile-menu-toggle {
+    display: inline-flex;
+  }
+  :root .sidebar .workspace,
+  :root .sidebar .nav-caption,
+  :root .sidebar .sidebar-bottom {
+    display: none;
+  }
+  :root .sidebar-nav {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 14px 32px rgb(0 0 0 / 14%);
+    display: none;
+    left: 12px;
+    max-height: min(620px, calc(100vh - 82px));
+    overflow-y: auto;
+    padding: 8px;
+    position: absolute;
+    right: 12px;
+    top: calc(100% + 6px);
+  }
+  :root .sidebar-nav.mobile-open {
+    display: grid;
+  }
+  :root .sidebar .nav-item {
+    border-radius: 10px;
+    color: var(--muted);
+    font-size: 14px;
+    min-height: 46px;
+    padding: 11px 12px;
+  }
+  :root .sidebar .nav-item:hover {
+    background: var(--surface-raised);
+    color: var(--text);
+  }
+  :root .sidebar .nav-item.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  :root .main {
+    margin-left: 0;
+  }
+  :root .topbar {
+    height: 58px;
+    padding-inline: 16px;
   }
 }
 
@@ -1500,5 +1644,146 @@
   }
   :root .connection-form .button {
     width: 100%;
+  }
+}
+
+/* Shared layout rhythm for every control-centre page: quiet surfaces, clear groups, no ornament. */
+:root .page {
+  max-width: 1440px;
+}
+:root .page-heading {
+  align-items: flex-end;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+:root .page-heading > div {
+  max-width: 720px;
+}
+:root .notice {
+  box-shadow: none;
+  margin-bottom: 20px;
+  max-width: 1180px;
+}
+:root .wide-panel {
+  max-width: 1180px;
+}
+:root .panel {
+  border-radius: 14px;
+  padding: 24px;
+}
+:root .panel-heading {
+  align-items: flex-start;
+  border-bottom: 1px solid transparent;
+  margin-bottom: 16px;
+}
+:root .panel-heading h2 {
+  font-size: 18px;
+  letter-spacing: -0.2px;
+}
+:root .metrics-grid,
+:root .overview-grid,
+:root .bottom-grid,
+:root .backtests-stack,
+:root .intelligence-stack,
+:root .system-groups {
+  gap: 18px;
+}
+:root .metric {
+  border-radius: 14px;
+  min-height: 150px;
+  padding: 20px;
+}
+:root .metric > strong {
+  letter-spacing: -0.75px;
+  line-height: 1.45;
+  margin-top: 12px;
+}
+:root :is(.market-filters, .activity-filters, .backtest-form, .connection-form, .settings-form) {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+:root :is(.market-filters, .activity-filters, .backtest-form, .connection-form) {
+  margin: 20px 0;
+}
+:root :is(.market-filters, .activity-filters, .backtest-form, .connection-form, .settings-form) input:not([type="checkbox"]),
+:root :is(.market-filters, .activity-filters, .backtest-form, .connection-form, .settings-form) select {
+  background: var(--surface);
+  border-color: var(--border);
+  border-radius: 9px;
+}
+:root :is(.market-filters, .activity-filters, .backtest-form, .connection-form, .settings-form) label {
+  font-size: 12px;
+  font-weight: 600;
+}
+:root .markets-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-top: 18px;
+}
+:root .markets-table th {
+  background: var(--surface-raised);
+  font-size: 10px;
+  padding: 12px;
+}
+:root .markets-table td {
+  padding: 13px 12px;
+}
+:root .markets-table tbody tr:last-child :is(td, th) {
+  border-bottom: 0;
+}
+:root .event-row,
+:root .service-row {
+  padding-block: 14px;
+}
+:root .empty-chart,
+:root .unavailable {
+  border-radius: 12px;
+}
+:root .button {
+  border-radius: 9px;
+  font-weight: 600;
+}
+:root .button-outline {
+  border-color: var(--border);
+}
+:root .settings-form {
+  background: transparent;
+  border-inline: 0;
+  border-bottom: 0;
+  border-radius: 0;
+  padding-inline: 0;
+}
+:root .docs-area-card {
+  box-shadow: none;
+}
+:root .docs-area-card:hover {
+  box-shadow: 0 4px 16px rgb(0 0 0 / 5%);
+  transform: none;
+}
+@media (max-width: 800px) {
+  :root .page-heading {
+    align-items: flex-start;
+    margin-bottom: 22px;
+  }
+  :root .panel {
+    padding: 20px;
+  }
+  :root .metric {
+    min-height: 132px;
+  }
+}
+@media (max-width: 600px) {
+  :root :is(.market-filters, .activity-filters, .backtest-form, .connection-form, .settings-form) {
+    border-radius: 10px;
+    padding: 14px;
+  }
+  :root .settings-form {
+    padding-inline: 0;
+  }
+  :root .markets-table th,
+  :root .markets-table td {
+    padding-inline: 10px;
   }
 }

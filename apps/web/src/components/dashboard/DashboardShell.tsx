@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Activity,
@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   LineChart,
   LogOut,
+  Menu,
   Settings,
   Settings2,
   ShieldCheck,
@@ -19,6 +20,7 @@ import type { meSchema } from "../../lib/dto";
 import type { z } from "zod";
 import { LanguageSelector } from "../LanguageSelector";
 import { ThemeToggle } from "../ThemeToggle";
+import { Button } from "../ui/button";
 
 const navigation = [
   ["dashboard", "Resumen", LayoutDashboard],
@@ -54,7 +56,13 @@ export function DashboardShell({
   children: ReactNode;
 }) {
   useTranslation();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const title = navigation.find(([key]) => key === page)?.[1] ?? "Resumen";
+
+  function selectPage(key: string) {
+    setMobileNavOpen(false);
+    navigate(key);
+  }
 
   return (
     <div className="app-layout">
@@ -62,10 +70,22 @@ export function DashboardShell({
         {i18n.t("Saltar al contenido")}
       </a>
       <aside className="sidebar">
-        <a className="brand" href="/dashboard">
-          wally<span>bot</span>
-          <i />
-        </a>
+        <div className="sidebar-header">
+          <a className="brand" href="/dashboard">
+            wally<span>bot</span>
+            <i />
+          </a>
+          <Button
+            aria-controls="control-navigation"
+            aria-expanded={mobileNavOpen}
+            aria-label={i18n.t("Abrir navegación")}
+            className="mobile-menu-toggle"
+            onClick={() => setMobileNavOpen((open) => !open)}
+            variant="outline"
+          >
+            <Menu size={20} />
+          </Button>
+        </div>
         <div className="workspace">
           <span className="avatar">W</span>
           <div>
@@ -75,12 +95,15 @@ export function DashboardShell({
           <span className="workspace-dot" />
         </div>
         <p className="nav-caption">{i18n.t("CENTRO DE CONTROL")}</p>
-        <nav>
+        <nav
+          className={mobileNavOpen ? "sidebar-nav mobile-open" : "sidebar-nav"}
+          id="control-navigation"
+        >
           {navigation.map(([key, label, Icon]) => (
             <button
               key={key}
               className={page === key ? "nav-item active" : "nav-item"}
-              onClick={() => navigate(key)}
+              onClick={() => selectPage(key)}
               aria-current={page === key ? "page" : undefined}
             >
               <Icon size={18} />

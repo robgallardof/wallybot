@@ -426,4 +426,5 @@
   "OBSERVE solo lee mercados reales. PAPER simula operaciones. WallyBot no puede retirar fondos ni transferir activos desde esta instancia.": "OBSERVE only reads real markets. PAPER simulates trades. WallyBot cannot withdraw funds or transfer assets from this instance.",
   "Ver configuración": "View settings",
   "Cada conexión, wallet y configuración pertenece a tu cuenta. Otros usuarios no ven ni pueden modificar tu actividad.": "Every connection, wallet and setting belongs to your account. Other users cannot view or change your activity."
+  ,"Abrir navegación": "Open navigation"
 }
