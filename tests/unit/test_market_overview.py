@@ -105,3 +105,57 @@ async def test_a_tighter_universe_config_produces_ineligible_rows_with_reasons()
     for row in overview.rows:
         assert row.eligible is False
         assert "illiquid" in row.reasons
+
+
+class FlakyProvider:
+    """Wraps a real provider but always fails one specific instrument -- simulates a single
+    delisted/unreachable pair among a wider discovered universe."""
+
+    def __init__(self, wrapped, failing_instrument_id: str) -> None:
+        self._wrapped = wrapped
+        self._failing_instrument_id = failing_instrument_id
+
+    async def discover_instruments(self):
+        return await self._wrapped.discover_instruments()
+
+    async def fetch_candles(self, instrument, timeframe, since, limit):
+        if instrument.id == self._failing_instrument_id:
+            raise ConnectionError("simulated provider outage")
+        return await self._wrapped.fetch_candles(instrument, timeframe, since, limit)
+
+    async def fetch_snapshot(self, instrument):
+        if instrument.id == self._failing_instrument_id:
+            raise ConnectionError("simulated provider outage")
+        return await self._wrapped.fetch_snapshot(instrument)
+
+
+async def test_one_failing_instrument_is_excluded_not_a_whole_overview_failure():
+    clock = FixedClock(datetime(2026, 1, 2, tzinfo=UTC))
+    wrapped = FakeExchange(clock=clock, seed=1)
+    discovered = await wrapped.discover_instruments()
+    failing_id = discovered[0].id
+    provider = FlakyProvider(wrapped, failing_id)
+
+    overview = await build_market_overview(
+        provider=provider,
+        clock=clock,
+        timeframe="1h",
+        history_candles=30,
+        universe_config=UniverseFilterConfig(
+            version=1,
+            min_history_candles=20,
+            min_average_quote_volume=Decimal("0"),
+            max_spread_ratio=Decimal("0.05"),
+        ),
+        quality_policy=QualityPolicy(
+            version=1,
+            timeframe="1h",
+            max_stale_age=timedelta(hours=3),
+            max_clock_drift=timedelta(minutes=5),
+            max_abnormal_return=Decimal("0.5"),
+        ),
+        feature_window=20,
+    )
+
+    assert len(overview.rows) == len(discovered) - 1
+    assert failing_id not in {row.instrument.id for row in overview.rows}

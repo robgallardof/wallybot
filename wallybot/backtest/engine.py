@@ -16,11 +16,20 @@ Deliberately out of scope: multi-asset/multi-strategy portfolios, risk-engine si
 allocates a fixed `allocation_pct` of current equity per trade, nothing else), short selling
 (`Action.SELL` only ever exits an existing long, matching `DecisionPipeline`'s own "SELL is not
 yet supported" limit), walk-forward or Monte Carlo evaluation (Phase 5 Slice 3).
+
+Cash amounts (equity, fees, proceeds, cost basis) are quantized to `_CASH_PRECISION` (cents) after
+every step, and fill prices/quantities to the traded instrument's own `price_increment`/
+`quantity_increment` (same `.quantize()` convention `FakeExchange`/`deterministic_risk_engine`
+already use) -- quantity always rounds down, never claiming more was bought than the notional
+actually covers. Without this, unquantized `Decimal` division (`notional / fill_price`) carries
+its full ~28-digit context precision through every subsequent multiplication, compounding into a
+`final_equity` like "10999.93099135968523141293843" -- a real bug found from a user-reported
+screenshot, not a hypothetical.
 """
 
 from dataclasses import dataclass
 from datetime import datetime
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 
 from wallybot.domain.features import FeatureEngine
 from wallybot.domain.market import Candle, Instrument
@@ -29,6 +38,7 @@ from wallybot.domain.strategy import Action, Strategy, StrategyContext
 
 BACKTEST_ENGINE_VERSION = 1
 _FAKE_EXCHANGE_DEFAULT_FEE_RATE = Decimal("0.001")
+_CASH_PRECISION = Decimal("0.01")
 
 
 @dataclass(frozen=True)
@@ -119,6 +129,12 @@ class BacktestEngine:
         for candle in ordered:
             if candle.instrument != instrument:
                 raise ValueError("all candles must share the same instrument")
+        if instrument.price_increment is None or instrument.quantity_increment is None:
+            # Fail closed on missing precision, per Instrument's own docstring -- never guess a
+            # tick/lot size. Every real caller resolves candles from Kraken (full precision) or
+            # from a persisted ExperimentRecord (wallybot.application.research_runner), never from
+            # Tiingo (whose crypto metadata never reports these, by design).
+            raise ValueError(f"{instrument.id} has no price/quantity precision to backtest with")
 
         equity = starting_equity
         equity_curve: list[tuple[datetime, Decimal]] = [(ordered[0].open_time, equity)]
@@ -147,11 +163,15 @@ class BacktestEngine:
 
             in_position = position_quantity is not None
             if signal.action is Action.BUY and not in_position:
-                fill_price = fill_candle.open * (Decimal(1) + self.cost_model.slippage_pct)
+                fill_price = (
+                    fill_candle.open * (Decimal(1) + self.cost_model.slippage_pct)
+                ).quantize(instrument.price_increment)
                 notional = equity * allocation_pct
-                quantity = notional / fill_price
-                fee = notional * self.cost_model.fee_rate
-                equity -= fee
+                quantity = (notional / fill_price).quantize(
+                    instrument.quantity_increment, rounding=ROUND_DOWN
+                )
+                fee = (notional * self.cost_model.fee_rate).quantize(_CASH_PRECISION)
+                equity = (equity - fee).quantize(_CASH_PRECISION)
                 position_quantity = quantity
                 position_entry_price = fill_price
                 position_entry_time = fill_candle.open_time
@@ -159,12 +179,14 @@ class BacktestEngine:
                 assert position_quantity is not None
                 assert position_entry_price is not None
                 assert position_entry_time is not None
-                fill_price = fill_candle.open * (Decimal(1) - self.cost_model.slippage_pct)
-                proceeds = position_quantity * fill_price
-                fee = proceeds * self.cost_model.fee_rate
-                cost_basis = position_quantity * position_entry_price
+                fill_price = (
+                    fill_candle.open * (Decimal(1) - self.cost_model.slippage_pct)
+                ).quantize(instrument.price_increment)
+                proceeds = (position_quantity * fill_price).quantize(_CASH_PRECISION)
+                fee = (proceeds * self.cost_model.fee_rate).quantize(_CASH_PRECISION)
+                cost_basis = (position_quantity * position_entry_price).quantize(_CASH_PRECISION)
                 pnl = proceeds - fee - cost_basis
-                equity += proceeds - fee
+                equity = (equity + proceeds - fee).quantize(_CASH_PRECISION)
                 trades.append(
                     BacktestTrade(
                         entry_time=position_entry_time,
@@ -182,7 +204,9 @@ class BacktestEngine:
 
             mark_to_market = equity
             if position_quantity is not None:
-                mark_to_market = equity + position_quantity * fill_candle.close
+                mark_to_market = (equity + position_quantity * fill_candle.close).quantize(
+                    _CASH_PRECISION
+                )
             equity_curve.append((fill_candle.close_time, mark_to_market))
 
         final_equity = equity_curve[-1][1]

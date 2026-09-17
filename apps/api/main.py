@@ -100,6 +100,19 @@ async def _market_ingestion_loop(
 # considered stale purely because this loop's own cadence is too slow.
 PRICE_CONSENSUS_INTERVAL_SECONDS = 300
 
+# The Markets page's own KrakenExchange: broader than `provider`'s default (XBTUSD/ETHUSD only,
+# used for ingestion/backtests/price-consensus, deliberately narrow so Parquet storage and API
+# usage stay bounded). Kraken's public AssetPairs endpoint lists ~1450 pairs when queried with no
+# filter -- verified against the real API -- far too many to fetch candles/snapshots for on every
+# page load even with bounded concurrency. This is a curated set of major, liquid USD pairs
+# (symbols verified against Kraken's real `altname` field, not guessed -- Kraken uses its own
+# codes for some assets, e.g. Bitcoin is "XBT" and Dogecoin is "XDG", not "BTC"/"DOGE").
+MARKET_OVERVIEW_PAIRS = (
+    "XBTUSD", "ETHUSD", "SOLUSD", "XRPUSD", "ADAUSD", "XDGUSD", "LTCUSD", "DOTUSD",
+    "LINKUSD", "POLUSD", "AVAXUSD", "BCHUSD", "XLMUSD", "UNIUSD", "ATOMUSD", "ETCUSD",
+    "FILUSD", "NEARUSD", "APTUSD", "ARBUSD", "TRXUSD", "SHIBUSD", "SUIUSD", "OPUSD",
+)
+
 
 async def _price_consensus_loop(
     sessions,
@@ -153,7 +166,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         app.state.market_overview = partial(
             build_market_overview,
-            provider=provider,
+            provider=KrakenExchange(clock=clock, pairs=MARKET_OVERVIEW_PAIRS),
             clock=clock,
             timeframe="1h",
             history_candles=30,

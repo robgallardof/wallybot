@@ -4,6 +4,70 @@
 recommended delivery order. User said "Continua con el flow y la app ok?" — kept going
 autonomously per this session's established pattern (no check-in between slices).
 
+## Four user-reported bugs fixed in one slice (2026-09-17)
+
+User pasted real UI output and flagged four separate things in one message. All four verified
+fixed against the live Docker stack (not just tests), using `claude-in-chrome` since the user's
+own logged-in browser session was reachable (same profile/cookies) — screenshots confirmed each
+fix, not just green tests.
+
+1. **Graphify's real repo wasn't linked from the Docs page, and the docs only covered the initial
+   `graphify . --wiki` build, not the query/path/explain/update flow.** Added a prominent
+   "Repositorio oficial de Graphify" link (https://github.com/Graphify-Labs/graphify) at the very
+   top of `DocsPage.tsx`, before "Primeros pasos" -- opens in a new tab, never navigates away from
+   the app. Expanded the Graphify section with the actual 4-command workflow and added "Pruebas y
+   calidad"/"Estado actual del proyecto" sections (see the slice above this one for the rest of
+   that work -- this continues it).
+2. **Mercados page only ever showed 2 pairs (XBT/USD, ETH/USD).** Root cause: `KrakenExchange`'s
+   default `pairs` (also used for `market_overview`) was never meant to be the *live browsing*
+   universe -- it's deliberately narrow for ingestion/backtests/price-consensus (Parquet storage,
+   API usage). Verified empirically that Kraken's real `AssetPairs` with no filter returns ~1450
+   pairs (668 USD-quoted) -- far too many to fetch candles+snapshot for sequentially on every page
+   load. Fix: a **separate** `KrakenExchange` instance for `market_overview` only, with a curated
+   24-pair list of major USD pairs (symbols verified against Kraken's real `altname` field, not
+   guessed -- Kraken uses "XBT" not "BTC", "XDG" not "DOGE", "POL" not "MATIC"). Also added bounded
+   concurrency (`asyncio.Semaphore`, was fully sequential before) and per-instrument failure
+   isolation (`wallybot/application/market_overview.py`: one bad pair no longer takes down the
+   whole page) -- both needed regardless of pair count, but essential once it's 24 instead of 2.
+   Live-verified: Mercados now shows "24 de 24 mercados" with real ranked prices.
+3. **Backtest history table showed `final_equity` as
+   "10999.93099135968523141293843 USD"** -- a real precision bug, not a display bug: unquantized
+   `Decimal` division (`notional / fill_price` in `wallybot/backtest/engine.py`) carries its full
+   ~28-digit context precision through every later multiplication. Initially "fixed" the frontend
+   with `.toFixed(2)` -- **reverted that** after finding `apps/web/e2e/observability.spec.ts`
+   already has a test asserting a huge Decimal string renders byte-for-byte
+   (`"9007199254740993.125 USD"`), specifically to catch JS float precision loss on large numbers.
+   The frontend's raw-string display is deliberate, not an oversight. Fixed at the actual source
+   instead: `BacktestEngine.run()` now quantizes fill prices/quantities to the traded instrument's
+   own `price_increment`/`quantity_increment` (quantity always rounds down, same convention
+   `FakeExchange`/`deterministic_risk_engine` already use) and cash amounts (equity, fees,
+   proceeds, cost basis) to `_CASH_PRECISION` (cents) after every step. Also now fails closed with
+   a clear error if an instrument has no precision to backtest with (previously would have crashed
+   obscurely inside `.quantize(None)`). Live-verified: ran a fresh backtest through the real UI
+   (24-hour XBT/USD window, `feature_window=10`) -- new row shows "12103.69 USD", not 23 decimals;
+   the one pre-fix historical row is unchanged (expected -- no retroactive data migration, only
+   the computation going forward).
+4. **Tiingo API key was a Docker secret, not the Connections UI.** See the "Course correction"
+   slice above -- already fixed earlier this session, but confirmed again here: added a TIINGO
+   connection through the real UI got rejected with **403 "Sign in again with MFA to confirm this
+   action"** (`apps/api/dependencies.py`'s `admin()` dependency requires MFA within the last 300
+   seconds for any Admin-gated action) -- not a bug, the intended security behavior. This agent
+   cannot complete that step (needs the user's own TOTP code); left the Connections page open in
+   the browser tab with Proveedor=TIINGO, Nombre=primary pre-filled and the API key field cleared,
+   ready for the user to paste the key and submit themselves after re-confirming MFA.
+
+**Verified:** full suite 590 passed, ruff/pyright clean (same pre-existing `auth_routes.py`
+error), frontend eslint/tsc/`next build` clean. Rebuilt and redeployed both `api` and `web`;
+confirmed via `claude-in-chrome` screenshots: Docs page (Graphify link + sections), Mercados (24
+pairs, real prices), Investigación (new backtest shows 2-decimal equity). `graphify update .` run
+after the code changes.
+
+**Not yet committed** — ask before committing, per repo convention.
+
+**Immediate next actions:** commit this slice if the user agrees. User still needs to add their
+Tiingo key through Conexiones themselves (browser tab left ready). Otherwise pick the next
+increment from `docs/PENDING.md`.
+
 ## Course correction: Tiingo key moved from Docker secret to the existing Connections UI (2026-09-17)
 
 The previous slice (below, "Real Kraken+Tiingo price consensus...") wired the Tiingo API key as a

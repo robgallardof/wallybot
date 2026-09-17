@@ -165,3 +165,30 @@ def test_rejects_allocation_pct_out_of_range() -> None:
 def test_cost_model_rejects_negative_fee_rate() -> None:
     with pytest.raises(ValueError, match="fee_rate"):
         BacktestCostModel(fee_rate=Decimal("-0.01"))
+
+
+def test_final_equity_never_carries_more_precision_than_cents() -> None:
+    # notional / fill_price (e.g. 10000 / 103) is a repeating decimal that, left unquantized,
+    # carries Decimal's ~28-digit context precision through every later multiplication -- the
+    # real bug this regression test guards (a user-reported "10999.93099135968523141293843 USD").
+    cost_model = BacktestCostModel(fee_rate=Decimal("0.001"), slippage_pct=Decimal("0.0005"))
+    result = make_engine(cost_model).run(
+        make_series(), starting_equity=Decimal("10000"), allocation_pct=Decimal("1")
+    )
+
+    assert result.final_equity == result.final_equity.quantize(Decimal("0.01"))
+    for _, equity in result.equity_curve:
+        assert equity == equity.quantize(Decimal("0.01"))
+    assert INSTRUMENT.price_increment is not None
+    assert INSTRUMENT.quantity_increment is not None
+    for trade in result.trades:
+        assert trade.fees_paid == trade.fees_paid.quantize(Decimal("0.01"))
+        assert trade.entry_price == trade.entry_price.quantize(INSTRUMENT.price_increment)
+        assert trade.quantity == trade.quantity.quantize(INSTRUMENT.quantity_increment)
+
+
+def test_rejects_an_instrument_with_no_precision_to_backtest_with() -> None:
+    unpriced = Instrument(venue="fake", market_type=MarketType.SPOT, base="BTC", quote="USD")
+    series = [replace(candle, instrument=unpriced) for candle in make_series()]
+    with pytest.raises(ValueError, match="precision"):
+        make_engine().run(series, starting_equity=Decimal("1000"), allocation_pct=Decimal("1"))

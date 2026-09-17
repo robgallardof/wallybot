@@ -6,6 +6,7 @@ something a user can see -- everything before this was pure, tested, but silent.
 product's own stated priority: "connect data -> quality -> scanner -> API -> markets screen."
 """
 
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -17,6 +18,8 @@ from wallybot.domain.quality import QualityReport
 from wallybot.features.simple import SimpleFeatureEngine
 from wallybot.market.universe import UniverseFilterConfig, evaluate_universe
 from wallybot.scoring.simple import score_momentum
+
+DEFAULT_MAX_CONCURRENCY = 6
 
 
 @dataclass(frozen=True)
@@ -45,19 +48,37 @@ async def build_market_overview(
     universe_config: UniverseFilterConfig,
     quality_policy: QualityPolicy,
     feature_window: int,
+    max_concurrency: int = DEFAULT_MAX_CONCURRENCY,
 ) -> MarketOverview:
     now = clock.now()
     since = now - TIMEFRAME_DURATIONS[timeframe] * history_candles
     instruments = await provider.discover_instruments()
 
-    candles_by_id = {}
+    candles_by_id: dict[str, list] = {}
     snapshots_by_id = {}
     quality_by_id = {}
-    for instrument in instruments:
-        candles = await provider.fetch_candles(instrument, timeframe, since, history_candles)
+    failed_ids: set[str] = set()
+    semaphore = asyncio.Semaphore(max_concurrency)
+
+    async def fetch(instrument: Instrument) -> None:
+        async with semaphore:
+            try:
+                candles = await provider.fetch_candles(
+                    instrument, timeframe, since, history_candles
+                )
+                snapshot = await provider.fetch_snapshot(instrument)
+            except Exception:
+                # One instrument's provider hiccup never takes down the whole overview -- it's
+                # simply excluded, same "a fetch failure is never shown as a valid quote"
+                # principle every other data path in this codebase already follows.
+                failed_ids.add(instrument.id)
+                return
         candles_by_id[instrument.id] = candles
-        snapshots_by_id[instrument.id] = await provider.fetch_snapshot(instrument)
+        snapshots_by_id[instrument.id] = snapshot
         quality_by_id[instrument.id] = evaluate_series_quality(candles, quality_policy, now)
+
+    await asyncio.gather(*(fetch(instrument) for instrument in instruments))
+    instruments = [instrument for instrument in instruments if instrument.id not in failed_ids]
 
     evaluations = {
         e.instrument.id: e
