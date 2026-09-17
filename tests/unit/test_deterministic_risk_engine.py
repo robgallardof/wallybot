@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from wallybot.domain.control import Status
 from wallybot.domain.market import Instrument, MarketSnapshot, MarketType
+from wallybot.domain.order import Side
 from wallybot.domain.portfolio import AllocationProposal, Bucket, PortfolioPolicy, PortfolioState
 from wallybot.domain.quality import QualityIssue, QualityReport, QualityStatus
 from wallybot.domain.risk import ExchangeStatus, RiskContext, RiskDecision, RiskPolicy
@@ -45,6 +46,7 @@ def make_proposal(**overrides) -> AllocationProposal:
     fields = {
         "instrument": INSTRUMENT,
         "bucket": Bucket.CORE,
+        "side": Side.BUY,
         "version": 1,
         "as_of": AS_OF,
         "proposed_notional": Decimal("1000"),
@@ -247,3 +249,40 @@ def test_speculative_bucket_capped_by_single_asset_ceiling():
     assert assessment.decision == RiskDecision.APPROVED_WITH_REDUCED_SIZE
     # single speculative asset cap = 3% of 10000 = 300
     assert assessment.final_notional == Decimal("300")
+
+
+def test_sell_capped_at_held_notional_not_bucket_headroom():
+    # Bucket already at its ceiling (no BUY headroom left), but a SELL only reduces exposure --
+    # it must not be blocked or resized by BUY-side capacity math.
+    state = PortfolioState(
+        equity=Decimal("10000"),
+        bucket_exposure={Bucket.CORE: Decimal("7000")},
+        asset_exposure={INSTRUMENT.id: Decimal("400")},
+        open_positions=1,
+    )
+    proposal = make_proposal(side=Side.SELL, proposed_notional=Decimal("400"))
+    assessment = ENGINE.evaluate(proposal, make_context(portfolio_state=state), POLICY)
+    assert assessment.decision == RiskDecision.APPROVED
+    assert assessment.final_notional == Decimal("400")
+
+
+def test_sell_proposal_exceeding_held_notional_is_reduced_never_expanded():
+    state = PortfolioState(
+        equity=Decimal("10000"),
+        bucket_exposure={},
+        asset_exposure={INSTRUMENT.id: Decimal("300")},
+        open_positions=1,
+    )
+    # A confused/upstream-stale proposal asking to sell more than is actually held -- the risk
+    # engine, as the authoritative final check, must clamp to what is really held, not trust it.
+    proposal = make_proposal(side=Side.SELL, proposed_notional=Decimal("1000"))
+    assessment = ENGINE.evaluate(proposal, make_context(portfolio_state=state), POLICY)
+    assert assessment.decision == RiskDecision.APPROVED_WITH_REDUCED_SIZE
+    assert assessment.final_notional == Decimal("300")
+
+
+def test_sell_with_no_held_position_is_rejected():
+    proposal = make_proposal(side=Side.SELL, proposed_notional=Decimal("100"))
+    assessment = ENGINE.evaluate(proposal, make_context(), POLICY)
+    assert assessment.decision == RiskDecision.REJECTED
+    assert "capacity" in assessment.reasons[0]

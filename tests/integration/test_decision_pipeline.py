@@ -110,13 +110,16 @@ class ControlledProvider:
         return self.snapshot
 
 
-def make_pipeline(sessions, execution: ExecutionService) -> DecisionPipeline:
-    closes = [Decimal(50000 + i * 1000) for i in range(20)]
+def make_pipeline(
+    sessions, execution: ExecutionService, closes: list[Decimal] | None = None
+) -> DecisionPipeline:
+    closes = closes if closes is not None else [Decimal(50000 + i * 1000) for i in range(20)]
     candles = _uptrend_candles(20, closes)
+    last = closes[-1]
     snapshot = MarketSnapshot(
         instrument=INSTRUMENT,
-        bid=Decimal("68990"),
-        ask=Decimal("69010"),
+        bid=last - Decimal("10"),
+        ask=last + Decimal("10"),
         timestamp=NOW,
         source="test",
     )
@@ -270,6 +273,44 @@ async def test_a_bucket_already_at_its_ceiling_produces_no_order(sessions) -> No
     async with sessions() as session:
         rows = (await session.execute(select(OrderIntentRow))).scalars().all()
         assert rows == []
+
+
+async def test_a_downtrend_with_an_open_position_produces_a_real_sell_fill(sessions) -> None:
+    gateway = FakeExchange(
+        clock=FixedClock(NOW),
+        seed=1,
+        balances={"USD": Decimal("1000000"), "BTC": Decimal("10")},
+    )
+    execution = ExecutionService(gateway=gateway, sessions=sessions, clock=FixedClock(NOW))
+    downtrend_closes = [Decimal(69000 - i * 1000) for i in range(20)]
+    pipeline = make_pipeline(sessions, execution, closes=downtrend_closes)
+
+    # A held BTC position, notionally valued the same way `PortfolioState.asset_exposure` is
+    # elsewhere in this codebase, is required for the allocator to size a reduction against.
+    state = make_state(asset_exposure={INSTRUMENT.id: Decimal("3000")})
+    outcomes = await pipeline.run(state, HEALTHY_ENVIRONMENT)
+
+    assert len(outcomes) == 1
+    outcome = outcomes[0]
+    assert outcome.instrument == INSTRUMENT
+    assert outcome.order_status is OrderStatus.FILLED
+    assert outcome.risk_assessment is not None
+    assert outcome.risk_assessment.decision in (
+        RiskDecision.APPROVED,
+        RiskDecision.APPROVED_WITH_REDUCED_SIZE,
+    )
+    # Never more than what was actually held (3000), regardless of confidence.
+    assert outcome.risk_assessment.final_notional <= Decimal("3000")
+
+    async with sessions() as session:
+        rows = (await session.execute(select(OrderIntentRow))).scalars().all()
+        assert len(rows) == 1
+        assert rows[0].side == "SELL"
+        assert rows[0].status == OrderStatus.FILLED
+
+        fills = (await session.execute(select(FillRow))).scalars().all()
+        assert len(fills) == 1
+        assert fills[0].side == "SELL"
 
 
 async def test_a_risk_rejection_produces_no_order_but_is_still_reported(sessions) -> None:

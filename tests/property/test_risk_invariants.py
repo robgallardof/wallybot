@@ -6,6 +6,7 @@ from hypothesis import strategies as st
 
 from wallybot.domain.control import Status
 from wallybot.domain.market import Instrument, MarketSnapshot, MarketType
+from wallybot.domain.order import Side
 from wallybot.domain.portfolio import AllocationProposal, Bucket, PortfolioPolicy, PortfolioState
 from wallybot.domain.quality import QualityReport, QualityStatus
 from wallybot.domain.risk import ExchangeStatus, RiskContext, RiskDecision, RiskPolicy
@@ -73,6 +74,7 @@ def test_risk_assessment_invariants_hold_across_the_input_space(
     proposal = AllocationProposal(
         instrument=INSTRUMENT,
         bucket=Bucket.CORE,
+        side=Side.BUY,
         version=1,
         as_of=AS_OF,
         proposed_notional=proposed_notional,

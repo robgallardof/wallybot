@@ -14,9 +14,10 @@ allocation proposal or a REJECTED risk assessment all end the pipeline for that 
 `OrderIntent` ever created -- that is this pipeline's most common, fully correct outcome, not a
 failure needing special handling.
 
-Only BUY is supported. `SimplePortfolioAllocator.propose` itself refuses SELL (no position data
-exists yet to size a reduction against) -- this pipeline checks for it first so that refusal shows
-up as an ordinary `DecisionOutcome` reason rather than an unhandled exception.
+BUY and SELL both flow through the same allocator/risk path -- `SimplePortfolioAllocator.propose`
+sizes a SELL as a reduction of the instrument's own currently-held exposure (never a short), and
+`DeterministicRiskEngine` caps it at exactly what `PortfolioState.asset_exposure` reports is held,
+never at bucket/concentration headroom (that only constrains a BUY).
 
 Explicitly out of scope: computing `PortfolioState`/loss/drawdown/breaker inputs (there is no
 equity or PnL tracker yet -- a caller supplies `RiskEnvironment` and `PortfolioState` from
@@ -191,13 +192,6 @@ class DecisionPipeline:
             return DecisionOutcome(
                 instrument, None, None, (f"aggregated signal is HOLD: {aggregated.reason}",)
             )
-        if aggregated.action is Action.SELL:
-            return DecisionOutcome(
-                instrument,
-                None,
-                None,
-                ("SELL is not yet supported: no position data exists to size a reduction",),
-            )
 
         proposal = self.allocator.propose(
             aggregated, self.config.bucket, portfolio_state, self.config.portfolio_policy, now
@@ -224,12 +218,12 @@ class DecisionPipeline:
         if assessment.decision is RiskDecision.REJECTED:
             return DecisionOutcome(instrument, None, assessment, assessment.reasons)
 
-        intent = self._build_order_intent(instrument, assessment, now)
+        intent = self._build_order_intent(instrument, proposal.side, assessment, now)
         status = await self.execution.submit(intent)
         return DecisionOutcome(instrument, status, assessment, assessment.reasons)
 
     def _build_order_intent(
-        self, instrument: Instrument, assessment: RiskAssessment, now: datetime
+        self, instrument: Instrument, side: Side, assessment: RiskAssessment, now: datetime
     ) -> OrderIntent:
         decision_id = self.id_generator.new_id()
         client_order_id = self.id_generator.new_id()
@@ -237,7 +231,7 @@ class DecisionPipeline:
             account_id=self.config.account_id,
             environment=self.config.environment,
             instrument=instrument,
-            side=Side.BUY,
+            side=side,
             kind=OrderKind.MARKET,
             quantity=assessment.final_quantity,
             limit_price=None,

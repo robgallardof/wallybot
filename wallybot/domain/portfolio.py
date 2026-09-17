@@ -17,6 +17,7 @@ from typing import Protocol
 
 from wallybot.domain.aggregation import AggregatedSignal
 from wallybot.domain.market import Instrument
+from wallybot.domain.order import Side
 
 
 class Bucket(StrEnum):
@@ -82,6 +83,7 @@ class PortfolioState:
 class AllocationProposal:
     instrument: Instrument
     bucket: Bucket
+    side: Side
     version: int
     as_of: datetime
     proposed_notional: Decimal

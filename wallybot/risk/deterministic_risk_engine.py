@@ -17,6 +17,7 @@ from decimal import ROUND_DOWN, Decimal
 
 from wallybot.domain.control import Status
 from wallybot.domain.market import Instrument
+from wallybot.domain.order import Side
 from wallybot.domain.portfolio import AllocationProposal, Bucket
 from wallybot.domain.quality import QualityStatus
 from wallybot.domain.risk import (
@@ -107,6 +108,11 @@ class DeterministicRiskEngine:
         self, proposal: AllocationProposal, context: RiskContext
     ) -> Decimal:
         state, config = context.portfolio_state, context.portfolio_policy
+        if proposal.side is Side.SELL:
+            # A reduction is capped by what is actually held, never by bucket/concentration
+            # headroom -- those are BUY-side concentration limits and do not constrain a sell.
+            return max(state.asset_exposure.get(proposal.instrument.id, Decimal(0)), Decimal(0))
+
         target = config.bucket_targets[proposal.bucket] * state.equity
         available = target - state.bucket_exposure.get(proposal.bucket, Decimal(0))
         if proposal.bucket == Bucket.SPECULATIVE:

@@ -4,6 +4,7 @@ from decimal import Decimal
 import pytest
 
 from wallybot.domain.market import Instrument, MarketType
+from wallybot.domain.order import Side
 from wallybot.domain.portfolio import (
     AllocationProposal,
     Bucket,
@@ -103,6 +104,7 @@ def test_approved_proposal_requires_positive_notional():
         AllocationProposal(
             instrument=INSTRUMENT,
             bucket=Bucket.CORE,
+            side=Side.BUY,
             version=1,
             as_of=AS_OF,
             proposed_notional=Decimal("0"),
@@ -116,6 +118,7 @@ def test_rejected_proposal_requires_zero_notional():
         AllocationProposal(
             instrument=INSTRUMENT,
             bucket=Bucket.CORE,
+            side=Side.BUY,
             version=1,
             as_of=AS_OF,
             proposed_notional=Decimal("100"),

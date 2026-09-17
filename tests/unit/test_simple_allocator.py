@@ -1,10 +1,9 @@
 from datetime import UTC, datetime
 from decimal import Decimal
 
-import pytest
-
 from wallybot.domain.aggregation import AggregatedSignal
 from wallybot.domain.market import Instrument, MarketType
+from wallybot.domain.order import Side
 from wallybot.domain.portfolio import Bucket, PortfolioPolicy, PortfolioState
 from wallybot.domain.strategy import Action
 from wallybot.portfolio.simple_allocator import SimplePortfolioAllocator
@@ -68,9 +67,46 @@ def test_hold_signal_is_rejected():
     assert proposal.reasons == ("signal is HOLD",)
 
 
-def test_sell_signal_raises_without_position_data():
-    with pytest.raises(ValueError):
-        ALLOCATOR.propose(make_signal(Action.SELL, "1"), Bucket.CORE, make_state(), POLICY, AS_OF)
+def test_sell_signal_with_no_position_is_rejected():
+    proposal = ALLOCATOR.propose(
+        make_signal(Action.SELL, "1"), Bucket.CORE, make_state(), POLICY, AS_OF
+    )
+    assert proposal.approved is False
+    assert proposal.side == Side.SELL
+    assert proposal.reasons == ("no open position to reduce",)
+
+
+def test_sell_signal_proposes_a_reduction_scaled_by_confidence():
+    state = make_state(asset_exposure={INSTRUMENT.id: Decimal("1000")})
+    proposal = ALLOCATOR.propose(
+        make_signal(Action.SELL, "0.5"), Bucket.CORE, state, POLICY, AS_OF
+    )
+    assert proposal.approved is True
+    assert proposal.side == Side.SELL
+    assert proposal.proposed_notional == Decimal("500")
+
+
+def test_sell_signal_at_full_confidence_proposes_the_full_position_never_more():
+    state = make_state(asset_exposure={INSTRUMENT.id: Decimal("1000")})
+    proposal = ALLOCATOR.propose(
+        make_signal(Action.SELL, "1"), Bucket.CORE, state, POLICY, AS_OF
+    )
+    assert proposal.approved is True
+    assert proposal.proposed_notional == Decimal("1000")
+
+
+def test_sell_signal_ignores_bucket_ceiling_already_reached():
+    # A bucket already at its ceiling still permits reducing an existing position -- bucket
+    # headroom only constrains buying more, never selling less.
+    state = make_state(
+        bucket_exposure={Bucket.CORE: Decimal("7000")},
+        asset_exposure={INSTRUMENT.id: Decimal("500")},
+    )
+    proposal = ALLOCATOR.propose(
+        make_signal(Action.SELL, "1"), Bucket.CORE, state, POLICY, AS_OF
+    )
+    assert proposal.approved is True
+    assert proposal.proposed_notional == Decimal("500")
 
 
 def test_max_open_positions_reached_is_rejected():
