@@ -196,6 +196,30 @@ export const providerConnectionSchema = z.object({
 });
 export const providerConnectionListSchema = z.object({ rows: z.array(providerConnectionSchema) });
 
+export const portfolioBalanceSchema = z.object({
+  currency: z.string(),
+  purpose: z.enum(["CASH", "POSITION"]),
+  amount: z.string(),
+});
+export const portfolioActivitySchema = z.object({
+  id: z.string(),
+  venue: z.string(),
+  base: z.string(),
+  quote: z.string(),
+  side: z.enum(["BUY", "SELL"]),
+  quantity: z.string(),
+  price: z.string(),
+  fee: z.string(),
+  fee_currency: z.string(),
+  occurred_at: z.string(),
+});
+export const portfolioSchema = z.object({
+  environment: z.literal("PAPER"),
+  connection_count: z.number(),
+  balances: z.array(portfolioBalanceSchema),
+  activity: z.array(portfolioActivitySchema),
+});
+
 export const telegramConfigSchema = z.object({
   has_bot_token: z.boolean(),
   chat_id: z.number().nullable(),

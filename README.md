@@ -63,6 +63,7 @@ Backups are encrypted in ignored `backups/`; keep `.secrets/backup_key` separate
 | [DEPLOYMENT.md](DEPLOYMENT.md) | Local/Fedora topology, resources, operations and recovery |
 | [Decision records](docs/adr/README.md) | Significant decisions and tradeoffs |
 | [Diagrams](docs/diagrams/README.md) | Architecture, decision flow, orders, deployment, data, AI, research, recovery |
+| [AI development tools](docs/AI-DEVELOPMENT.md) | Internal workflow for Archify, Serena, Context7 and code navigation |
 | [Phase 1 backlog](docs/PHASE_1.md) | Ordered, reviewable implementation slices |
 
 The next product milestone is Phase 2: deterministic fake market data, Kraken market discovery, validated OHLCV/streaming and the market scanner. Later phases must preserve the risk and promotion gates.

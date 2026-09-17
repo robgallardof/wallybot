@@ -1570,6 +1570,52 @@
   line-height: 1.55;
   margin: 5px 0 0;
 }
+:root .docs-flow-panel {
+  padding: 26px 28px;
+}
+:root .docs-flow {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+}
+:root .docs-flow li {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: grid;
+  gap: 5px;
+  min-height: 118px;
+  padding: 16px;
+  position: relative;
+}
+:root .docs-flow li:not(:last-child)::after {
+  color: var(--accent);
+  content: "→";
+  font-size: 20px;
+  font-weight: 600;
+  position: absolute;
+  right: -19px;
+  top: calc(50% - 13px);
+  z-index: 1;
+}
+:root .docs-flow li > span {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+:root .docs-flow strong {
+  color: var(--text);
+  font-size: 14px;
+}
+:root .docs-flow small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
 :root .docs-wallet-note {
   align-items: center;
   display: flex;
@@ -1625,6 +1671,12 @@
   :root .docs-areas {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  :root .docs-flow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  :root .docs-flow li:nth-child(2)::after {
+    display: none;
+  }
   :root .docs-safety-panel {
     align-items: flex-start;
     grid-template-columns: auto minmax(0, 1fr);
@@ -1637,6 +1689,18 @@
 @media (max-width: 520px) {
   :root .docs-hero {
     padding: 22px;
+  }
+  :root .docs-flow-panel {
+    padding: 20px;
+  }
+  :root .docs-flow {
+    grid-template-columns: 1fr;
+  }
+  :root .docs-flow li {
+    min-height: auto;
+  }
+  :root .docs-flow li::after {
+    display: none;
   }
   :root .docs-areas,
   :root .connection-form {

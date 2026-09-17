@@ -55,6 +55,32 @@ class DashboardView(BaseModel):
     phase: int
 
 
+class PortfolioBalanceView(BaseModel):
+    currency: str
+    purpose: Literal["CASH", "POSITION"]
+    amount: str
+
+
+class PortfolioActivityView(BaseModel):
+    id: str
+    venue: str
+    base: str
+    quote: str
+    side: Literal["BUY", "SELL"]
+    quantity: str
+    price: str
+    fee: str
+    fee_currency: str
+    occurred_at: str
+
+
+class PortfolioView(BaseModel):
+    environment: Literal["PAPER"]
+    connection_count: int
+    balances: list[PortfolioBalanceView]
+    activity: list[PortfolioActivityView]
+
+
 class ServiceStatusView(BaseModel):
     age_seconds: int | None
     status: str

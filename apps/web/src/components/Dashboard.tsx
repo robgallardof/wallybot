@@ -25,7 +25,8 @@ import { useConnectionsData } from "../hooks/useConnectionsData";
 import { useTelegramData } from "../hooks/useTelegramData";
 import { SettingsPage } from "./dashboard/pages/SettingsPage";
 import { DocsPage } from "./dashboard/pages/DocsPage";
-import { Unavailable } from "./dashboard/pages/Unavailable";
+import { PortfolioPage } from "./dashboard/pages/PortfolioPage";
+import { usePortfolioData } from "../hooks/usePortfolioData";
 
 export function Dashboard({
   user,
@@ -69,6 +70,7 @@ export function Dashboard({
     page === "connections",
   );
   const { telegram, save: saveTelegram } = useTelegramData(page === "settings");
+  const portfolio = usePortfolioData(page === "portfolio");
   function navigate(next: string) {
     router.push(`/${next}`);
   }
@@ -106,7 +108,7 @@ export function Dashboard({
       {page === "research" && (
         <BacktestsPage history={backtestHistory} run={runBacktest} />
       )}
-      {page === "portfolio" && <Unavailable />}
+      {page === "portfolio" && <PortfolioPage portfolio={portfolio} navigate={navigate} />}
       {page === "connections" && (
         <ConnectionsPage connections={connections} add={addConnection} />
       )}

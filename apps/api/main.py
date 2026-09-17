@@ -24,6 +24,7 @@ from apps.api.connection_routes import router as connection_router
 from apps.api.dependencies import SignedIn
 from apps.api.intelligence_routes import router as intelligence_router
 from apps.api.market_routes import router as market_router
+from apps.api.portfolio_routes import router as portfolio_router
 from apps.api.research_routes import router as research_router
 from apps.api.system_routes import router as system_router
 from apps.api.telegram_routes import router as telegram_router
@@ -320,6 +321,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(auth_router)
     app.include_router(connection_router)
+    app.include_router(portfolio_router)
     app.include_router(system_router)
     app.include_router(market_router)
     app.include_router(research_router)

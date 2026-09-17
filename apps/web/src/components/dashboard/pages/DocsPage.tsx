@@ -6,9 +6,7 @@ import {
   Cable,
   ChartNoAxesCombined,
   CircleDollarSign,
-  ExternalLink,
   FlaskConical,
-  GitBranch,
   ShieldCheck,
   WalletCards,
 } from "lucide-react";
@@ -78,27 +76,41 @@ export function DocsPage() {
         </div>
       </article>
 
-      <article className="panel docs-safety-panel">
-        <span>
-          <GitBranch size={21} />
-        </span>
-        <div>
-          <p className="eyebrow">{i18n.t("Explorá el código")}</p>
-          <h2>{i18n.t("Repositorio oficial de Graphify")}</h2>
-          <p>
-            {i18n.t(
-              "La herramienta que este repo usa para navegar su propio código como un grafo de conocimiento. Instrucciones de instalación y documentación completa viven ahí, no acá.",
-            )}
-          </p>
+      <article className="panel docs-flow-panel">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">{i18n.t("Cómo funciona WallyBot")}</p>
+            <h2>{i18n.t("Del mercado a tu decisión")}</h2>
+          </div>
+          <span className="subtle-pill">{i18n.t("SOLO LECTURA Y PAPER")}</span>
         </div>
-        <a
-          className="button button-outline"
-          href="https://github.com/Graphify-Labs/graphify"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <ExternalLink size={16} /> {i18n.t("Ver en GitHub")}
-        </a>
+        <p className="muted">
+          {i18n.t(
+            "Tu instancia reúne datos, los valida y los presenta para que puedas investigar. Las decisiones permanecen bajo tu control; WallyBot no retira ni transfiere fondos.",
+          )}
+        </p>
+        <ol className="docs-flow" aria-label={i18n.t("Flujo de WallyBot")}>
+          <li>
+            <span>01</span>
+            <strong>{i18n.t("Datos de mercado")}</strong>
+            <small>{i18n.t("Precios, wallets y proveedores")}</small>
+          </li>
+          <li>
+            <span>02</span>
+            <strong>{i18n.t("Validación")}</strong>
+            <small>{i18n.t("Calidad, historial y riesgo")}</small>
+          </li>
+          <li>
+            <span>03</span>
+            <strong>{i18n.t("Investigación")}</strong>
+            <small>{i18n.t("Señales y simulaciones PAPER")}</small>
+          </li>
+          <li>
+            <span>04</span>
+            <strong>{i18n.t("Tu panel")}</strong>
+            <small>{i18n.t("Portafolio, alertas y decisiones")}</small>
+          </li>
+        </ol>
       </article>
 
       <article className="panel docs-panel">
