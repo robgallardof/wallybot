@@ -85,6 +85,7 @@ services:
       - redis_url
       - encryption_key
       - bootstrap_token
+      - tiingo_api_key
     volumes:
       - historical_data:/data/historical
     networks: [edge, operational]
@@ -208,3 +209,9 @@ secrets:
   redis_url: {file: .secrets/redis_url}
   encryption_key: {file: .secrets/encryption_key}
   bootstrap_token: {file: .secrets/bootstrap_token}
+  # Compose requires the file to exist to mount it, but the key itself is optional: an empty
+  # file leaves wallybot/infrastructure/settings.py's tiingo_api_key blank and apps/api/main.py
+  # skips Tiingo as a second price-consensus source (see wallybot/application/price_consensus_job.py)
+  # rather than erroring. To drop the mount entirely, remove this entry and the `api` service's
+  # matching `secrets:` line together.
+  tiingo_api_key: {file: .secrets/tiingo_api_key}

@@ -26,9 +26,15 @@ responses (treated as UTC here, matching this codebase's UTC-only convention, bu
 in Tiingo's docs), and whether `resampleFreq` accepts a daily value for crypto (this adapter
 supports only "1m"/"5m"/"1h", the three frequencies the client library's own validation regex
 confirms -- "1d" raises rather than guessing it works).
+
+**Verified against the real API** (not guessed): `resampleFreq=1min` genuinely returns
+minute-level bars up to the current minute -- Tiingo's crypto data is not end-of-day-only, despite
+`endDate` being an *exclusive* boundary at that date's midnight (see `fetch_candles`'s `endDate`
+computation) that looks, if missed, exactly like a data-freshness problem instead of an off-by-one
+in the request.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Protocol
 
@@ -109,7 +115,11 @@ class TiingoExchange:
             {
                 "tickers": self._ticker(instrument),
                 "startDate": since.date().isoformat(),
-                "endDate": now.date().isoformat(),
+                # One day past `now`'s date, not `now`'s date itself: verified against the real
+                # API that `endDate` is an exclusive boundary at that date's midnight, so passing
+                # today's date silently drops every row from today (the closer, more useful
+                # data). `close_time > now` below still enforces no-lookahead regardless of this.
+                "endDate": (now.date() + timedelta(days=1)).isoformat(),
                 "resampleFreq": _RESAMPLE_FREQ[timeframe],
             },
         )

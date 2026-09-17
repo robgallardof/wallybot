@@ -59,6 +59,77 @@ research-job-failure notifications need `api` to poll for job-status transitions
 cross-process signal), since `research` itself has no internet egress to call Telegram directly --
 not started this slice, flagged for whoever picks up Telegram/notifications work next.
 
+## Real Kraken+Tiingo price consensus and provider reliability (2026-09-17, same session)
+
+User approved committing the Telegram slice and asked to continue. Next candidate from the same
+"what's dead code from a prior slice" sweep: `wallybot.exchanges.tiingo.TiingoExchange` (added
+earlier this session) had zero callers, and `wallybot/domain/price_consensus.py`/
+`provider_reliability.py` both say in their own module docstrings that only one real provider
+(Kraken) was ever wired up, so their pure computations had no live, multi-provider caller either.
+Tiingo needs its own API key (unlike Kraken's public endpoints) -- asked the user via
+AskUserQuestion, they provided one directly in chat, which was written straight to
+`.secrets/tiingo_api_key` via the Write tool and never echoed back, per `AGENTS.md`'s secrets rule.
+
+- New `wallybot/application/price_consensus_job.py`: queries every configured provider for two
+  hardcoded tracked pairs (BTC/USD, ETH/USD -- the same pairs `KrakenExchange`'s own default
+  `pairs` already limits everything else to) via `fetch_candles` (Tiingo's `fetch_snapshot` always
+  raises `NotImplementedError`, so both providers are queried the same candle-based way for a fair
+  comparison), builds `PriceQuote`s from each provider's most recent closed 1-minute candle, calls
+  `compute_price_consensus`, and separately accumulates `ProviderCallOutcome`s in an in-memory
+  rolling window (no new table -- a restart just means a brief `INSUFFICIENT_DATA` reliability
+  status until 5 calls reaccumulate) to call `compute_provider_reliability`. Split into a DB-free
+  `compute_price_consensus_and_reliability` (unit-tested with fake providers) and a thin
+  `run_price_consensus_tick` that persists the result (integration-tested against real Postgres).
+- Wired into a new `_price_consensus_loop` in `apps/api/main.py`'s lifespan (same reasoning as
+  `_market_ingestion_loop`: only `apps/api` has internet egress), ticking every 300s (matches
+  `DEFAULT_MAX_STALENESS`). Kraken is always a source; Tiingo is added only if
+  `Settings.tiingo_api_key` (new, optional `SecretStr | None`, read from
+  `/run/secrets/tiingo_api_key` in `load_settings()`) is present and non-empty -- absent, the job
+  still runs Kraken-only and correctly reports `INSUFFICIENT_DATA` forever (one source can never
+  reach consensus), never fabricating a two-source result from one feed.
+- **Found and fixed a real bug in `wallybot/exchanges/tiingo.py` while verifying against the live
+  API with the real key**: `fetch_candles` passed `endDate: now.date().isoformat()`, but verified
+  empirically that Tiingo's `endDate` is an *exclusive* boundary at that date's midnight -- passing
+  today's date silently dropped every row from today, making Tiingo's data look permanently hours
+  stale (always failing the 5-minute consensus staleness filter) when the real API is actually
+  near-real-time (`resampleFreq=1min` does return true minute bars up to the current minute).
+  Fixed by requesting `endDate` one day past `now`'s date instead; the existing `close_time > now`
+  filter already prevents any lookahead regardless of this. Module docstring updated to record
+  both the fix and what's now verified vs. still unconfirmed about the API.
+- **Found and fixed the same recurring access-control gap a 6th time** (0012/0013/0016/0017/0018/
+  0023, now 0025): migration `0016` granted `wally_api` read-only `SELECT` on
+  `price_consensus_results`/`provider_reliability_snapshots`, written when `0010`'s own docstring
+  assumed `wally_worker` would be the eventual writer -- but `worker`/`scheduler`/`research` have
+  no internet egress to reach a second market-data provider, so `apps/api` had to become the
+  writer instead. New migration `0025_price_consensus_api_grants` grants `wally_api` `INSERT` on
+  both tables plus `USAGE, SELECT` on both autoincrement sequences (the `experiment_records_id_seq`
+  gotcha from `0023` again). Found via the live Docker stack (`PRICE_CONSENSUS_TICK_FAILED` in
+  `api`'s logs) -- the integration test suite's `sessions` fixture connects as the Postgres
+  superuser, not the `wally_api` role, so it structurally cannot catch a missing per-role grant;
+  only the real deployment surfaces this class of bug, same lesson as every prior occurrence.
+- `docker-compose.yml`: new optional `tiingo_api_key` secret (file must exist for compose to
+  mount it, but an empty file disables Tiingo cleanly rather than erroring -- see the comment next
+  to it), mounted only into `api`.
+
+**Verified:** full suite 586 passed (462 unit/property + 124 integration, up from 580), ruff/
+pyright clean repo-wide except the same one pre-existing unrelated `auth_routes.py` error. Rebuilt
+`wallybot-api-research:0.1.0` (and `wallybot-api:0.1.0` once, for the grants migration), ran
+`docker compose up migrate` (applied `0025` cleanly), redeployed `api`. **Confirmed real, working,
+two-source consensus against the live stack, not just tests**: after the Tiingo fix, `psql` showed
+`price_consensus_results` rows with `status=CONSENSUS`, `included_sources=["kraken","tiingo"]`,
+and real BTC/ETH prices; `provider_reliability_snapshots` showed both providers accumulating calls
+correctly (still `INSUFFICIENT_DATA` right after a restart -- expected, needs 5 calls/~15 minutes
+to reach a confident status). `graphify update .` run after the code changes.
+
+**Not yet committed** — ask before committing, per repo convention (the Telegram slice above this
+one was already committed with the user's explicit approval this session).
+
+**Immediate next actions:** commit this slice if the user agrees, then pick the next increment.
+Worth flagging to the user later: Tiingo's real crypto data freshness/rate limits under their
+specific plan are now empirically verified as of 2026-09-17, but could still change if their
+account tier changes -- no code currently detects or alerts on that beyond the existing provider
+reliability status naturally degrading if it happens.
+
 ## Latest slice — Parquet ingestion job verified end-to-end + a durability bug fixed (2026-09-16)
 
 The Parquet dataset-ingestion job (`wallybot/application/market_ingestion.py`,

@@ -1,4 +1,5 @@
 import asyncio
+from collections import deque
 from contextlib import asynccontextmanager
 from datetime import timedelta
 from decimal import Decimal
@@ -29,10 +30,13 @@ from apps.api.telegram_routes import router as telegram_router
 from wallybot.application.backtest_orchestrator import BacktestOrchestrator
 from wallybot.application.market_ingestion import ingest_market_data
 from wallybot.application.market_overview import build_market_overview
+from wallybot.application.price_consensus_job import ProviderSource, run_price_consensus_tick
 from wallybot.data.historical import HistoricalStore
 from wallybot.data.historical_query import DEFAULT_QUERY_LIMITS
 from wallybot.data.quality import QualityPolicy
+from wallybot.domain.provider_reliability import ProviderCallOutcome
 from wallybot.exchanges.kraken import KrakenExchange
+from wallybot.exchanges.tiingo import HttpxTiingoTransport, TiingoExchange
 from wallybot.infrastructure.database import database
 from wallybot.infrastructure.historical_ingestion_cursor_repository import (
     HistoricalIngestionCursorRepository,
@@ -90,6 +94,31 @@ async def _market_ingestion_loop(
         except Exception:
             logger.warning("MARKET_DATA_INGESTION_FAILED")
         await asyncio.sleep(MARKET_INGESTION_INTERVAL_SECONDS)
+
+
+# Matches `wallybot.domain.price_consensus.DEFAULT_MAX_STALENESS` (5 minutes) so a quote is never
+# considered stale purely because this loop's own cadence is too slow.
+PRICE_CONSENSUS_INTERVAL_SECONDS = 300
+
+
+async def _price_consensus_loop(
+    sessions,
+    sources: list[ProviderSource],
+    clock: SystemClock,
+    logger,
+) -> None:
+    outcomes: dict[str, deque[ProviderCallOutcome]] = {}
+    while True:
+        try:
+            await run_price_consensus_tick(sessions, sources, clock.now(), outcomes)
+            logger.info(
+                "PRICE_CONSENSUS_COMPUTED", extra={"sources": [source.name for source in sources]}
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.warning("PRICE_CONSENSUS_TICK_FAILED")
+        await asyncio.sleep(PRICE_CONSENSUS_INTERVAL_SECONDS)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -153,8 +182,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 logger=logger,
             )
         )
+        price_sources = [ProviderSource("kraken", provider)]
+        if config.tiingo_api_key is not None and config.tiingo_api_key.get_secret_value():
+            price_sources.append(
+                ProviderSource(
+                    "tiingo",
+                    TiingoExchange(
+                        clock=clock,
+                        transport=HttpxTiingoTransport(config.tiingo_api_key.get_secret_value()),
+                    ),
+                )
+            )
+        price_consensus_task = asyncio.create_task(
+            _price_consensus_loop(sessions, price_sources, clock, logger)
+        )
         logger.info("API_STARTED")
         yield
+        price_consensus_task.cancel()
+        try:
+            await price_consensus_task
+        except asyncio.CancelledError:
+            pass
         ingestion_task.cancel()
         try:
             await ingestion_task
