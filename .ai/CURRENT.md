@@ -1,5 +1,57 @@
 # Current task
 
+## Live PAPER decision loop wired end-to-end -- the session's headline delivery (2026-09-17, continued)
+
+After clearing the working-tree backlog (below) and running a full phase-by-phase audit against
+`docs/PENDING.md`, found the single biggest real gap: `DecisionPipeline` (regime→strategy→risk→
+allocation, Phase 3 Slice 9) was fully built and tested but had **zero live callers anywhere in
+`apps/`** -- no PAPER trade had ever been placed end-to-end in production, despite every piece
+downstream (allocator, risk engine, execution service, ledger) being real and tested in isolation.
+User said "ve directo a implementar" (skip a separate planning pass) when asked. Closed it in five
+committed slices, each independently tested/verified:
+
+1. `c653bef` -- SELL/reduce flow in the allocator + risk engine (was a hard `raise`; PENDING.md
+   Fase 3 explicitly required "vender sin exceder lo poseído"). Risk-engine capacity for a SELL is
+   now derived independently from held exposure, never BUY-side bucket headroom.
+2. `54003fb` -- Real equity/PnL tracker: `wallybot/domain/equity.py` (daily/weekly loss, drawdown,
+   persistent high-water-mark) + `wallybot/application/equity_tracker.py` (`assess_equity`, one
+   mark-to-market ledger pass). Also extended `FakeExchange` with an optional `market_data`
+   provider so it can price PAPER fills off real Kraken conditions instead of its own internal
+   seeded random walk -- ARCHITECTURE.md's "PAPER uses an exchange simulator" made real for the
+   first time.
+3. `1cff3f1` -- The loop itself: `wallybot/application/decision_loop.py` (`run_decision_tick`) +
+   `apps/api/main.py`'s `_decision_loop` wrapper (only `apps/api` has internet egress, same
+   constraint as every other live job this session's history documents). Surfaced and closed two
+   real prerequisites along the way: (a) **no PAPER account could ever have positive equity** --
+   there was no funding mechanism anywhere, so added a one-time `POST /api/portfolio/fund`
+   (Admin+fresh MFA, DB-constraint-enforced one-time) plus a Portfolio-page form; (b) `wally_api`
+   had only ever been granted *read* access to order/fill/ledger tables (migration 0028 grants the
+   write access the live loop and funding route both need -- 0002's own comment had assumed only
+   the network-isolated `wally_worker` would ever write there).
+
+**Explicitly scoped out, not silently skipped**: persistent operational circuit breakers (stale
+data/exchange outage/repeated-errors, per RISK.md's full taxonomy -- only daily/weekly loss and
+drawdown are real breakers right now, `active_breakers` is always `frozenset()`), order
+cancellation orchestration (`ExecutionService` has the port, no `cancel()` method or route yet),
+walk-forward/bootstrap wiring into the backtest UI (logic exists, tested, unreachable from
+outside a unit test). Single-bucket-per-tick (CORE only) and single-admin-account, matching this
+codebase's existing simplification level (no per-instrument bucket assignment schema, no
+multi-user account administration yet).
+
+**Verified for real, not just tests**: rebuilt and redeployed the full stack (migration 0028
+applied, all 8 services healthy), confirmed via container logs and a direct DB check against the
+*actual production stack* that the loop starts cleanly and correctly stays silent while the real
+operator's account is in OBSERVE mode -- did **not** flip it to PAPER myself (needs the operator's
+own fresh MFA, which this agent neither has nor should have). Full suite 629 passed at each
+commit, ruff/pyright clean throughout (same one pre-existing unrelated `auth_routes.py` error),
+frontend eslint/tsc clean.
+
+**Immediate next actions**: ask the user which of the explicitly-scoped-out items to pick up next
+(persistent breakers, cancellation, walk-forward UI wiring), or whether to keep auditing other
+`PENDING.md` phases (Fase 6 AI provider is still a fake-only stub; Fase 8 Telegram has no inbound
+commands/reports; Fase 9 LIVE remains correctly and completely unstarted, gated behind human-only
+steps).
+
 ## Portfolio slice committed; working-tree backlog cleared (2026-09-17, new session)
 
 Fresh session, no prior chat history. User: "continua con lo pendiente acaba todas las fases."
