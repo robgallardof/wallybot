@@ -425,6 +425,9 @@
   "La información no mueve tu dinero.": "Information does not move your money.",
   "OBSERVE solo lee mercados reales. PAPER simula operaciones. WallyBot no puede retirar fondos ni transferir activos desde esta instancia.": "OBSERVE only reads real markets. PAPER simulates trades. WallyBot cannot withdraw funds or transfer assets from this instance.",
   "Ver configuración": "View settings",
-  "Cada conexión, wallet y configuración pertenece a tu cuenta. Otros usuarios no ven ni pueden modificar tu actividad.": "Every connection, wallet and setting belongs to your account. Other users cannot view or change your activity."
-  ,"Abrir navegación": "Open navigation"
+  "Cada conexión, wallet y configuración pertenece a tu cuenta. Otros usuarios no ven ni pueden modificar tu actividad.": "Every connection, wallet and setting belongs to your account. Other users cannot view or change your activity.",
+  "Abrir navegación": "Open navigation",
+  "Explorá el código": "Explore the code",
+  "La herramienta que este repo usa para navegar su propio código como un grafo de conocimiento. Instrucciones de instalación y documentación completa viven ahí, no acá.": "The tool this repo uses to navigate its own code as a knowledge graph. Installation instructions and full documentation live there, not here.",
+  "Ver en GitHub": "View on GitHub"
 }

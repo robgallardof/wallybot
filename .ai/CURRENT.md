@@ -1,5 +1,30 @@
 # Current task
 
+## Restored the Graphify repo link the Docs redesign dropped (2026-09-17, later the same day)
+
+The "Control-center UX and recent MFA confirmation" slice below landed concurrently with this
+agent's own independent diagnosis of the same "No se pudo agregar la conexión" / silent PAPER-toggle
+failure the user reported -- both sessions converged on the identical fix (a `confirm-mfa` step-up
+endpoint), and `git log` shows they merged into one commit (`f25fbdb`) without conflict. One real
+regression from that merge: the Docs page redesign (product-first onboarding, five setup steps,
+area cards) **dropped the Graphify repository link** the user had explicitly asked to be added "at
+the top" of the Docs page. Restored it as a new highlighted panel right after the hero, styled with
+the same `docs-safety-panel` pattern already used elsewhere on that redesigned page (icon, heading,
+description, an outlined `Ver en GitHub` button opening https://github.com/Graphify-Labs/graphify
+in a new tab) -- not a revert of the redesign, just the one thing it lost.
+
+**Verified:** full backend suite still 592 passed, frontend eslint/tsc clean, full Playwright UI
+suite (11 tests) green, confirmed visually via `claude-in-chrome` that the panel renders at the top
+of `/docs` after rebuilding and redeploying `web`. Also used the live browser session (already
+logged in as the operator) to click "Activar simulación PAPER" on the real, now-merged Settings
+page: it correctly showed "Vuelve a iniciar sesión con tu autenticador para confirmar esta acción."
+both in the page-level banner and inline next to the button -- confirming the concurrent MFA fix
+actually resolves the silent-failure complaint, not just in tests. Rebuilt and redeployed **every**
+service (`docker compose build` + `up -d`, no arguments) per the user's "redeployea todo"; all 8
+containers healthy.
+
+**Not yet committed** — ask before committing, per repo convention.
+
 ## Control-center UX and recent MFA confirmation (2026-09-17)
 
 - Reworked **Configuración** into responsive state/action cards for OBSERVE/PAPER, Telegram, and
