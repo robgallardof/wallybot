@@ -150,7 +150,10 @@ async def _price_consensus_loop(
 # `_price_consensus_loop`: only this process has internet egress to reach Kraken. The tick itself
 # (`run_decision_tick`) lives in `wallybot.application.decision_loop`, same split as
 # `ingest_market_data`/`run_price_consensus_tick`; this wrapper only resolves "which account" from
-# real control/user state and re-arms the gateway/execution/reconciliation objects once.
+# real control/user state each tick. `paper_gateway`/`execution`/`reconciliation` are constructed
+# once in `create_app`'s lifespan (not lazily in here) and also stored on `app.state` -- the
+# cancel-order route needs the *same* `ExecutionService`/`FakeExchange` instance this loop submits
+# orders through, since FakeExchange's own in-memory order state lives on that one instance.
 #
 # Single admin, single account: there is no multi-user account administration yet (PENDING.md
 # Fase 1) to pick a different one.
@@ -160,15 +163,15 @@ DECISION_INTERVAL_SECONDS = 300
 async def _decision_loop(
     sessions,
     provider: KrakenExchange,
+    paper_gateway: FakeExchange,
+    execution: ExecutionService,
+    reconciliation: ReconciliationService,
     clock: SystemClock,
     id_generator: UuidIdGenerator,
     quality_policy: QualityPolicy,
     universe_config: UniverseFilterConfig,
     logger,
 ) -> None:
-    paper_gateway: FakeExchange | None = None
-    execution: ExecutionService | None = None
-    reconciliation: ReconciliationService | None = None
     while True:
         try:
             async with sessions() as db:
@@ -185,12 +188,6 @@ async def _decision_loop(
             ):
                 await asyncio.sleep(DECISION_INTERVAL_SECONDS)
                 continue
-
-            if paper_gateway is None:
-                paper_gateway = FakeExchange(clock=clock, market_data=provider)
-                execution = ExecutionService(gateway=paper_gateway, sessions=sessions, clock=clock)
-                reconciliation = ReconciliationService(execution=execution, sessions=sessions)
-            assert execution is not None and reconciliation is not None
 
             result = await run_decision_tick(
                 sessions=sessions,
@@ -277,6 +274,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             clock=clock,
             id_generator=UuidIdGenerator(),
         )
+        # Shared by `_decision_loop` and the order-cancellation route (`portfolio_routes.py`) --
+        # both must submit/cancel through the *same* FakeExchange instance, since its in-memory
+        # order state (`_orders`/`_fills`) lives on that one object, not the ledger.
+        paper_gateway = FakeExchange(clock=clock, market_data=provider)
+        execution = ExecutionService(gateway=paper_gateway, sessions=sessions, clock=clock)
+        reconciliation = ReconciliationService(execution=execution, sessions=sessions)
+        app.state.execution = execution
         ingestion_task = asyncio.create_task(
             _market_ingestion_loop(
                 provider=provider,
@@ -317,6 +321,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 _decision_loop(
                     sessions,
                     provider,
+                    paper_gateway,
+                    execution,
+                    reconciliation,
                     clock,
                     UuidIdGenerator(),
                     quality_policy,

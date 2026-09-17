@@ -10,7 +10,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from wallybot.application.execution_service import ExecutionService
-from wallybot.domain.execution import SubmissionOutcome, VenueOrderStatus
+from wallybot.domain.execution import (
+    CancelOutcome,
+    CancelResult,
+    Fill,
+    OrderLookup,
+    SubmissionOutcome,
+    SubmissionResult,
+    VenueOrderStatus,
+)
 from wallybot.domain.order import OrderIntent, OrderKind, OrderStatus, Side
 from wallybot.exchanges.fake import FakeExchange, ScriptedFill
 from wallybot.infrastructure.models import (
@@ -280,10 +288,194 @@ async def test_a_scripted_partial_fill_is_observed_and_persisted_exactly_once(se
         assert fills[0].quantity == partial
 
     # Reconciling again observes the same partial state -- no new fill, no duplicate posting.
-    # (Cancelling a PARTIALLY_FILLED order requires the CANCEL_REQUESTED step first, which is
-    # outside this slice's scope -- ExecutionService does not orchestrate cancellation yet.)
     resolved_again = await service.reconcile(intent)
     assert resolved_again is OrderStatus.PARTIALLY_FILLED
     async with sessions() as session:
         fills = (await session.execute(select(FillRow))).scalars().all()
         assert len(fills) == 1
+
+
+async def test_cancelling_an_open_limit_order_reaches_cancelled(sessions) -> None:
+    gateway, instrument = await make_gateway_and_instrument()
+    service = ExecutionService(gateway=gateway, sessions=sessions, clock=FixedClock(NOW))
+    intent = make_intent(
+        instrument=instrument,
+        kind=OrderKind.LIMIT,
+        limit_price=Decimal("50000"),
+        quantity=instrument.min_quantity * 10,
+    )
+    submitted = await service.submit(intent)
+    assert submitted is OrderStatus.ACKNOWLEDGED
+
+    status = await service.cancel(
+        intent.client_order_id, instrument.venue, intent.account_id, intent.environment
+    )
+
+    assert status is OrderStatus.CANCELLED
+    async with sessions() as session:
+        row = await session.get(OrderIntentRow, intent.client_order_id)
+        assert row is not None
+        assert row.status == OrderStatus.CANCELLED
+
+        transitions = (
+            (
+                await session.execute(
+                    select(OrderTransitionRow).where(
+                        OrderTransitionRow.client_order_id == intent.client_order_id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        sequence = [(t.from_status, t.to_status) for t in transitions]
+        assert sequence[-2:] == [
+            (OrderStatus.ACKNOWLEDGED, OrderStatus.CANCEL_REQUESTED),
+            (OrderStatus.CANCEL_REQUESTED, OrderStatus.CANCELLED),
+        ]
+
+
+async def test_cancelling_an_already_terminal_order_is_a_safe_no_op(sessions) -> None:
+    gateway, instrument = await make_gateway_and_instrument()
+    service = ExecutionService(gateway=gateway, sessions=sessions, clock=FixedClock(NOW))
+    intent = make_intent(instrument=instrument, quantity=instrument.min_quantity * 10)
+    submitted = await service.submit(intent)
+    assert submitted is OrderStatus.FILLED
+
+    status = await service.cancel(
+        intent.client_order_id, instrument.venue, intent.account_id, intent.environment
+    )
+
+    assert status is OrderStatus.FILLED
+    async with sessions() as session:
+        # No CANCEL_REQUESTED attempt was ever recorded against an already-terminal order.
+        transitions = (
+            (
+                await session.execute(
+                    select(OrderTransitionRow).where(
+                        OrderTransitionRow.client_order_id == intent.client_order_id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert all(t.to_status != OrderStatus.CANCEL_REQUESTED for t in transitions)
+
+
+async def test_cancelling_an_unknown_order_id_raises(sessions) -> None:
+    gateway, _ = await make_gateway_and_instrument()
+    service = ExecutionService(gateway=gateway, sessions=sessions, clock=FixedClock(NOW))
+    with pytest.raises(ValueError, match="no such order_intent"):
+        await service.cancel("never-submitted", "fake", "acct-1", "PAPER")
+
+
+async def test_cancelling_an_order_not_yet_acknowledged_raises(sessions) -> None:
+    gateway, instrument = await make_gateway_and_instrument()
+    service = ExecutionService(gateway=gateway, sessions=sessions, clock=FixedClock(NOW))
+    intent = make_intent(instrument=instrument, quantity=instrument.min_quantity * 10)
+    # Persisted but never actually submitted -- still VALIDATED, no CANCEL_REQUESTED edge exists
+    # from there per docs/diagrams/order-lifecycle.md.
+    async with unit_of_work(sessions) as uow:
+        await uow.save_order_intent(intent)
+
+    with pytest.raises(ValueError, match="reconcile it first"):
+        await service.cancel(
+            intent.client_order_id, instrument.venue, intent.account_id, intent.environment
+        )
+
+
+async def test_gateway_reported_unknown_cancel_outcome_leaves_the_order_unknown(sessions) -> None:
+    gateway, instrument = await make_gateway_and_instrument(
+        cancel_script={"order-1": CancelOutcome.UNKNOWN}
+    )
+    service = ExecutionService(gateway=gateway, sessions=sessions, clock=FixedClock(NOW))
+    intent = make_intent(
+        instrument=instrument,
+        kind=OrderKind.LIMIT,
+        limit_price=Decimal("50000"),
+        quantity=instrument.min_quantity * 10,
+    )
+    await service.submit(intent)
+
+    status = await service.cancel(
+        intent.client_order_id, instrument.venue, intent.account_id, intent.environment
+    )
+
+    assert status is OrderStatus.UNKNOWN
+    async with sessions() as session:
+        row = await session.get(OrderIntentRow, intent.client_order_id)
+        assert row is not None
+        assert row.status == OrderStatus.UNKNOWN
+
+
+class _FillWonRaceGateway:
+    """A minimal ExchangeGateway (structural, not FakeExchange) that always reports its order as
+    already FILLED by the time a cancel is attempted -- the one race FakeExchange's own fully
+    synchronous fill model cannot naturally reproduce through the public submit()/cancel() API."""
+
+    def __init__(self, instrument, fill: Fill) -> None:
+        self.instrument = instrument
+        self.fill = fill
+
+    async def submit_order(self, intent):
+        return SubmissionResult(SubmissionOutcome.ACCEPTED, venue_order_id="venue-1")
+
+    async def cancel_order(self, client_order_id):
+        return CancelResult(
+            CancelOutcome.FILL_WON_RACE, cumulative_filled_quantity=self.fill.quantity
+        )
+
+    async def lookup_order(self, client_order_id):
+        return OrderLookup(
+            VenueOrderStatus.FILLED, self.fill.quantity, self.fill.price, "venue-1"
+        )
+
+    async def list_fills(self, client_order_id):
+        return (self.fill,)
+
+
+async def test_fill_won_race_resolves_to_filled_and_posts_the_missed_fill(sessions) -> None:
+    _, instrument = await make_gateway_and_instrument()
+    intent = make_intent(
+        instrument=instrument,
+        kind=OrderKind.LIMIT,
+        limit_price=Decimal("50000"),
+        quantity=instrument.min_quantity * 10,
+    )
+    fill = Fill(
+        fill_id="race-fill-1",
+        client_order_id=intent.client_order_id,
+        instrument=instrument,
+        side=Side.BUY,
+        quantity=intent.quantity,
+        price=Decimal("50000"),
+        fee=Decimal("5"),
+        fee_currency="USD",
+        filled_at=NOW,
+    )
+    gateway = _FillWonRaceGateway(instrument, fill)
+    service = ExecutionService(gateway=gateway, sessions=sessions, clock=FixedClock(NOW))
+    async with unit_of_work(sessions) as uow:
+        await uow.save_order_intent(intent)
+        await uow.update_order_status(
+            intent.client_order_id, OrderStatus.VALIDATED, OrderStatus.SUBMITTING, NOW
+        )
+        await uow.update_order_status(
+            intent.client_order_id, OrderStatus.SUBMITTING, OrderStatus.SUBMITTED, NOW
+        )
+        await uow.update_order_status(
+            intent.client_order_id, OrderStatus.SUBMITTED, OrderStatus.ACKNOWLEDGED, NOW
+        )
+
+    status = await service.cancel(
+        intent.client_order_id, instrument.venue, intent.account_id, intent.environment
+    )
+
+    assert status is OrderStatus.FILLED
+    async with sessions() as session:
+        fills = (await session.execute(select(FillRow))).scalars().all()
+        assert len(fills) == 1
+        assert fills[0].fill_id == "race-fill-1"
+        postings = (await session.execute(select(LedgerPostingRow))).scalars().all()
+        assert len(postings) == 4

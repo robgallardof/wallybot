@@ -16,8 +16,15 @@ reservations and reconciles before retry." Concretely:
   `reconcile()` or observing an already-filled order repeatedly never double-posts a fill or its
   ledger transaction.
 
-Does not evaluate risk (that already happened before an intent reaches VALIDATED) and does not
-orchestrate cancellation -- both are their own future slices.
+Does not evaluate risk (that already happened before an intent reaches VALIDATED).
+
+`cancel()` (ADR-008/docs/diagrams/order-lifecycle.md's CANCEL_REQUESTED edges) durably records the
+cancel attempt before calling the gateway, exactly like `submit()` records SUBMITTING first --
+then resolves the *actual* outcome through the same lookup-based `_observe` path `submit()`/
+`reconcile()` already use, rather than trusting the gateway's own cancel-result outcome blindly:
+a "cancel confirmed" response and a "cancel rejected, order still open" response both still need a
+real lookup to know the authoritative status and pick up any fill that raced the cancellation. Only
+a gateway-reported UNKNOWN skips the lookup (ADR-008: ambiguity enters UNKNOWN, not a guess).
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -25,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from wallybot.application.ledger_postings import build_fill_ledger_transaction
 from wallybot.domain.clock import Clock
 from wallybot.domain.execution import (
+    CancelOutcome,
     ExchangeGateway,
     OrderLookup,
     SubmissionOutcome,
@@ -114,6 +122,47 @@ class ExecutionService:
             intent.account_id,
             intent.environment,
             OrderStatus.ACKNOWLEDGED,
+        )
+
+    async def cancel(
+        self, client_order_id: str, venue: str, account_id: str, environment: str
+    ) -> OrderStatus:
+        current_status = await self._current_status(client_order_id)
+        if current_status is None:
+            raise ValueError(f"no such order_intent: {client_order_id}")
+        if current_status in TERMINAL_STATUSES:
+            # Already resolved -- cancelling a filled/cancelled/rejected/failed order is a safe,
+            # idempotent no-op, same convention `reconcile_order` already uses for a terminal order.
+            return current_status
+        if current_status not in (OrderStatus.ACKNOWLEDGED, OrderStatus.PARTIALLY_FILLED):
+            # No CANCEL_REQUESTED edge exists from CREATED/VALIDATED/SUBMITTING/SUBMITTED/UNKNOWN
+            # per docs/diagrams/order-lifecycle.md -- those need reconciling to a stable state
+            # first, not a cancel attempt against an order that may not have reached the venue yet.
+            raise ValueError(
+                f"cannot request cancellation from {current_status}; reconcile it first"
+            )
+
+        now = self.clock.now()
+        async with unit_of_work(self.sessions) as uow:
+            await uow.update_order_status(
+                client_order_id, current_status, OrderStatus.CANCEL_REQUESTED, now
+            )
+
+        result = await self.gateway.cancel_order(client_order_id)
+        if result.outcome is CancelOutcome.UNKNOWN:
+            now = self.clock.now()
+            async with unit_of_work(self.sessions) as uow:
+                await uow.update_order_status(
+                    client_order_id, OrderStatus.CANCEL_REQUESTED, OrderStatus.UNKNOWN, now
+                )
+            return OrderStatus.UNKNOWN
+
+        # CANCELLED, FILL_WON_RACE and REJECTED_ZERO_FILLS all resolve the same way: ask the
+        # gateway what it actually knows now, exactly like `submit()` does after ACCEPTED -- this
+        # also picks up any fill that raced the cancellation, never invented from the cancel
+        # result's own reported outcome alone.
+        return await self._observe(
+            client_order_id, venue, account_id, environment, OrderStatus.CANCEL_REQUESTED
         )
 
     async def reconcile(self, intent: OrderIntent) -> OrderStatus:

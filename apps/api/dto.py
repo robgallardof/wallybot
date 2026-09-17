@@ -81,6 +81,11 @@ class PortfolioView(BaseModel):
     activity: list[PortfolioActivityView]
 
 
+class OrderCancelView(BaseModel):
+    client_order_id: str
+    status: str
+
+
 class ServiceStatusView(BaseModel):
     age_seconds: int | None
     status: str

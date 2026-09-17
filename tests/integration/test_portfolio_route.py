@@ -86,6 +86,48 @@ def test_portfolio_requires_auth(client) -> None:
     assert client.get("/api/portfolio").status_code == 401
 
 
+def add_open_order(db, account_id: str, client_order_id: str) -> None:
+    db.execute(
+        """INSERT INTO order_intents (
+             client_order_id, account_id, environment, venue, base, quote, side, kind, quantity,
+             limit_price, decision_id, idempotency_key, risk_assessment_id, config_versions,
+             created_at, expires_at, status
+           ) VALUES (
+             %s, %s, 'PAPER', 'kraken', 'BTC', 'USD', 'BUY', 'LIMIT', 0.005,
+             1, 'decision-1', %s, 'risk-1', '{}'::jsonb,
+             NOW(), NOW() + interval '1 hour', 'ACKNOWLEDGED'
+           )""",
+        (client_order_id, account_id, client_order_id),
+    )
+
+
+def test_cancel_order_requires_auth(client) -> None:
+    assert client.post("/api/portfolio/orders/order-1/cancel", json={}).status_code == 401
+
+
+def test_cancel_order_returns_404_for_an_unknown_order(client, settings, db) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    response = client.post(
+        "/api/portfolio/orders/never-existed/cancel", json={}, headers={"X-CSRF-Token": csrf}
+    )
+    assert response.status_code == 404
+
+
+def test_cancel_order_returns_404_for_another_accounts_order(client, settings, db) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    add_open_order(db, "paper:another-user", "other-users-order")
+
+    response = client.post(
+        "/api/portfolio/orders/other-users-order/cancel",
+        json={},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 404
+
+
 def test_fund_requires_auth(client) -> None:
     assert client.post("/api/portfolio/fund", json={"amount": "1000"}).status_code == 401
 

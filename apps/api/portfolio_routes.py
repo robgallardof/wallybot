@@ -8,9 +8,10 @@ from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy.exc import IntegrityError
 
 from apps.api.dependencies import Admin, SignedIn
-from apps.api.dto import PortfolioActivityView, PortfolioBalanceView, PortfolioView
+from apps.api.dto import OrderCancelView, PortfolioActivityView, PortfolioBalanceView, PortfolioView
 from apps.api.schemas import PortfolioFund
 from wallybot.application.ledger_postings import build_initial_funding_transaction
+from wallybot.infrastructure.models import OrderIntentRow
 from wallybot.infrastructure.portfolio_repository import PortfolioRepository
 from wallybot.infrastructure.provider_connection_repository import ProviderConnectionRepository
 from wallybot.infrastructure.unit_of_work import unit_of_work
@@ -97,3 +98,25 @@ async def fund_portfolio(body: PortfolioFund, request: Request, user: Admin) -> 
         raise HTTPException(status_code=409, detail="This account is already funded") from exc
 
     return await get_portfolio(request, user)
+
+
+@router.post("/orders/{client_order_id}/cancel", response_model=OrderCancelView)
+async def cancel_order(client_order_id: str, request: Request, user: Admin) -> OrderCancelView:
+    """Request cancellation of one of the signed-in admin's own still-open PAPER orders.
+
+    RISK.md lists "CANCEL OPEN ORDERS" as a control action distinct from pausing new entries --
+    "does not close filled positions." `ExecutionService.cancel` is the authoritative resolver
+    (durable CANCEL_REQUESTED claim, then a real gateway lookup); this route only resolves
+    ownership and rejects a client_order_id that does not belong to the caller's own account,
+    the same isolation `get_portfolio` already enforces for reads.
+    """
+    account_id = paper_account_id(user.id)
+    async with request.app.state.sessions() as db:
+        row = await db.get(OrderIntentRow, client_order_id)
+    if row is None or row.account_id != account_id:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    status = await request.app.state.execution.cancel(
+        client_order_id, row.venue, row.account_id, row.environment
+    )
+    return OrderCancelView(client_order_id=client_order_id, status=status)
