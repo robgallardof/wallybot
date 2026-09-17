@@ -1,5 +1,20 @@
 # Claude handoff — 2026-09-16 (new session)
 
+## Control-center UX + fresh-MFA confirmation — 2026-09-17
+
+The user asked for a polished, aligned UI on every Control Center page and explicitly authorized
+a commit. Configuración is now a responsive card layout (OBSERVE/PAPER, Telegram, MFA); Docs is a
+product onboarding map rather than developer tooling; Connections no longer reuses the four-column
+market form. The MFA refresh endpoint is intentionally CSRF-protected and updates the existing
+session only after a fresh TOTP code. No withdrawal or live-execution capability was added.
+
+Verification completed: integration auth suite 8 passed; focused frontend TypeScript/ESLint and
+the mocked Playwright suite passed, including the new 390px layout test. `pyright` retains the
+known pre-existing literal-role error in `apps/api/auth_routes.py:65`. The code graph was updated.
+
+Commit the cohesive current UI + MFA changes together; the user explicitly asked for it. Avoid
+adding unrelated future work to that commit.
+
 Picked up a fresh session with no prior chat context. `.ai/CURRENT.md`/`.ai/HANDOFF.md` were stale
 relative to `git log` -- several slices they described as "not yet committed" (Parquet ingestion,
 research job consumer, wallet/entity intelligence) were already committed by the time this session

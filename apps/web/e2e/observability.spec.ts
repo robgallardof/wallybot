@@ -160,14 +160,14 @@ const system = {
   live_available: false,
 };
 
-async function shell(page: Page) {
+async function shell(page: Page, role: "ADMIN" | "VIEWER" = "VIEWER") {
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     const responses: Record<string, unknown> = {
       "/api/auth/setup-status": { setup_required: false },
       "/api/auth/me": {
         username: "ui-fixture",
-        role: "VIEWER",
+        role,
         csrf: "synthetic-ui-only",
       },
       "/api/dashboard": {
@@ -189,12 +189,36 @@ async function shell(page: Page) {
       "/api/intelligence/wallet-activity": { rows: [] },
       "/api/intelligence/entity-graph": { rows: [] },
       "/api/backtests": { rows: [] },
+      "/api/telegram": { has_bot_token: false, chat_id: null, enabled: false },
+      "/api/auth/confirm-mfa": { ok: true },
     };
     if (!(path in responses))
       throw new Error(`Unexpected API request: ${path}`);
     await route.fulfill({ json: responses[path] });
   });
 }
+
+test("settings and first-steps pages keep actions aligned on desktop and mobile", async ({ page }) => {
+  await shell(page, "ADMIN");
+  await page.goto("/settings");
+  await expect(page.getByRole("heading", { name: "Observando mercados reales (OBSERVE)" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Activar simulación PAPER" })).toBeVisible();
+  await expect(page.getByLabel("Token del bot")).toBeVisible();
+  await expect(page.getByLabel("Chat ID")).toBeVisible();
+  await page.getByLabel("Código de autenticación").fill("123456");
+  await page.getByRole("button", { name: "Confirmar", exact: true }).click();
+  await expect(
+    page.getByText("Identidad confirmada. Ya podés repetir la acción que había fallado."),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+
+  await page.goto("/docs");
+  await expect(page.getByRole("heading", { name: "Todo tu espacio, explicado." })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Mercados/ })).toBeVisible();
+  await expect(page.getByText("La información no mueve tu dinero.")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
 
 test("markets direct route, loading, filters, keyboard details, locales and stale/empty states", async ({
   page,

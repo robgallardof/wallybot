@@ -205,6 +205,36 @@ class AuthService:
             session.last_seen = now
             return Identity(user.id, user.username, user.role, session.mfa_at)
 
+    async def confirm_mfa(self, raw: str, code: str) -> None:
+        """Refreshes the *current* session's `mfa_at` after re-entering a valid TOTP code --
+        without discarding the session or its CSRF secret, unlike `.mfa()` (which only ever runs
+        during the login challenge, before a session exists at all). `admin()` in
+        `apps/api/dependencies.py` requires `mfa_at` within the last 300 seconds for any
+        Admin-gated action; without this, that requirement had no way to be satisfied again short
+        of a full logout/login, making every admin action past the first 5 minutes of a session
+        fail closed -- a real gap, not a hypothetical one.
+        """
+        now = int(time.time())
+        async with self.sessions.begin() as db:
+            session = await db.get(SessionRow, digest(raw), with_for_update=True)
+            if (
+                session is None
+                or session.expires_at <= now
+                or session.last_seen + self.settings.session_idle_seconds <= now
+            ):
+                raise AuthError("Session expired")
+            user = await db.get(UserRow, session.user_id, with_for_update=True)
+            if user is None:
+                raise AuthError()
+            step = matching_step(
+                self.crypto.decrypt(user.totp_encrypted), code, now, user.last_totp_step
+            )
+            if step is None:
+                raise AuthError("Invalid or expired verification code")
+            user.last_totp_step = step
+            session.mfa_at = now
+            audit(db, "MFA_CONFIRMED", user.id)
+
     async def logout(self, raw: str, actor: str) -> None:
         async with self.sessions.begin() as db:
             await db.execute(delete(SessionRow).where(SessionRow.token_hash == digest(raw)))

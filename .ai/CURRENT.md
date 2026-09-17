@@ -1,5 +1,23 @@
 # Current task
 
+## Control-center UX and recent MFA confirmation (2026-09-17)
+
+- Reworked **Configuración** into responsive state/action cards for OBSERVE/PAPER, Telegram, and
+  recent MFA confirmation. Forms now remain aligned at phone widths and Telegram data hydrates
+  after its query completes.
+- Replaced developer-facing Docs content with product-first onboarding: five setup steps, a map to
+  each Control Center area, and explicit OBSERVE/PAPER/no-withdrawal boundaries. Connections use
+  their own responsive form grid rather than the market-filter layout.
+- Added an authenticated `POST /api/auth/confirm-mfa` flow so an administrator can refresh the
+  five-minute MFA window without a logout; integration coverage confirms stale/rejected/successful
+  paths.
+- Verified: `test_auth.py` (8 passed), focused frontend TypeScript/ESLint, and the fully mocked
+  Playwright UI suite (including desktop/mobile settings/docs). `pyright` still reports the known,
+  unrelated pre-existing type issue in `apps/api/auth_routes.py:65`.
+
+**Commit intent:** user explicitly requested a commit. The current cohesive UI + MFA slice is ready
+to commit after the final working-tree review; do not include unrelated future work.
+
 **Task:** Continue closing the "backend exists, nothing shows it" gap per `docs/PENDING.md`'s
 recommended delivery order. User said "Continua con el flow y la app ok?" — kept going
 autonomously per this session's established pattern (no check-in between slices).

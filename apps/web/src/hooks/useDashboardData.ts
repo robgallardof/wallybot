@@ -36,5 +36,13 @@ export function useDashboardData() {
       void client.invalidateQueries({ queryKey: ["events"] });
     },
   });
-  return { dashboard, system, events, change };
+  // Refreshes the current session's MFA recency (apps/api/dependencies.py's admin() requires it
+  // within the last 5 minutes for any Admin-gated action) without a new login -- see
+  // wallybot.security.auth.AuthService.confirm_mfa. Does not retry whatever action originally
+  // failed; the operator re-submits that themselves once this succeeds.
+  const confirmMfa = useMutation({
+    mutationFn: (body: { code: string }) =>
+      api("/auth/confirm-mfa", z.object({ ok: z.boolean() }), body),
+  });
+  return { dashboard, system, events, change, confirmMfa };
 }

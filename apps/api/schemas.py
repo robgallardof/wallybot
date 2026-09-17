@@ -39,6 +39,10 @@ class SetupFinish(Verification):
     bootstrap_token: str = Field(min_length=32, max_length=256)
 
 
+class MfaConfirm(Input):
+    code: str = Field(min_length=6, max_length=6)
+
+
 class ControlChange(Input):
     status: Status
     environment: Environment | None = None

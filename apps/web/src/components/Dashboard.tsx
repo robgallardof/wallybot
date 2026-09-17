@@ -51,19 +51,23 @@ export function Dashboard({
   ].includes(initial)
     ? initial
     : "dashboard";
-  const { dashboard, system, events, change } = useDashboardData();
+  const { dashboard, system, events, change, confirmMfa } = useDashboardData();
   const markets = useMarketsData(page === "markets");
   const smartMoney = useSmartMoneyData(page === "intelligence");
   const whaleFlow = useWhaleFlowData(page === "intelligence");
   const tokenRisk = useTokenRiskData(page === "intelligence");
-  const providerReliability = useProviderReliabilityData(page === "intelligence");
+  const providerReliability = useProviderReliabilityData(
+    page === "intelligence",
+  );
   const priceConsensus = usePriceConsensusData(page === "intelligence");
   const walletActivity = useWalletActivityData(page === "intelligence");
   const entityGraph = useEntityGraphData(page === "intelligence");
   const { history: backtestHistory, run: runBacktest } = useBacktestsData(
     page === "research",
   );
-  const { connections, add: addConnection } = useConnectionsData(page === "connections");
+  const { connections, add: addConnection } = useConnectionsData(
+    page === "connections",
+  );
   const { telegram, save: saveTelegram } = useTelegramData(page === "settings");
   function navigate(next: string) {
     router.push(`/${next}`);
@@ -103,7 +107,9 @@ export function Dashboard({
         <BacktestsPage history={backtestHistory} run={runBacktest} />
       )}
       {page === "portfolio" && <Unavailable />}
-      {page === "connections" && <ConnectionsPage connections={connections} add={addConnection} />}
+      {page === "connections" && (
+        <ConnectionsPage connections={connections} add={addConnection} />
+      )}
       {page === "settings" && (
         <SettingsPage
           dashboard={dashboard}
@@ -111,6 +117,7 @@ export function Dashboard({
           role={user.role}
           telegram={telegram}
           saveTelegram={saveTelegram}
+          confirmMfa={confirmMfa}
         />
       )}
       {page === "docs" && <DocsPage />}

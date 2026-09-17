@@ -164,6 +164,45 @@ def test_totp_concurrency_and_replay(client, settings, db):
     assert sorted(responses) == [200, 401]
 
 
+def test_confirm_mfa_refreshes_a_stale_admin_session_without_a_new_login(client, settings, db):
+    enrollment, _ = enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    # Simulate a session older than admin()'s 5-minute recent-MFA window (apps/api/dependencies.py).
+    db.execute("UPDATE sessions SET mfa_at = mfa_at - 301")
+
+    stale = client.post("/api/control", json={"status": "PAUSED"}, headers={"X-CSRF-Token": csrf})
+    assert stale.status_code == 403
+    assert stale.json()["detail"] == "Sign in again with MFA to confirm this action"
+
+    db.execute("UPDATE users SET last_totp_step=-1")
+    code = pyotp.TOTP(enrollment["secret"]).now()
+    confirmed = client.post(
+        "/api/auth/confirm-mfa", json={"code": code}, headers={"X-CSRF-Token": csrf}
+    )
+    assert confirmed.status_code == 200, confirmed.text
+
+    # Same cookie/CSRF as before -- confirm-mfa refreshes the existing session, it doesn't rotate.
+    retried = client.post("/api/control", json={"status": "PAUSED"}, headers={"X-CSRF-Token": csrf})
+    assert retried.status_code == 200, retried.text
+    assert db.execute("SELECT status FROM control").fetchone()[0] == "PAUSED"
+
+
+def test_confirm_mfa_rejects_a_wrong_code_without_refreshing_the_session(client, settings, db):
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    db.execute("UPDATE sessions SET mfa_at = mfa_at - 301")
+
+    rejected = client.post(
+        "/api/auth/confirm-mfa", json={"code": "000000"}, headers={"X-CSRF-Token": csrf}
+    )
+    assert rejected.status_code == 401
+
+    still_stale = client.post(
+        "/api/control", json={"status": "PAUSED"}, headers={"X-CSRF-Token": csrf}
+    )
+    assert still_stale.status_code == 403
+
+
 def test_shared_throttle_fails_closed(settings, db):
     from fastapi.testclient import TestClient
 

@@ -11,7 +11,7 @@ from apps.api.dto import (
     SetupStartView,
     SetupStatusView,
 )
-from apps.api.schemas import Login, SetupFinish, SetupStart, Verification
+from apps.api.schemas import Login, MfaConfirm, SetupFinish, SetupStart, Verification
 from wallybot.infrastructure.models import ControlRow
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
@@ -72,4 +72,16 @@ async def logout(request: Request, response: Response, user: Protected) -> Logou
     settings = request.app.state.settings
     await request.app.state.auth.logout(request.cookies[settings.cookie_name], user.id)
     clear_cookie(request, response)
+    return LogoutView(ok=True)
+
+
+@router.post("/confirm-mfa", dependencies=[Depends(auth_throttle)], response_model=LogoutView)
+async def confirm_mfa(body: MfaConfirm, request: Request, user: Protected) -> LogoutView:
+    """Refreshes the signed-in session's MFA recency (see `AuthService.confirm_mfa`) so an Admin
+    action past the 5-minute window (`apps/api/dependencies.py`'s `admin()`) can succeed again
+    without a full logout/login -- no cookie changes, the session and its CSRF secret are
+    untouched."""
+    await request.app.state.throttle.check("confirm-mfa:" + user.id)
+    settings = request.app.state.settings
+    await request.app.state.auth.confirm_mfa(request.cookies[settings.cookie_name], body.code)
     return LogoutView(ok=True)

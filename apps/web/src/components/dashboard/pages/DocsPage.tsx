@@ -1,221 +1,115 @@
 import { useTranslation } from "react-i18next";
 import {
+  BellRing,
   BookOpen,
-  ClipboardList,
-  ExternalLink,
+  Brain,
+  Cable,
+  ChartNoAxesCombined,
+  CircleDollarSign,
   FlaskConical,
-  GitBranch,
-  Rocket,
-  Waypoints,
+  ShieldCheck,
+  WalletCards,
 } from "lucide-react";
 import i18n from "../../../lib/i18n";
 
-/**
- * Static onboarding page for whoever clones this repo and wants to run their own instance --
- * unlike every other page here, it renders no query data on purpose: this is meant to still be
- * readable the moment the stack first comes up, before setup, PostgreSQL or Redis exist.
- */
+const areas = [
+  {
+    href: "/markets",
+    icon: ChartNoAxesCombined,
+    title: "Mercados",
+    description: "Consulta cotizaciones, calidad de datos y los instrumentos disponibles para análisis.",
+  },
+  {
+    href: "/connections",
+    icon: Cable,
+    title: "Conexiones",
+    description: "Registra tus proveedores y direcciones públicas para consultar datos de tu propio espacio.",
+  },
+  {
+    href: "/intelligence",
+    icon: Brain,
+    title: "Inteligencia",
+    description: "Revisa señales, actividad de wallets y calidad de proveedores antes de tomar decisiones.",
+  },
+  {
+    href: "/research",
+    icon: FlaskConical,
+    title: "Investigación",
+    description: "Prueba hipótesis y compara resultados sin convertir una señal en una orden real.",
+  },
+  {
+    href: "/risk",
+    icon: ShieldCheck,
+    title: "Riesgo",
+    description: "Consulta los límites y pausa el sistema cuando necesites revisar una condición.",
+  },
+  {
+    href: "/settings",
+    icon: BellRing,
+    title: "Configuración",
+    description: "Elige OBSERVE o PAPER y configura alertas privadas de Telegram.",
+  },
+] as const;
+
 export function DocsPage() {
   useTranslation();
   return (
-    <article className="panel wide-panel docs-panel">
-      <div className="panel-heading">
-        <h2>{i18n.t("Documentación y primeros pasos")}</h2>
-        <BookOpen size={20} />
-      </div>
-      <p className="muted">
-        {i18n.t(
-          "Esta página resume cómo levantar tu propia instancia y dónde encontrar el resto de la documentación en el repositorio. Es contenido fijo, no depende del backend.",
-        )}
-      </p>
-      <a
-        className="button button-outline docs-diagram-link"
-        href="https://github.com/Graphify-Labs/graphify"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        <GitBranch size={16} />
-        {i18n.t("Repositorio oficial de Graphify")}
-        <ExternalLink size={14} />
-      </a>
-      <p className="muted">
-        {i18n.t(
-          "La herramienta que este repo usa para explorar su propio código -- instrucciones de instalación, documentación completa y el código fuente viven ahí, no acá.",
-        )}
-      </p>
+    <div className="docs-stack">
+      <article className="panel docs-hero">
+        <span className="docs-hero-icon"><BookOpen size={22} /></span>
+        <div>
+          <p className="eyebrow">{i18n.t("Documentación y primeros pasos")}</p>
+          <h2>{i18n.t("Todo tu espacio, explicado.")}</h2>
+          <p className="muted">
+            {i18n.t("WallyBot te ayuda a observar, investigar y organizar decisiones. Esta guía te indica qué hace cada sección y cuál es el siguiente paso seguro.")}
+          </p>
+        </div>
+      </article>
 
-      <section aria-labelledby="docs-first-steps">
-        <h3 id="docs-first-steps">
-          <Rocket size={16} /> {i18n.t("Primeros pasos")}
-        </h3>
-        <ol className="docs-steps">
-          <li>
-            {i18n.t(
-              "Requisitos: Docker Engine/Desktop con Compose y Python 3.12+.",
-            )}
-          </li>
-          <li>
-            <code>python scripts/bootstrap.py</code>
-            {" — "}
-            {i18n.t("genera tus secretos locales (nunca los subas al repo).")}
-          </li>
-          <li>
-            <code>docker compose up -d --build</code>
-            {" — "}
-            {i18n.t("construye y levanta todos los servicios.")}
-          </li>
-          <li>
-            {i18n.t("Abre")} <code>http://localhost:3333/setup</code>
-            {", "}
-            {i18n.t(
-              "lee el token en .secrets/bootstrap_token, crea tu administrador e inscribe tu autenticador (TOTP). Guarda los códigos de recuperación: no se muestran una segunda vez.",
-            )}
-          </li>
-          <li>
-            {i18n.t(
-              "Por defecto la instancia arranca en modo OBSERVE (solo observa, nunca simula ni ejecuta). Activá el modo PAPER desde",
-            )}{" "}
-            <strong>{i18n.t("Configuración")}</strong>
-            {i18n.t(" si querés que simule operaciones.")}
-          </li>
+      <article className="panel docs-panel">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">{i18n.t("Primera configuración")}</p>
+            <h2>{i18n.t("Empezá en cinco pasos")}</h2>
+          </div>
+          <span className="subtle-pill">{i18n.t("TU INSTANCIA PRIVADA")}</span>
+        </div>
+        <ol className="setup-steps">
+          <li><span>01</span><div><strong>{i18n.t("Protegé tu acceso")}</strong><p>{i18n.t("Crea tu usuario administrador, activa el autenticador y guarda los códigos de recuperación.")}</p></div></li>
+          <li><span>02</span><div><strong>{i18n.t("Conectá solo para consultar")}</strong><p>{i18n.t("Agrega un exchange, broker o wallet con acceso de lectura. Nunca habilites permisos de retiro.")}</p></div></li>
+          <li><span>03</span><div><strong>{i18n.t("Revisá los mercados")}</strong><p>{i18n.t("Explora precios, filtros y calidad de los datos antes de investigar una oportunidad.")}</p></div></li>
+          <li><span>04</span><div><strong>{i18n.t("Probá tu idea")}</strong><p>{i18n.t("Usá Investigación para medir una estrategia. PAPER simula órdenes con datos reales, sin dinero real.")}</p></div></li>
+          <li><span>05</span><div><strong>{i18n.t("Elegí cómo recibir avisos")}</strong><p>{i18n.t("Configurá Telegram si querés recibir alertas en tu chat privado.")}</p></div></li>
         </ol>
+      </article>
+
+      <section className="docs-areas" aria-label={i18n.t("Áreas de WallyBot")}>
+        {areas.map(({ href, icon: Icon, title, description }) => (
+          <a className="docs-area-card" href={href} key={href}>
+            <span><Icon size={19} /></span>
+            <h3>{i18n.t(title)}</h3>
+            <p>{i18n.t(description)}</p>
+            <small>{i18n.t("Abrir sección")} →</small>
+          </a>
+        ))}
       </section>
 
-      <section aria-labelledby="docs-architecture">
-        <h3 id="docs-architecture">
-          <Waypoints size={16} /> {i18n.t("Arquitectura, en breve")}
-        </h3>
-        <p>
-          {i18n.t(
-            "WallyBot es un monolito modular: procesos independientes (api, worker, scheduler, research_worker, web) que comparten paquetes tipados de dominio/aplicación/infraestructura bajo wallybot/. El dominio (wallybot/domain) nunca importa FastAPI, SQLAlchemy, CCXT ni SDKs de IA -- es una regla de arquitectura, no una preferencia de estilo.",
-          )}
-        </p>
-        <p>
-          {i18n.t(
-            "El detalle completo vive en archivos Markdown en la raíz del repo, no en esta página: ARCHITECTURE.md (diseño y capas), DATA.md (datos de mercado), SECURITY.md, RISK.md, TESTING.md y DEPLOYMENT.md. Ábrelos directamente en tu editor o en GitHub.",
-          )}
-        </p>
-      </section>
-
-      <section aria-labelledby="docs-graphify">
-        <h3 id="docs-graphify">
-          <GitBranch size={16} /> {i18n.t("Explorar el código con Graphify")}
-        </h3>
-        <p>
-          {i18n.t(
-            "Graphify es una herramienta de línea de comandos (no forma parte del stack que corre en producción) que convierte el repositorio en un grafo de conocimiento navegable -- útil para entender cómo se relacionan los módulos antes de tocar código.",
-          )}
-        </p>
-        <pre className="docs-code">
-          <code>{"uv tool install graphifyy\ngraphify . --wiki"}</code>
-        </pre>
-        <p className="muted">
-          {i18n.t(
-            "El primer comando genera un diagrama interactivo (graphify-out/graph.html) y un reporte en texto plano (graphify-out/GRAPH_REPORT.md) que podés abrir en el navegador o en tu editor. Es una herramienta de desarrollo opcional, no un requisito para correr tu bot.",
-          )}
-        </p>
-        <a
-          className="button button-outline docs-diagram-link"
-          href="/architecture.html"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <ExternalLink size={16} />
-          {i18n.t("Ver diagrama de arquitectura")}
+      <article className="panel docs-safety-panel">
+        <span><ShieldCheck size={21} /></span>
+        <div>
+          <p className="eyebrow">{i18n.t("Límite de seguridad")}</p>
+          <h2>{i18n.t("La información no mueve tu dinero.")}</h2>
+          <p>{i18n.t("OBSERVE solo lee mercados reales. PAPER simula operaciones. WallyBot no puede retirar fondos ni transferir activos desde esta instancia.")}</p>
+        </div>
+        <a className="button button-outline" href="/settings">
+          <CircleDollarSign size={16} /> {i18n.t("Ver configuración")}
         </a>
-        <p className="muted">
-          {i18n.t(
-            "Snapshot generado con Graphify (graphify export callflow-html): módulos, procesos y cómo se llaman entre sí. Se abre en una pestaña nueva porque es HTML estático servido tal cual, no una página de la app -- se regenera a mano cuando la arquitectura cambia mucho, no en cada build.",
-          )}
-        </p>
-        <p>
-          {i18n.t(
-            "El uso diario no es solo el build inicial -- es un flujo de cuatro comandos que se repite mientras trabajás:",
-          )}
-        </p>
-        <ol className="docs-steps">
-          <li>
-            <code>{'graphify query "¿cómo se conecta X con Y?"'}</code>
-            {" — "}
-            {i18n.t(
-              "primera pregunta sobre cualquier duda de arquitectura o relación entre archivos: devuelve un subgrafo acotado, mucho más chico que leer el reporte completo o grepear a mano.",
-            )}
-          </li>
-          <li>
-            <code>{'graphify path "A" "B"'}</code>
-            {" — "}
-            {i18n.t(
-              "el camino concreto entre dos símbolos o módulos puntuales.",
-            )}
-          </li>
-          <li>
-            <code>{'graphify explain "concepto"'}</code>
-            {" — "}
-            {i18n.t(
-              "un concepto acotado (ej. una entidad de dominio o un flujo) sin todo el grafo alrededor.",
-            )}
-          </li>
-          <li>
-            <code>graphify update .</code>
-            {" — "}
-            {i18n.t(
-              "después de modificar código: solo AST, sin costo de API, mantiene el grafo al día para la próxima consulta.",
-            )}
-          </li>
-        </ol>
-        <p className="muted">
-          {i18n.t(
-            "Si usás Claude Code o Codex CLI sobre este repo, ambos ya están instruidos (AGENTS.md) para seguir este mismo flujo antes de leer o grepear archivos fuente a mano.",
-          )}
-        </p>
-      </section>
+      </article>
 
-      <section aria-labelledby="docs-testing">
-        <h3 id="docs-testing">
-          <FlaskConical size={16} /> {i18n.t("Pruebas y calidad")}
-        </h3>
-        <pre className="docs-code">
-          <code>
-            {
-              'uv run pytest -m "not integration"\nuv run pytest -m integration\nuv run ruff check .\nuv run pyright'
-            }
-          </code>
-        </pre>
-        <p className="muted">
-          {i18n.t(
-            "Las pruebas de integración necesitan Docker corriendo (levantan Postgres y Redis descartables vía testcontainers) -- las que no son de integración no. Ambos comandos de lint/tipos deben quedar limpios antes de dar por terminado un cambio.",
-          )}
-        </p>
-      </section>
-
-      <section aria-labelledby="docs-status">
-        <h3 id="docs-status">
-          <ClipboardList size={16} /> {i18n.t("Estado actual del proyecto")}
-        </h3>
-        <p>
-          {i18n.t(
-            "Esta página no refleja qué falta o qué se rompió último -- eso vive en dos lugares que se actualizan con cada sesión de desarrollo, humana o asistida por IA:",
-          )}
-        </p>
-        <ul className="docs-steps">
-          <li>
-            <code>docs/PENDING.md</code>
-            {" — "}
-            {i18n.t(
-              "backlog de producto por fase, con criterios de aceptación explícitos y el orden de entrega recomendado.",
-            )}
-          </li>
-          <li>
-            <code>.ai/CURRENT.md</code>
-            {i18n.t(" y ")}
-            <code>.ai/HANDOFF.md</code>
-            {" — "}
-            {i18n.t(
-              "la tarea activa y el estado que dejó la última sesión para quien continúe sin haber visto la conversación.",
-            )}
-          </li>
-        </ul>
-      </section>
-    </article>
+      <article className="panel docs-wallet-note">
+        <WalletCards size={19} />
+        <p>{i18n.t("Cada conexión, wallet y configuración pertenece a tu cuenta. Otros usuarios no ven ni pueden modificar tu actividad.")}</p>
+      </article>
+    </div>
   );
 }

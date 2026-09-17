@@ -1076,3 +1076,429 @@
   display: inline-flex;
   margin-top: 12px;
 }
+
+/* Configuration is task-oriented: each setting keeps its explanation, state and action together. */
+:root .settings-stack {
+  display: grid;
+  gap: 20px;
+  max-width: 1040px;
+}
+:root .settings-panel {
+  max-width: none;
+  padding: 26px;
+}
+:root .settings-heading {
+  align-items: center;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+:root .settings-heading-icon {
+  align-items: center;
+  background: var(--accent-soft);
+  border-radius: 12px;
+  color: var(--accent);
+  display: inline-flex;
+  height: 42px;
+  justify-content: center;
+  width: 42px;
+}
+:root .settings-heading .eyebrow {
+  margin: 0 0 3px;
+}
+:root .settings-heading h2 {
+  font-size: 19px;
+  letter-spacing: -0.25px;
+  margin: 0;
+}
+:root .settings-status {
+  align-items: center;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 650;
+  gap: 7px;
+  max-width: 245px;
+  padding: 7px 10px;
+}
+:root .settings-status i {
+  background: var(--muted);
+  border-radius: 50%;
+  height: 7px;
+  width: 7px;
+}
+:root .settings-status.paper {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+:root .settings-status.paper i {
+  background: var(--warning);
+}
+:root .settings-status.connected {
+  background: var(--positive-soft);
+  color: var(--positive);
+}
+:root .settings-status.connected i {
+  background: var(--positive);
+}
+:root .settings-description {
+  line-height: 1.65;
+  margin: 20px 0 0;
+  max-width: 790px;
+}
+:root .settings-action-row {
+  align-items: center;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  margin-top: 23px;
+  padding-top: 20px;
+}
+:root .settings-safety {
+  align-items: flex-start;
+  color: var(--muted);
+  display: flex;
+  font-size: 12px;
+  gap: 9px;
+  line-height: 1.55;
+  max-width: 610px;
+}
+:root .settings-safety svg {
+  color: var(--accent);
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+:root .settings-readonly {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 20px 0 0;
+}
+:root .settings-form {
+  align-items: end;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(240px, 2fr) minmax(160px, 1fr) auto auto;
+  margin-top: 23px;
+  padding-top: 20px;
+}
+:root .settings-form label {
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  gap: 8px;
+  min-width: 0;
+}
+:root .settings-form input:not([type="checkbox"]) {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font: inherit;
+  min-height: 44px;
+  padding: 10px 12px;
+  width: 100%;
+}
+:root .settings-toggle {
+  align-items: center;
+  align-self: end;
+  color: var(--text) !important;
+  cursor: pointer;
+  flex-direction: row !important;
+  font-weight: 550;
+  min-height: 44px;
+  white-space: nowrap;
+}
+:root .settings-toggle input {
+  height: 1px;
+  opacity: 0;
+  position: absolute;
+  width: 1px;
+}
+:root .settings-toggle span {
+  background: var(--border);
+  border-radius: 999px;
+  height: 22px;
+  position: relative;
+  transition: background 150ms ease;
+  width: 40px;
+}
+:root .settings-toggle span::after {
+  background: var(--surface);
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
+  content: "";
+  height: 16px;
+  left: 3px;
+  position: absolute;
+  top: 3px;
+  transition: transform 150ms ease;
+  width: 16px;
+}
+:root .settings-toggle input:checked + span {
+  background: var(--accent);
+}
+:root .settings-toggle input:checked + span::after {
+  transform: translateX(18px);
+}
+:root .settings-toggle input:focus-visible + span {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+@media (max-width: 900px) {
+  :root .settings-form {
+    grid-template-columns: minmax(0, 1fr) minmax(160px, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  :root .settings-panel {
+    padding: 20px;
+  }
+  :root .settings-heading {
+    align-items: start;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  :root .settings-status {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+  :root .settings-action-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  :root .settings-action-row .button {
+    width: 100%;
+  }
+  :root .settings-form {
+    grid-template-columns: 1fr;
+  }
+  :root .settings-form .button {
+    width: 100%;
+  }
+}
+
+/* The guide doubles as the visual map of the control centre, not developer documentation. */
+:root .docs-stack {
+  display: grid;
+  gap: 20px;
+  max-width: 1120px;
+}
+:root .docs-hero {
+  align-items: flex-start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 28px;
+}
+:root .docs-hero-icon {
+  align-items: center;
+  background: var(--accent-soft);
+  border-radius: 14px;
+  color: var(--accent);
+  display: inline-flex;
+  height: 48px;
+  justify-content: center;
+  width: 48px;
+}
+:root .docs-hero .eyebrow,
+:root .docs-safety-panel .eyebrow {
+  margin: 0 0 5px;
+}
+:root .docs-hero h2,
+:root .docs-safety-panel h2 {
+  font-size: 22px;
+  letter-spacing: -0.45px;
+  margin: 0;
+}
+:root .docs-hero .muted {
+  line-height: 1.65;
+  margin: 8px 0 0;
+  max-width: 720px;
+}
+:root .setup-steps {
+  counter-reset: setup;
+  display: grid;
+  gap: 0;
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+}
+:root .setup-steps li {
+  align-items: flex-start;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  padding: 15px 0;
+}
+:root .setup-steps li:last-child {
+  border-bottom: 1px solid var(--border);
+}
+:root .setup-steps li > span {
+  align-items: center;
+  background: var(--surface-raised);
+  border-radius: 9px;
+  color: var(--accent);
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 700;
+  height: 30px;
+  justify-content: center;
+}
+:root .setup-steps strong {
+  color: var(--text);
+  font-size: 14px;
+}
+:root .setup-steps p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 4px 0 0;
+}
+:root .docs-areas {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+:root .docs-area-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  min-height: 194px;
+  padding: 20px;
+  text-decoration: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+:root .docs-area-card:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
+}
+:root .docs-area-card > span {
+  align-items: center;
+  background: var(--accent-soft);
+  border-radius: 10px;
+  color: var(--accent);
+  display: inline-flex;
+  height: 36px;
+  justify-content: center;
+  width: 36px;
+}
+:root .docs-area-card h3 {
+  font-size: 15px;
+  margin: 15px 0 6px;
+}
+:root .docs-area-card p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 0;
+}
+:root .docs-area-card small {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: auto;
+  padding-top: 16px;
+}
+:root .docs-safety-panel {
+  align-items: center;
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--border));
+  display: grid;
+  gap: 16px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+:root .docs-safety-panel > span {
+  color: var(--accent);
+}
+:root .docs-safety-panel p:not(.eyebrow) {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 5px 0 0;
+}
+:root .docs-wallet-note {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  padding: 17px 20px;
+}
+:root .docs-wallet-note svg {
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+:root .docs-wallet-note p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* A connection form has more fields than market filters, so it receives its own responsive grid. */
+:root .connection-form {
+  align-items: end;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(130px, 0.8fr) minmax(160px, 1fr) minmax(180px, 1.25fr) minmax(180px, 1.25fr) auto;
+  margin: 22px 0;
+}
+:root .connection-form label {
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  gap: 8px;
+  min-width: 0;
+}
+:root .connection-form :is(input, select) {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font: inherit;
+  min-height: 44px;
+  padding: 10px 12px;
+  width: 100%;
+}
+:root .connection-form .button {
+  white-space: nowrap;
+}
+@media (max-width: 1080px) {
+  :root .connection-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  :root .docs-areas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  :root .docs-safety-panel {
+    align-items: flex-start;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  :root .docs-safety-panel .button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
+@media (max-width: 520px) {
+  :root .docs-hero {
+    padding: 22px;
+  }
+  :root .docs-areas,
+  :root .connection-form {
+    grid-template-columns: 1fr;
+  }
+  :root .connection-form .button {
+    width: 100%;
+  }
+}

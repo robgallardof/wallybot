@@ -5,7 +5,14 @@ import type { z } from "zod";
 import i18n from "../../../lib/i18n";
 import type { providerConnectionListSchema } from "../../../lib/dto";
 
-const PROVIDERS = ["BINANCE", "BITSO", "KRAKEN", "COINBASE", "WALLET", "TIINGO"] as const;
+const PROVIDERS = [
+  "BINANCE",
+  "BITSO",
+  "KRAKEN",
+  "COINBASE",
+  "WALLET",
+  "TIINGO",
+] as const;
 
 /**
  * Lets the operator store their own broker/exchange/wallet credentials, read-only or PAPER only
@@ -21,11 +28,18 @@ export function ConnectionsPage({
   add: UseMutationResult<
     unknown,
     Error,
-    { provider: string; label: string; mode: string; api_key?: string; api_secret?: string }
+    {
+      provider: string;
+      label: string;
+      mode: string;
+      api_key?: string;
+      api_secret?: string;
+    }
   >;
 }) {
   useTranslation();
-  const [provider, setProvider] = useState<(typeof PROVIDERS)[number]>("KRAKEN");
+  const [provider, setProvider] =
+    useState<(typeof PROVIDERS)[number]>("KRAKEN");
   const [label, setLabel] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
@@ -41,14 +55,22 @@ export function ConnectionsPage({
         label: label.trim(),
         mode: "READ_ONLY",
         api_key: apiKey.trim() || undefined,
-        api_secret: singleCredential ? undefined : apiSecret.trim() || undefined,
+        api_secret: singleCredential
+          ? undefined
+          : apiSecret.trim() || undefined,
       },
-      { onSuccess: () => { setLabel(""); setApiKey(""); setApiSecret(""); } },
+      {
+        onSuccess: () => {
+          setLabel("");
+          setApiKey("");
+          setApiSecret("");
+        },
+      },
     );
   }
 
   return (
-    <article className="panel wide-panel">
+    <article className="panel wide-panel connections-panel">
       <div className="panel-heading">
         <h2>{i18n.t("Conexiones")}</h2>
       </div>
@@ -57,12 +79,14 @@ export function ConnectionsPage({
           "Agrega un proveedor en modo lectura o PAPER. Las credenciales se cifran y nunca se vuelven a mostrar. No se habilitan claves de trading ni retiros aquí.",
         )}
       </p>
-      <form className="market-filters" onSubmit={submit}>
+      <form className="connection-form" onSubmit={submit}>
         <label>
           {i18n.t("Proveedor")}
           <select
             value={provider}
-            onChange={(event) => setProvider(event.target.value as (typeof PROVIDERS)[number])}
+            onChange={(event) =>
+              setProvider(event.target.value as (typeof PROVIDERS)[number])
+            }
           >
             {PROVIDERS.map((value) => (
               <option key={value}>{value}</option>
@@ -106,7 +130,7 @@ export function ConnectionsPage({
       </form>
       {add.isError && (
         <p className="error" role="alert">
-          {i18n.t("No se pudo agregar la conexión.")}
+          {i18n.t(add.error.message)}
         </p>
       )}
       <div className="markets-table-wrap">
