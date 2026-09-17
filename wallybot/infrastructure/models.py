@@ -547,6 +547,25 @@ class ProviderReliabilitySnapshotRow(Base):
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
 
+class EquitySnapshotRow(Base):
+    """Persists `wallybot.domain.equity.EquitySnapshot`. Insert-only, same reasoning as every
+    other snapshot table -- each computed equity is a fact about a moment in time, and
+    `high_water_mark` on each row makes drawdown reconstructible without a full-history scan."""
+
+    __tablename__ = "equity_snapshots"
+    __table_args__ = (
+        CheckConstraint("environment IN ('PAPER', 'LIVE')"),
+        CheckConstraint("equity > 0"),
+        CheckConstraint("high_water_mark >= equity"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    account_id: Mapped[str] = mapped_column(String(64), index=True)
+    environment: Mapped[str] = mapped_column(String(8))
+    equity: Mapped[Decimal] = mapped_column(Numeric)
+    high_water_mark: Mapped[Decimal] = mapped_column(Numeric)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
 class PriceConsensusResultRow(Base):
     """Persists `wallybot.domain.price_consensus.PriceConsensusResult`. Insert-only, same
     reasoning as every other snapshot table -- each computation is a fact about a moment in time."""
