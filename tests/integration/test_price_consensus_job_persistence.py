@@ -3,12 +3,12 @@ import sys
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-import psycopg
+import pyotp
 import pytest
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from wallybot.application.price_consensus_job import ProviderSource, run_price_consensus_tick
 from wallybot.domain.market import Candle, Instrument
+from wallybot.domain.price_consensus import PriceConsensusStatus
 from wallybot.infrastructure.price_consensus_repository import PriceConsensusRepository
 from wallybot.infrastructure.provider_reliability_repository import ProviderReliabilityRepository
 
@@ -24,17 +24,9 @@ def event_loop_policy():
     return asyncio.DefaultEventLoopPolicy()
 
 
-@pytest.fixture
-def sessions(settings, dependencies):
-    engine = create_async_engine(dependencies[0])
-    return async_sessionmaker(engine, expire_on_commit=False)
-
-
-@pytest.fixture(autouse=True)
-def _reset_tables(dependencies):
-    with psycopg.connect(dependencies[0].replace("+psycopg", ""), autocommit=True) as connection:
-        connection.execute("TRUNCATE price_consensus_results, provider_reliability_snapshots")
-    yield
+class FixedClock:
+    def now(self) -> datetime:
+        return NOW
 
 
 class FakeCandleProvider:
@@ -65,19 +57,72 @@ class FakeCandleProvider:
         raise NotImplementedError
 
 
-async def test_a_tick_persists_consensus_and_reliability_rows(sessions) -> None:
-    sources = [
-        ProviderSource("kraken", FakeCandleProvider("100")),
-        ProviderSource("tiingo", FakeCandleProvider("100.2")),
-    ]
-    outcomes = {}
+def enroll(client, settings) -> dict:
+    body = {
+        "username": "admin",
+        "password": "correct-horse-battery-staple",
+        "bootstrap_token": settings.bootstrap_token.get_secret_value(),
+    }
+    started = client.post("/api/auth/setup/start", json=body)
+    assert started.status_code == 200, started.text
+    enrollment = started.json()
+    finished = client.post(
+        "/api/auth/setup/finish",
+        json={
+            "bootstrap_token": body["bootstrap_token"],
+            "challenge": enrollment["challenge"],
+            "code": pyotp.TOTP(enrollment["secret"]).now(),
+        },
+    )
+    assert finished.status_code == 200, finished.text
+    return finished.json()
 
-    await run_price_consensus_tick(sessions, sources, NOW, outcomes)
 
-    async with sessions() as db:
-        consensus_rows = await PriceConsensusRepository(db).list_latest()
-        reliability_rows = await ProviderReliabilityRepository(db).list_latest()
+async def tick(client, sources: list[ProviderSource]) -> None:
+    await run_price_consensus_tick(
+        client.app.state.sessions, client.app.state.auth.crypto, FixedClock(), sources, NOW, {}
+    )
 
-    assert {row.instrument_id for row in consensus_rows} == {"BTC/USD", "ETH/USD"}
-    assert all(row.consensus_price is not None for row in consensus_rows)
-    assert {row.provider for row in reliability_rows} == {"kraken", "tiingo"}
+
+async def test_no_connection_means_kraken_only(client, settings) -> None:
+    enroll(client, settings)
+
+    await tick(client, [ProviderSource("kraken", FakeCandleProvider("100"))])
+
+    # Filtered to this exact (fixed, past) `computed_at`: `client`'s real lifespan also runs its
+    # own background `_price_consensus_loop` tick on a real clock (2026-09-17+), so `list_latest`
+    # could otherwise pick up that unrelated row instead of the one this test just wrote.
+    async with client.app.state.sessions() as db:
+        kraken_history = await ProviderReliabilityRepository(db).history("kraken")
+        tiingo_history = await ProviderReliabilityRepository(db).history("tiingo")
+        btc_history = await PriceConsensusRepository(db).history("BTC/USD")
+
+    assert any(row.computed_at == NOW for row in kraken_history)
+    assert not any(row.computed_at == NOW for row in tiingo_history)
+    assert any(
+        row.computed_at == NOW and row.status is PriceConsensusStatus.INSUFFICIENT_DATA
+        for row in btc_history
+    )
+
+
+async def test_a_ui_configured_tiingo_credential_is_picked_up_automatically(
+    client, settings
+) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    added = client.post(
+        "/api/connections",
+        json={"provider": "TIINGO", "label": "primary", "mode": "READ_ONLY", "api_key": "fake-key"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert added.status_code == 200, added.text
+
+    # No mock: this exercises the real dynamic lookup added to close the exact gap the user
+    # flagged -- a fake key against the real Tiingo API fails at the HTTP layer (401), which is
+    # exactly what should happen and is recorded as an unsuccessful call, not silently ignored.
+    await tick(client, [ProviderSource("kraken", FakeCandleProvider("100"))])
+
+    async with client.app.state.sessions() as db:
+        tiingo_history = await ProviderReliabilityRepository(db).history("tiingo")
+
+    assert any(row.computed_at == NOW for row in tiingo_history)

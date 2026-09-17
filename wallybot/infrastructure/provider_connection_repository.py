@@ -20,3 +20,19 @@ class ProviderConnectionRepository:
 
     async def add(self, connection: ProviderConnectionRow) -> None:
         self.session.add(connection)
+
+    async def latest_with_key(self, provider: str) -> ProviderConnectionRow | None:
+        """Most recently added connection for `provider` that actually has a key stored --
+        an operator adding one through the Connections UI is enough for a consumer (e.g.
+        `wallybot.application.price_consensus_job`) to start using it, no restart needed.
+        Across any user: this app has one operator in practice, and a connection's owner is
+        who added it, not a scope the consumer needs to filter by."""
+        return await self.session.scalar(
+            select(ProviderConnectionRow)
+            .where(
+                ProviderConnectionRow.provider == provider,
+                ProviderConnectionRow.encrypted_key.is_not(None),
+            )
+            .order_by(ProviderConnectionRow.created_at.desc())
+            .limit(1)
+        )

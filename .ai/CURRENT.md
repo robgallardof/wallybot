@@ -4,6 +4,69 @@
 recommended delivery order. User said "Continua con el flow y la app ok?" — kept going
 autonomously per this session's established pattern (no check-in between slices).
 
+## Course correction: Tiingo key moved from Docker secret to the existing Connections UI (2026-09-17)
+
+The previous slice (below, "Real Kraken+Tiingo price consensus...") wired the Tiingo API key as a
+Docker secret (`Settings.tiingo_api_key`, `.secrets/tiingo_api_key`) — **user correctly pushed
+back**: "no entiendo porque te tuve que pasar el token eso deberia estar en la ui que el usuario
+ponga el suyo y automaticamente se configure." They were right, and more importantly there was
+already a *built* mechanism for exactly this that the prior slice missed: `provider_connections`
+(migration `0024_credentials`) + `apps/api/connection_routes.py` + `ConnectionsPage.tsx` already
+let an operator add a `"TIINGO"` connection (a single encrypted API key, same shape as a wallet
+address) through the web UI — `"TIINGO"` was already a valid `provider` literal in
+`ProviderConnectionCreate` and already selectable in the UI dropdown, just never consumed by
+anything. Same "storage exists, no consumer" pattern as the Telegram token, now found a second
+time in the same session, this time in a piece of code *I* had just written -- worth remembering:
+**always check `provider_connections`/`ConnectionsPage.tsx` before inventing a new credential
+mechanism.**
+
+- **Reverted**: `Settings.tiingo_api_key`, `load_settings()`'s tiingo entry, `docker-compose.yml`'s
+  `tiingo_api_key` secret (both the top-level entry and the `api` service's mount),
+  `.secrets/tiingo_api_key` (deleted -- no longer read by anything).
+- **New**: `ProviderConnectionRepository.latest_with_key(provider)` -- the most recent connection
+  row for a given provider that actually has a key stored.
+- `wallybot/application/price_consensus_job.py` now re-checks for a usable `"TIINGO"` connection
+  on **every tick** (`_tiingo_source`, decrypts via the same `Crypto` instance `AuthService` already
+  holds, builds a fresh `TiingoExchange` + `httpx.AsyncClient` for that tick only, closed after)
+  rather than deciding once at process start -- adding or removing a key through the Connections
+  UI takes effect on the next tick (≤5 minutes), no restart. `run_price_consensus_tick`'s signature
+  changed to `(sessions, crypto, clock, static_sources, now, outcomes)`; `apps/api/main.py`'s
+  `_price_consensus_loop` now only ever constructs Kraken as a static source and passes
+  `app.state.auth.crypto` through.
+- Tests rewritten to match: `tests/integration/test_price_consensus_job_persistence.py` now uses
+  the real `client`/enroll flow, adds a real `TIINGO` connection via `POST /api/connections` with a
+  fake key, and asserts the dynamic lookup actually attempts it (a fake key against the real
+  Tiingo API correctly fails at the HTTP layer -- recorded as an unsuccessful call, not silently
+  ignored, not mocked).
+- `DocsPage.tsx`: user also flagged the UI docs don't cover graphify's actual day-to-day workflow
+  (only the initial `graphify . --wiki` build was there) and that other things were missing.
+  Expanded the Graphify section with the `query`/`path`/`explain`/`update` flow (matching
+  `AGENTS.md`'s own routing table), and added two new sections: "Pruebas y calidad" (how to run
+  pytest/ruff/pyright) and "Estado actual del proyecto" (pointers to `docs/PENDING.md` and
+  `.ai/CURRENT.md`/`HANDOFF.md`, previously not mentioned anywhere in the UI). New `en.json` keys
+  added for all of it.
+- Also swept in the pre-existing uncommitted frontend diff that was already sitting in the working
+  tree at session start (architecture-diagram link on the Docs page, `proxy.ts`'s CSP-matcher
+  exclusion for `/architecture.html`, `docker/web.Dockerfile` copying `public/` into the standalone
+  build) -- it was complete and directly related to the Docs page work happening in the same
+  commit, so no longer worth keeping separate. `apps/web/public/architecture.html` (a Graphify
+  `callflow-html` export) is now actually served (verified: `curl .../architecture.html` → 200
+  through the gateway, confirmed only after rebuilding `web` -- the Dockerfile fix was necessary,
+  the standalone build doesn't include `public/` by default).
+
+**Verified:** full suite still 587 passed, ruff/pyright clean (same pre-existing `auth_routes.py`
+error), frontend `eslint`/`tsc --noEmit`/`next build` all clean, `en.json` valid JSON. Rebuilt and
+redeployed `api` and `web`; all 8 services healthy. Confirmed via `psql` that `provider_connections`
+has zero rows on the live stack right now -- **the user still needs to actually add their Tiingo
+key through the Connections page in their own browser session for it to activate**; this agent
+cannot do that step itself (would require reading `.secrets/bootstrap_token` to log in, which
+`AGENTS.md` forbids outright).
+
+**Not yet committed** — ask before committing, per repo convention.
+
+**Immediate next actions:** commit this correction (two logical commits: backend Tiingo-via-UI
+wiring, and the frontend Docs page batch) if the user agrees, then continue picking the next slice.
+
 ## Telegram notifications actually wired up (2026-09-16, new session)
 
 Prior commits (4734a55) added encrypted storage for a Telegram bot token + chat id, but nothing

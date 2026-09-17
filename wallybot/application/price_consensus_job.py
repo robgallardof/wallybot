@@ -18,6 +18,14 @@ limit even polled every few minutes. The saved `instrument_id` is the provider-a
 string ("BTC/USD"), never one provider's own `Instrument.id` -- a consensus row is about the asset
 pair, not any single venue.
 
+Tiingo is never configured via a Docker secret or env var: an operator adds it like any other
+market-data credential, through the existing Connections UI (`apps/api/connection_routes.py`,
+`provider_connections` table -- `"TIINGO"` was already a valid `provider` value there before this
+job existed, added for exactly this). `run_price_consensus_tick` re-checks for a usable Tiingo
+connection on every tick rather than deciding once at process start, so adding or removing one
+through the UI takes effect on the next tick, no restart required. Kraken needs no credentials and
+is passed in once as a long-lived source, same as everywhere else it's used.
+
 Reliability outcomes are kept in memory only (a bounded recent-window per provider, owned by the
 caller and threaded through call to call) -- there is no `provider_call_outcomes` table, and
 persisting every individual call would be substantial, unused schema for a signal already
@@ -32,8 +40,10 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from time import monotonic
 
+import httpx
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from wallybot.domain.clock import Clock
 from wallybot.domain.market import Instrument, MarketDataProvider, MarketType
 from wallybot.domain.price_consensus import (
     PriceConsensusResult,
@@ -45,8 +55,11 @@ from wallybot.domain.provider_reliability import (
     ProviderReliabilitySnapshot,
     compute_provider_reliability,
 )
+from wallybot.exchanges.tiingo import HttpxTiingoTransport, TiingoExchange
 from wallybot.infrastructure.price_consensus_repository import PriceConsensusRepository
+from wallybot.infrastructure.provider_connection_repository import ProviderConnectionRepository
 from wallybot.infrastructure.provider_reliability_repository import ProviderReliabilityRepository
+from wallybot.security.crypto import Crypto
 
 QUOTE_TIMEFRAME = "1m"
 QUOTE_LOOKBACK = timedelta(minutes=5)
@@ -128,20 +141,44 @@ async def compute_price_consensus_and_reliability(
     return results, snapshots
 
 
+async def _tiingo_source(
+    sessions: async_sessionmaker[AsyncSession], crypto: Crypto, clock: Clock
+) -> tuple[ProviderSource, httpx.AsyncClient] | tuple[None, None]:
+    async with sessions() as db:
+        connection = await ProviderConnectionRepository(db).latest_with_key("TIINGO")
+    if connection is None or not connection.encrypted_key:
+        return None, None
+    client = httpx.AsyncClient(timeout=10.0)
+    provider = TiingoExchange(clock=clock, transport=HttpxTiingoTransport(
+        crypto.decrypt(connection.encrypted_key), client
+    ))
+    return ProviderSource("tiingo", provider), client
+
+
 async def run_price_consensus_tick(
     sessions: async_sessionmaker[AsyncSession],
-    sources: list[ProviderSource],
+    crypto: Crypto,
+    clock: Clock,
+    static_sources: list[ProviderSource],
     now: datetime,
     outcomes: OutcomeWindow,
 ) -> None:
     """Compute one round of consensus/reliability and persist it atomically.
 
     :param sessions: Session factory scoped to the caller's database role.
-    :param sources: Providers to query; see :func:`compute_price_consensus_and_reliability`.
+    :param crypto: Decrypts a Tiingo connection's stored key, if one exists; never logged.
+    :param clock: Passed to a freshly-built `TiingoExchange`, if one is added this tick.
+    :param static_sources: Providers that need no credentials (Kraken) -- always queried.
     :param now: Current time.
     :param outcomes: Per-provider recent-call window, mutated in place across calls.
     """
-    results, snapshots = await compute_price_consensus_and_reliability(sources, now, outcomes)
+    tiingo_source, tiingo_client = await _tiingo_source(sessions, crypto, clock)
+    sources = list(static_sources) + ([tiingo_source] if tiingo_source else [])
+    try:
+        results, snapshots = await compute_price_consensus_and_reliability(sources, now, outcomes)
+    finally:
+        if tiingo_client is not None:
+            await tiingo_client.aclose()
     async with sessions.begin() as db:
         consensus_repo = PriceConsensusRepository(db)
         for result in results:

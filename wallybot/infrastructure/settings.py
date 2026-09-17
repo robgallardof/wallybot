@@ -16,7 +16,6 @@ class Settings(BaseSettings):
     redis_url: SecretStr = SecretStr("redis://localhost:6379/0")
     encryption_key: SecretStr
     bootstrap_token: SecretStr
-    tiingo_api_key: SecretStr | None = None
     cookie_secure: bool = False
     session_idle_seconds: int = 1800
     session_absolute_seconds: int = 43200
@@ -66,13 +65,7 @@ class Settings(BaseSettings):
 def load_settings() -> Settings:
     # Docker secret files take precedence. Pydantic owns all environment access.
     secret_dir = Path("/run/secrets")
-    names = (
-        "database_url",
-        "redis_url",
-        "encryption_key",
-        "bootstrap_token",
-        "tiingo_api_key",
-    )
+    names = ("database_url", "redis_url", "encryption_key", "bootstrap_token")
     values = {
         name: (secret_dir / name).read_text().strip()
         for name in names

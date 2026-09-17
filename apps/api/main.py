@@ -36,7 +36,6 @@ from wallybot.data.historical_query import DEFAULT_QUERY_LIMITS
 from wallybot.data.quality import QualityPolicy
 from wallybot.domain.provider_reliability import ProviderCallOutcome
 from wallybot.exchanges.kraken import KrakenExchange
-from wallybot.exchanges.tiingo import HttpxTiingoTransport, TiingoExchange
 from wallybot.infrastructure.database import database
 from wallybot.infrastructure.historical_ingestion_cursor_repository import (
     HistoricalIngestionCursorRepository,
@@ -48,6 +47,7 @@ from wallybot.infrastructure.uuid_id_generator import UuidIdGenerator
 from wallybot.market.universe import UniverseFilterConfig
 from wallybot.notifications.telegram import HttpxTelegramTransport
 from wallybot.security.auth import AuthError, AuthService
+from wallybot.security.crypto import Crypto
 from wallybot.security.throttle import Throttle, Throttled
 
 REQUESTS = Counter("wallybot_http_requests_total", "Requests by status class", ["status_class"])
@@ -103,17 +103,18 @@ PRICE_CONSENSUS_INTERVAL_SECONDS = 300
 
 async def _price_consensus_loop(
     sessions,
-    sources: list[ProviderSource],
+    crypto: Crypto,
+    static_sources: list[ProviderSource],
     clock: SystemClock,
     logger,
 ) -> None:
     outcomes: dict[str, deque[ProviderCallOutcome]] = {}
     while True:
         try:
-            await run_price_consensus_tick(sessions, sources, clock.now(), outcomes)
-            logger.info(
-                "PRICE_CONSENSUS_COMPUTED", extra={"sources": [source.name for source in sources]}
+            await run_price_consensus_tick(
+                sessions, crypto, clock, static_sources, clock.now(), outcomes
             )
+            logger.info("PRICE_CONSENSUS_COMPUTED")
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -182,19 +183,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 logger=logger,
             )
         )
-        price_sources = [ProviderSource("kraken", provider)]
-        if config.tiingo_api_key is not None and config.tiingo_api_key.get_secret_value():
-            price_sources.append(
-                ProviderSource(
-                    "tiingo",
-                    TiingoExchange(
-                        clock=clock,
-                        transport=HttpxTiingoTransport(config.tiingo_api_key.get_secret_value()),
-                    ),
-                )
-            )
         price_consensus_task = asyncio.create_task(
-            _price_consensus_loop(sessions, price_sources, clock, logger)
+            _price_consensus_loop(
+                sessions, app.state.auth.crypto, [ProviderSource("kraken", provider)], clock, logger
+            )
         )
         logger.info("API_STARTED")
         yield
