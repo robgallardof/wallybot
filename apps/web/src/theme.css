@@ -1072,3 +1072,7 @@
   padding: 0;
   white-space: pre;
 }
+:root .docs-diagram-link {
+  display: inline-flex;
+  margin-top: 12px;
+}

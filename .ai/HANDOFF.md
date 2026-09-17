@@ -14,11 +14,17 @@ the key architectural finding that `worker`/`scheduler` are *also* network-isola
 already inside an `apps/api` request path needs a polling/cross-process design, not a direct call
 from a scheduler tick.
 
-**Not yet committed** — the working tree had one small pre-existing uncommitted frontend diff
-(Docs page architecture-diagram link, `apps/web/src/{proxy.ts,theme.css,lib/locales/en.json}`,
-`docker/web.Dockerfile`, `apps/web/public/architecture.html`) when this session started; left as-is
-since it looked complete and unrelated. This session's own backend changes (telegram wiring) are
-also uncommitted — ask the user before committing either.
+One small pre-existing uncommitted frontend diff (Docs page architecture-diagram link,
+`apps/web/src/{proxy.ts,theme.css,lib/locales/en.json}`, `docker/web.Dockerfile`,
+`apps/web/public/architecture.html`) was already sitting in the working tree when this session
+started; left as-is and never staged/committed by this session, since it looked complete and
+unrelated to backend work. If it's still there next session, check with the user before touching
+it -- it isn't this session's to commit or revert.
+
+Both of this session's own slices were committed with the user's explicit approval (asked via
+AskUserQuestion each time, per `AGENTS.md`'s "never commit without asking"): `0b0b036` (Telegram)
+and `dcdd987` (Kraken+Tiingo price consensus). User's choice both times was "commit and continue,"
+so treat that as this session's established mode unless they say otherwise.
 
 ## Codex UI handoff — 2026-09-12
 

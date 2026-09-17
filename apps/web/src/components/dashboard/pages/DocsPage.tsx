@@ -1,5 +1,13 @@
 import { useTranslation } from "react-i18next";
-import { BookOpen, GitBranch, Rocket, Waypoints } from "lucide-react";
+import {
+  BookOpen,
+  ClipboardList,
+  ExternalLink,
+  FlaskConical,
+  GitBranch,
+  Rocket,
+  Waypoints,
+} from "lucide-react";
 import i18n from "../../../lib/i18n";
 
 /**
@@ -27,7 +35,9 @@ export function DocsPage() {
         </h3>
         <ol className="docs-steps">
           <li>
-            {i18n.t("Requisitos: Docker Engine/Desktop con Compose y Python 3.12+.")}
+            {i18n.t(
+              "Requisitos: Docker Engine/Desktop con Compose y Python 3.12+.",
+            )}
           </li>
           <li>
             <code>python scripts/bootstrap.py</code>
@@ -82,13 +92,114 @@ export function DocsPage() {
           )}
         </p>
         <pre className="docs-code">
-          <code>{"uv tool install graphifyy\ngraphify . --wiki\ngraphify query \"¿cómo se conecta el scanner de mercado con el API?\""}</code>
+          <code>{"uv tool install graphifyy\ngraphify . --wiki"}</code>
         </pre>
         <p className="muted">
           {i18n.t(
             "El primer comando genera un diagrama interactivo (graphify-out/graph.html) y un reporte en texto plano (graphify-out/GRAPH_REPORT.md) que podés abrir en el navegador o en tu editor. Es una herramienta de desarrollo opcional, no un requisito para correr tu bot.",
           )}
         </p>
+        <a
+          className="button button-outline docs-diagram-link"
+          href="/architecture.html"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <ExternalLink size={16} />
+          {i18n.t("Ver diagrama de arquitectura")}
+        </a>
+        <p className="muted">
+          {i18n.t(
+            "Snapshot generado con Graphify (graphify export callflow-html): módulos, procesos y cómo se llaman entre sí. Se abre en una pestaña nueva porque es HTML estático servido tal cual, no una página de la app -- se regenera a mano cuando la arquitectura cambia mucho, no en cada build.",
+          )}
+        </p>
+        <p>
+          {i18n.t(
+            "El uso diario no es solo el build inicial -- es un flujo de cuatro comandos que se repite mientras trabajás:",
+          )}
+        </p>
+        <ol className="docs-steps">
+          <li>
+            <code>{'graphify query "¿cómo se conecta X con Y?"'}</code>
+            {" — "}
+            {i18n.t(
+              "primera pregunta sobre cualquier duda de arquitectura o relación entre archivos: devuelve un subgrafo acotado, mucho más chico que leer el reporte completo o grepear a mano.",
+            )}
+          </li>
+          <li>
+            <code>{'graphify path "A" "B"'}</code>
+            {" — "}
+            {i18n.t(
+              "el camino concreto entre dos símbolos o módulos puntuales.",
+            )}
+          </li>
+          <li>
+            <code>{'graphify explain "concepto"'}</code>
+            {" — "}
+            {i18n.t(
+              "un concepto acotado (ej. una entidad de dominio o un flujo) sin todo el grafo alrededor.",
+            )}
+          </li>
+          <li>
+            <code>graphify update .</code>
+            {" — "}
+            {i18n.t(
+              "después de modificar código: solo AST, sin costo de API, mantiene el grafo al día para la próxima consulta.",
+            )}
+          </li>
+        </ol>
+        <p className="muted">
+          {i18n.t(
+            "Si usás Claude Code o Codex CLI sobre este repo, ambos ya están instruidos (AGENTS.md) para seguir este mismo flujo antes de leer o grepear archivos fuente a mano.",
+          )}
+        </p>
+      </section>
+
+      <section aria-labelledby="docs-testing">
+        <h3 id="docs-testing">
+          <FlaskConical size={16} /> {i18n.t("Pruebas y calidad")}
+        </h3>
+        <pre className="docs-code">
+          <code>
+            {
+              'uv run pytest -m "not integration"\nuv run pytest -m integration\nuv run ruff check .\nuv run pyright'
+            }
+          </code>
+        </pre>
+        <p className="muted">
+          {i18n.t(
+            "Las pruebas de integración necesitan Docker corriendo (levantan Postgres y Redis descartables vía testcontainers) -- las que no son de integración no. Ambos comandos de lint/tipos deben quedar limpios antes de dar por terminado un cambio.",
+          )}
+        </p>
+      </section>
+
+      <section aria-labelledby="docs-status">
+        <h3 id="docs-status">
+          <ClipboardList size={16} /> {i18n.t("Estado actual del proyecto")}
+        </h3>
+        <p>
+          {i18n.t(
+            "Esta página no refleja qué falta o qué se rompió último -- eso vive en dos lugares que se actualizan con cada sesión de desarrollo, humana o asistida por IA:",
+          )}
+        </p>
+        <ul className="docs-steps">
+          <li>
+            <code>docs/PENDING.md</code>
+            {" — "}
+            {i18n.t(
+              "backlog de producto por fase, con criterios de aceptación explícitos y el orden de entrega recomendado.",
+            )}
+          </li>
+          <li>
+            <code>.ai/CURRENT.md</code>
+            {i18n.t(" y ")}
+            <code>.ai/HANDOFF.md</code>
+            {" — "}
+            {i18n.t(
+              "la tarea activa y el estado que dejó la última sesión para quien continúe sin haber visto la conversación.",
+            )}
+          </li>
+        </ul>
       </section>
     </article>
   );

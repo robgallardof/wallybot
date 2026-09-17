@@ -25,5 +25,8 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|health|_next/static|_next/image|favicon.ico).*)"],
+  // architecture.html is excluded too: a static, pre-rendered Graphify export (Mermaid diagrams
+  // loaded from a CDN) served as-is from public/, not an app page -- the strict app-wide CSP
+  // above (no external script-src, no unsafe-inline) would otherwise block its own scripts.
+  matcher: ["/((?!api|health|_next/static|_next/image|favicon.ico|architecture.html).*)"],
 };
