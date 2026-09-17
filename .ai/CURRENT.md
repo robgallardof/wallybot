@@ -1,5 +1,36 @@
 # Current task
 
+## Order cancellation orchestration (2026-09-17, continued again)
+
+User picked this from the audit's punch list as the next increment after the live loop landed.
+`c653bef` didn't cover cancellation orchestration (nor did the audit expect it to) --
+`ExchangeGateway.cancel_order`/`FakeExchange.cancel_order` already existed, but
+`ExecutionService` had no `cancel()`. Added it (`2f91ad8`): durably claims CANCEL_REQUESTED first
+(same discipline as `submit()`'s SUBMITTING claim), then resolves through the same lookup-based
+`_observe()` path `submit()`/`reconcile()` already use rather than trusting the gateway's own
+cancel-result blindly. New `POST /api/portfolio/orders/{client_order_id}/cancel` (Admin), scoped
+to the caller's own account.
+
+Had to hoist `paper_gateway`/`execution`/`reconciliation` out of `_decision_loop`'s lazy
+construction into `create_app`'s lifespan (stored on `app.state.execution`) so the cancel route
+and the live loop share the *same* `FakeExchange` instance -- its in-memory order state lives on
+that one object, not the ledger.
+
+**Known limitation, noted not hidden**: today's live loop only ever places MARKET orders (always
+resolved synchronously within one call, never left open) -- so this endpoint has no natural
+trigger from the automated pipeline yet. It becomes load-bearing once a LIMIT order path or a
+real LIVE venue with asynchronous fills exists. Also: if the API process restarts while a LIMIT
+order is genuinely still open, `FakeExchange`'s in-memory order tracking resets and a later
+cancel attempt on that specific order would raise (gateway "lost track" of it) rather than
+resolving cleanly -- doesn't affect today's MARKET-only usage, worth fixing if/when LIMIT orders
+ship for real.
+
+Verified: full suite 638 passed, ruff/pyright clean, rebuilt/redeployed, all 8 services healthy.
+
+**Immediate next actions**: ask the user what's next -- persistent operational circuit breakers,
+walk-forward/backtest UI wiring, further `PENDING.md` phase auditing (Fase 6 AI, Fase 8 Telegram),
+or something else entirely.
+
 ## Live PAPER decision loop wired end-to-end -- the session's headline delivery (2026-09-17, continued)
 
 After clearing the working-tree backlog (below) and running a full phase-by-phase audit against
