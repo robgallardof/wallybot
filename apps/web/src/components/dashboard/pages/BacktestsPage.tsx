@@ -17,6 +17,19 @@ function toIsoOrEmpty(localValue: string): string {
   return Number.isNaN(date.getTime()) ? "" : date.toISOString();
 }
 
+function toLocalInputValue(date: Date): string {
+  const offsetMilliseconds = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offsetMilliseconds).toISOString().slice(0, 16);
+}
+
+function suggestedWindow(): { start: string; end: string } {
+  const end = new Date();
+  end.setMinutes(0, 0, 0);
+  const start = new Date(end);
+  start.setHours(start.getHours() - 48);
+  return { start: toLocalInputValue(start), end: toLocalInputValue(end) };
+}
+
 export function BacktestsPage({
   history,
   run,
@@ -32,8 +45,8 @@ export function BacktestsPage({
   const [base, setBase] = useState("XBT");
   const [quote, setQuote] = useState("USD");
   const [timeframe, setTimeframe] = useState("1h");
-  const [windowStart, setWindowStart] = useState("");
-  const [windowEnd, setWindowEnd] = useState("");
+  const [windowStart, setWindowStart] = useState(() => suggestedWindow().start);
+  const [windowEnd, setWindowEnd] = useState(() => suggestedWindow().end);
   const [featureWindow, setFeatureWindow] = useState("20");
   const [riskOffThreshold, setRiskOffThreshold] = useState("0.5");
   const [startingEquity, setStartingEquity] = useState("10000");
@@ -80,7 +93,7 @@ export function BacktestsPage({
         </div>
         <p className="muted">
           {i18n.t(
-            "Reproduce la estrategia trend-following sobre datos históricos ya almacenados. Requiere que ese instrumento y ventana ya tengan datos guardados en Parquet.",
+            "Reproduce la estrategia trend-following sobre datos históricos ya almacenados. El historial disponible actualmente es de 1 hora; el rango sugerido se completa automáticamente.",
           )}
         </p>
         <p className="footnote">
@@ -127,10 +140,7 @@ export function BacktestsPage({
               value={timeframe}
               onChange={(event) => setTimeframe(event.target.value)}
             >
-              <option value="1m">1m</option>
-              <option value="5m">5m</option>
               <option value="1h">1h</option>
-              <option value="1d">1d</option>
             </select>
           </label>
           <label>

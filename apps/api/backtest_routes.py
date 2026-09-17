@@ -40,7 +40,15 @@ async def run_backtest(body: BacktestRun, request: Request, user: Protected) -> 
         # Covers InstrumentNotFound/InsufficientHistoricalData (both ValueError subclasses) and
         # any other domain validation raised while composing the engine -- all honest 422s about
         # the requested dataset/config, never a fabricated result.
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        detail = str(exc)
+        if "got 0" in detail:
+            detail = (
+                "No hay velas históricas para el período seleccionado. "
+                "Usa el marco de 1 hora y el rango sugerido; la carga de mercado puede tardar "
+                "unos minutos después de iniciar la instancia. "
+                f"Detalle técnico: {detail}"
+            )
+        raise HTTPException(status_code=422, detail=detail) from exc
 
     async with request.app.state.sessions.begin() as db:
         await ExperimentRepository(db).save(outcome.record)
