@@ -390,5 +390,7 @@
   "Esta página no refleja qué falta o qué se rompió último -- eso vive en dos lugares que se actualizan con cada sesión de desarrollo, humana o asistida por IA:": "This page doesn't reflect what's missing or what broke most recently -- that lives in two places updated with every development session, human or AI-assisted:",
   "backlog de producto por fase, con criterios de aceptación explícitos y el orden de entrega recomendado.": "product backlog by phase, with explicit acceptance criteria and the recommended delivery order.",
   " y ": " and ",
-  "la tarea activa y el estado que dejó la última sesión para quien continúe sin haber visto la conversación.": "the active task and the state the last session left for whoever continues without having seen the conversation."
+  "la tarea activa y el estado que dejó la última sesión para quien continúe sin haber visto la conversación.": "the active task and the state the last session left for whoever continues without having seen the conversation.",
+  "Repositorio oficial de Graphify": "Official Graphify repository",
+  "La herramienta que este repo usa para explorar su propio código -- instrucciones de instalación, documentación completa y el código fuente viven ahí, no acá.": "The tool this repo uses to explore its own code -- installation instructions, full documentation and the source code live there, not here."
 }

@@ -28,6 +28,21 @@ export function DocsPage() {
           "Esta página resume cómo levantar tu propia instancia y dónde encontrar el resto de la documentación en el repositorio. Es contenido fijo, no depende del backend.",
         )}
       </p>
+      <a
+        className="button button-outline docs-diagram-link"
+        href="https://github.com/Graphify-Labs/graphify"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <GitBranch size={16} />
+        {i18n.t("Repositorio oficial de Graphify")}
+        <ExternalLink size={14} />
+      </a>
+      <p className="muted">
+        {i18n.t(
+          "La herramienta que este repo usa para explorar su propio código -- instrucciones de instalación, documentación completa y el código fuente viven ahí, no acá.",
+        )}
+      </p>
 
       <section aria-labelledby="docs-first-steps">
         <h3 id="docs-first-steps">
