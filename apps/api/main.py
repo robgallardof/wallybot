@@ -196,18 +196,33 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 logger=logger,
             )
         )
-        price_consensus_task = asyncio.create_task(
-            _price_consensus_loop(
-                sessions, app.state.auth.crypto, [ProviderSource("kraken", provider)], clock, logger
+        # Skipped under the integration test suite: `client`-based tests share one Postgres
+        # container for the whole run, and `list_latest()` on price_consensus_results/
+        # provider_reliability_snapshots picks the single most recent row across ALL tests --
+        # a real-clock background tick from this loop would non-deterministically "win" over
+        # whatever a given test seeded, flaking tests it has nothing to do with. Tests that
+        # exercise this job call `run_price_consensus_tick`/`_tiingo_source` directly instead.
+        price_consensus_task = (
+            None
+            if config.environment == "test"
+            else asyncio.create_task(
+                _price_consensus_loop(
+                    sessions,
+                    app.state.auth.crypto,
+                    [ProviderSource("kraken", provider)],
+                    clock,
+                    logger,
+                )
             )
         )
         logger.info("API_STARTED")
         yield
-        price_consensus_task.cancel()
-        try:
-            await price_consensus_task
-        except asyncio.CancelledError:
-            pass
+        if price_consensus_task is not None:
+            price_consensus_task.cancel()
+            try:
+                await price_consensus_task
+            except asyncio.CancelledError:
+                pass
         ingestion_task.cancel()
         try:
             await ingestion_task

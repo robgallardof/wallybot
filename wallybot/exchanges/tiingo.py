@@ -47,7 +47,13 @@ from wallybot.domain.market import (
     MarketType,
 )
 
-_BASE_URL = "https://api.tiingo.com"
+# Public (not module-private): callers that build their own client for `HttpxTiingoTransport`
+# -- so they can close it themselves, e.g. wallybot.application.price_consensus_job's per-tick
+# client -- need this to actually reach Tiingo. A client built without it raises
+# httpx.UnsupportedProtocol on every relative-path request; this was a real bug, not
+# hypothetical (found live: Tiingo showed 0 calls at all -- not even failed ones reached the
+# network layer -- despite a valid connection being configured through the UI).
+BASE_URL = "https://api.tiingo.com"
 _RESAMPLE_FREQ = {"1m": "1min", "5m": "5min", "1h": "60min"}
 
 
@@ -63,7 +69,7 @@ class HttpxTiingoTransport:
         import httpx
 
         self._api_key = api_key
-        self._client = client or httpx.AsyncClient(base_url=_BASE_URL, timeout=10.0)
+        self._client = client or httpx.AsyncClient(base_url=BASE_URL, timeout=10.0)
 
     async def get(self, path: str, params: dict[str, str]) -> Any:
         response = await self._client.get(

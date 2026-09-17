@@ -1,5 +1,86 @@
 # Current task
 
+## Real Tiingo bug found from user-reported Inteligencia screenshot (2026-09-17, later still)
+
+User pasted the live Confiabilidad/Consenso panels: Tiingo showed "Saludable, 0.0% error, 6
+llamadas, 607ms" while BTC/USD and ETH/USD both stayed `INSUFFICIENT_DATA` with
+`excluded_sources: ["kraken"]` -- Tiingo never even appearing as excluded, meaning it never
+produced a `PriceQuote` at all, successful-looking reliability notwithstanding.
+
+**Root cause, confirmed by direct reproduction**: `wallybot/application/price_consensus_job.py`'s
+`_tiingo_source` (added in the "Tiingo key moved to the Connections UI" course-correction) builds
+its own per-tick `httpx.AsyncClient(timeout=10.0)` with **no `base_url`** and passes it explicitly
+into `HttpxTiingoTransport`, which skips its own `client or httpx.AsyncClient(base_url=...)`
+default specifically because a client *was* passed. A relative-path request
+(`"/tiingo/crypto/prices"`) against a client with no `base_url` raises `httpx.UnsupportedProtocol`
+immediately, client-side, before any network I/O -- confirmed with a throwaway repro script.
+Despite this, live `provider_reliability_snapshots` showed **zero tiingo rows at all** (not even
+failed ones) for the current session, because `provider_connections` was actually empty the whole
+time (both earlier UI attempts 403'd on stale MFA, now fixed) -- the "Saludable" data the user
+pasted was leftover from an *earlier* slice this session, before the course-correction, when
+`TiingoExchange` was built without an explicit client and so got the correct default `base_url`.
+
+**Fix**: exported `wallybot/exchanges/tiingo.py`'s `_BASE_URL` as public `BASE_URL`; `_tiingo_source`
+now passes `httpx.AsyncClient(base_url=BASE_URL, timeout=10.0)`. Added a regression test
+(`test_tiingo_source_client_actually_targets_the_real_api`) that asserts on `tiingo_client.base_url`
+directly -- deterministic, unlike asserting on latency/success which depends on real network
+conditions and would not have caught this (the *existing* fake-key test already "passed" while
+hiding this exact bug, since `httpx.UnsupportedProtocol` is an `Exception` too).
+
+**Also found and fixed a test-flakiness regression this job introduced**: `_price_consensus_loop`
+fires immediately (no initial delay, matching `_market_ingestion_loop`'s convention) inside
+`create_app`'s lifespan -- which every `client`-fixture integration test boots. Since
+`provider_reliability_snapshots`/`price_consensus_results` are shared, session-scoped Postgres
+tables and `list_latest()` picks the single most-recent row per key, a real-clock background tick
+could non-deterministically "win" over whatever an unrelated test (e.g.
+`test_provider_reliability_route.py`) had seeded, flaking tests that have nothing to do with
+Tiingo. Two full suite runs each surfaced a *different* random failure before the fix. Fixed by
+skipping `price_consensus_task` creation entirely when `config.environment == "test"` (this
+session's own tests call `run_price_consensus_tick`/`_tiingo_source` directly, unaffected).
+Confirmed fixed: two consecutive full-suite runs both green (595 passed) after the change.
+
+**Also found, while redeploying**: a new migration (`0026_portfolio_api_read_grants`, part of the
+concurrent Portfolio slice below) had not been applied -- `docker compose up migrate` had run
+against a stale base image earlier in this session (before that migration existed in the tree),
+so `/health/ready` correctly reported `not_ready` after redeploying `api` alone. Rebuilt the base
+`wallybot-api:0.1.0` image too (not just `api-research`) and re-ran `migrate` -- same "rebuild both
+images sharing the compose `&app` anchor" lesson this session has hit several times before.
+
+**Verified:** full suite green twice in a row post-fix (595 passed each time), ruff/pyright clean
+on every file this slice touched (pre-existing errors in Portfolio's own WIP files, not touched,
+left alone). Rebuilt and redeployed the entire stack (`docker compose build` + `up -d`, no
+arguments); all 8 containers healthy, `/health/ready` → `{"status":"ready"}`.
+
+**Not yet committed** — ask before committing, per repo convention. Do not mix with the concurrent
+Portfolio slice's own files (`apps/api/portfolio_routes.py`, its migration, its frontend page) --
+those are not this agent's to commit.
+
+**Still open, raised to the user rather than assumed:** (1) why every Mercados row shows `kraken`
+as the only venue (this is correct/expected -- Tiingo has no live snapshot endpoint, only Kraken
+feeds that table; explained in chat, not a code change), and (2) a much larger ask about a fully
+autonomous LIVE trading/withdrawal agent and a real multi-wallet portfolio view -- explicitly out
+of scope to start unilaterally per `RISK.md`/`SECURITY.md`'s LIVE gates and `AGENTS.md`'s "never
+grant execution/withdrawal capability to research code paths" -- surfaced back to the user for a
+scoping decision rather than assumed.
+
+## Portfolio and internal-tool documentation (2026-09-17)
+
+- Replaced the Portfolio placeholder with a signed-in, read-only PAPER ledger view. The new
+  `/api/portfolio` route derives the only exposed ledger namespace from the authenticated user
+  (`paper:<user-id>`); it never accepts an account identifier from the client.
+- Added the API-only SELECT grants required to read fills and ledger tables, a frontend
+  Portfolio page, and integration coverage for authentication and cross-user ledger isolation.
+  It deliberately does not value assets from guessed prices, import exchange balances, trade, or
+  withdraw funds.
+- Added `docs/AI-DEVELOPMENT.md`: the internal routing guide for Archify, Serena, Context7 and
+  Codebase Memory, including the update workflow and security boundaries. Product diagrams remain
+  under `docs/diagrams/`; no external repository link appears in the product Docs page.
+- Verification: `uv run pytest tests/integration/test_portfolio_route.py` (2 passed), focused
+  TypeScript and ESLint checks passed, and `graphify update .` rebuilt the code graph.
+
+**Do not mix the above slice with the concurrent Tiingo/price-consensus edits** visible in the
+working tree. Review and commit them separately.
+
 ## Restored the Graphify repo link the Docs redesign dropped (2026-09-17, later the same day)
 
 The "Control-center UX and recent MFA confirmation" slice below landed concurrently with this

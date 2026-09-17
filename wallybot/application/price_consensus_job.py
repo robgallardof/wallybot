@@ -55,7 +55,7 @@ from wallybot.domain.provider_reliability import (
     ProviderReliabilitySnapshot,
     compute_provider_reliability,
 )
-from wallybot.exchanges.tiingo import HttpxTiingoTransport, TiingoExchange
+from wallybot.exchanges.tiingo import BASE_URL, HttpxTiingoTransport, TiingoExchange
 from wallybot.infrastructure.price_consensus_repository import PriceConsensusRepository
 from wallybot.infrastructure.provider_connection_repository import ProviderConnectionRepository
 from wallybot.infrastructure.provider_reliability_repository import ProviderReliabilityRepository
@@ -148,10 +148,11 @@ async def _tiingo_source(
         connection = await ProviderConnectionRepository(db).latest_with_key("TIINGO")
     if connection is None or not connection.encrypted_key:
         return None, None
-    client = httpx.AsyncClient(timeout=10.0)
-    provider = TiingoExchange(clock=clock, transport=HttpxTiingoTransport(
-        crypto.decrypt(connection.encrypted_key), client
-    ))
+    client = httpx.AsyncClient(base_url=BASE_URL, timeout=10.0)
+    provider = TiingoExchange(
+        clock=clock,
+        transport=HttpxTiingoTransport(crypto.decrypt(connection.encrypted_key), client),
+    )
     return ProviderSource("tiingo", provider), client
 
 

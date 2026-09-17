@@ -6,9 +6,14 @@ from decimal import Decimal
 import pyotp
 import pytest
 
-from wallybot.application.price_consensus_job import ProviderSource, run_price_consensus_tick
+from wallybot.application.price_consensus_job import (
+    ProviderSource,
+    _tiingo_source,
+    run_price_consensus_tick,
+)
 from wallybot.domain.market import Candle, Instrument
 from wallybot.domain.price_consensus import PriceConsensusStatus
+from wallybot.exchanges.tiingo import BASE_URL
 from wallybot.infrastructure.price_consensus_repository import PriceConsensusRepository
 from wallybot.infrastructure.provider_reliability_repository import ProviderReliabilityRepository
 
@@ -126,3 +131,30 @@ async def test_a_ui_configured_tiingo_credential_is_picked_up_automatically(
         tiingo_history = await ProviderReliabilityRepository(db).history("tiingo")
 
     assert any(row.computed_at == NOW for row in tiingo_history)
+
+
+async def test_tiingo_source_client_actually_targets_the_real_api(client, settings) -> None:
+    # Regression test: a per-tick httpx.AsyncClient built without `base_url` raises
+    # httpx.UnsupportedProtocol on every call -- a real bug found live (Tiingo recorded zero
+    # calls at all, not even failed ones, because the request never left the process). Asserting
+    # on `base_url` catches this deterministically, unlike asserting on latency/success, which
+    # would depend on real network conditions.
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    added = client.post(
+        "/api/connections",
+        json={"provider": "TIINGO", "label": "primary", "mode": "READ_ONLY", "api_key": "fake-key"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert added.status_code == 200, added.text
+
+    source, tiingo_client = await _tiingo_source(
+        client.app.state.sessions, client.app.state.auth.crypto, FixedClock()
+    )
+    try:
+        assert source is not None
+        assert tiingo_client is not None
+        assert str(tiingo_client.base_url) == BASE_URL
+    finally:
+        if tiingo_client is not None:
+            await tiingo_client.aclose()
