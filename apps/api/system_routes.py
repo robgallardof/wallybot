@@ -6,8 +6,11 @@ from sqlalchemy import select, text
 from apps.api.dependencies import Admin, SignedIn
 from apps.api.dto import ControlView, DashboardView, EventView, ServiceStatusView, SystemView
 from apps.api.schemas import ControlChange
+from wallybot.application.notification_dispatch import dispatch_telegram_notification
 from wallybot.domain.control import Control, Environment, Role, Status
 from wallybot.infrastructure.models import ControlRow, EventRow, HeartbeatRow
+from wallybot.infrastructure.telegram_config_repository import TelegramConfigRepository
+from wallybot.notifications.telegram import Notification, NotificationSeverity
 from wallybot.security.auth import AuthError, audit
 
 router = APIRouter(prefix="/api", tags=["system"])
@@ -35,6 +38,13 @@ async def system(request: Request, user: SignedIn) -> SystemView:
     async with request.app.state.sessions() as db:
         await db.execute(text("SELECT 1"))
         beats = (await db.scalars(select(HeartbeatRow))).all()
+        telegram_config = await TelegramConfigRepository(db).get()
+    telegram_ready = bool(
+        telegram_config
+        and telegram_config.enabled
+        and telegram_config.encrypted_bot_token
+        and telegram_config.chat_id is not None
+    )
     redis_status = "HEALTHY"
     try:
         await request.app.state.redis.ping()
@@ -57,7 +67,7 @@ async def system(request: Request, user: SignedIn) -> SystemView:
         services=services,
         exchange="NOT_CONFIGURED",
         ai="DISABLED",
-        telegram="DISABLED",
+        telegram="ENABLED" if telegram_ready else "DISABLED",
         live_available=False,
     )
 
@@ -84,8 +94,19 @@ async def control(body: ControlChange, request: Request, user: Admin) -> Control
             raise AuthError("System not initialized", 503)
         current = Control(Environment(row.environment), Status(row.status))
         changed = current.change(body.status, Role(user.role), body.environment)
-        if row.status != changed.status or row.environment != changed.environment:
+        changed_state = row.status != changed.status or row.environment != changed.environment
+        if changed_state:
             row.environment = changed.environment
             row.status = changed.status
             audit(db, "BOT_PAUSED" if changed.status == Status.PAUSED else "BOT_RESUMED", user.id)
+    if changed_state:
+        paused = changed.status == Status.PAUSED
+        title = "Bot paused" if paused else "Bot resumed"
+        severity = NotificationSeverity.WARNING if paused else NotificationSeverity.INFO
+        await dispatch_telegram_notification(
+            request.app.state.sessions,
+            request.app.state.auth.crypto,
+            request.app.state.telegram_transport,
+            Notification(severity, title, f"Environment: {changed.environment}."),
+        )
     return ControlView(status=changed.status, environment=changed.environment)

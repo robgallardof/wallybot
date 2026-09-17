@@ -103,3 +103,84 @@ def test_viewer_can_read_but_cannot_change_telegram_config(client, settings, db)
     )
 
     assert response.status_code == 403
+
+
+class FakeTelegramTransport:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, dict[str, str]]] = []
+
+    async def post_form(self, url: str, form: dict[str, str]) -> None:
+        self.calls.append((url, form))
+
+
+def test_system_reports_telegram_enabled_only_once_fully_configured(client, settings) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+
+    assert client.get("/api/system").json()["telegram"] == "DISABLED"
+
+    client.post(
+        "/api/telegram",
+        json={"bot_token": "123456:my-secret-token", "chat_id": 42, "enabled": True},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert client.get("/api/system").json()["telegram"] == "ENABLED"
+
+
+def test_pausing_the_bot_sends_a_telegram_notification_when_configured(client, settings) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    client.post(
+        "/api/telegram",
+        json={"bot_token": "123456:my-secret-token", "chat_id": 42, "enabled": True},
+        headers={"X-CSRF-Token": csrf},
+    )
+    transport = FakeTelegramTransport()
+    client.app.state.telegram_transport = transport
+
+    response = client.post(
+        "/api/control", json={"status": "PAUSED"}, headers={"X-CSRF-Token": csrf}
+    )
+
+    assert response.status_code == 200, response.text
+    assert len(transport.calls) == 1
+    url, form = transport.calls[0]
+    assert url == "https://api.telegram.org/bot123456:my-secret-token/sendMessage"
+    assert form["chat_id"] == "42"
+    assert "[WARNING] Bot paused" in form["text"]
+
+
+def test_control_change_sends_nothing_when_telegram_is_not_configured(client, settings) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    transport = FakeTelegramTransport()
+    client.app.state.telegram_transport = transport
+
+    response = client.post(
+        "/api/control", json={"status": "PAUSED"}, headers={"X-CSRF-Token": csrf}
+    )
+
+    assert response.status_code == 200, response.text
+    assert transport.calls == []
+
+
+def test_repeating_the_same_status_sends_no_notification(client, settings) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    client.post(
+        "/api/telegram",
+        json={"bot_token": "123456:my-secret-token", "chat_id": 42, "enabled": True},
+        headers={"X-CSRF-Token": csrf},
+    )
+    transport = FakeTelegramTransport()
+    client.app.state.telegram_transport = transport
+
+    client.post("/api/control", json={"status": "PAUSED"}, headers={"X-CSRF-Token": csrf})
+    transport.calls.clear()
+    response = client.post(
+        "/api/control", json={"status": "PAUSED"}, headers={"X-CSRF-Token": csrf}
+    )
+
+    assert response.status_code == 200, response.text
+    assert transport.calls == []

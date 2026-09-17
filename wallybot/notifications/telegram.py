@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
+import httpx
+
 
 class NotificationSeverity(StrEnum):
     """How urgently a :class:`Notification` should be treated by its reader.
@@ -55,6 +57,18 @@ class TelegramTransport(Protocol):
         :param form: Form fields to submit.
         """
         ...
+
+
+class HttpxTelegramTransport:
+    """Production :class:`TelegramTransport` -- one shared client for the process lifetime,
+    matching ``HttpxKrakenTransport``'s shape in ``wallybot/exchanges/kraken.py``."""
+
+    def __init__(self, client: httpx.AsyncClient | None = None) -> None:
+        self._client = client or httpx.AsyncClient(timeout=10.0)
+
+    async def post_form(self, url: str, form: dict[str, str]) -> None:
+        response = await self._client.post(url, data=form)
+        response.raise_for_status()
 
 
 class TelegramNotifier:

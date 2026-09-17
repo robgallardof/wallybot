@@ -5,6 +5,7 @@ from decimal import Decimal
 from functools import partial
 from uuid import uuid4
 
+import httpx
 from alembic.config import Config as AlembicConfig
 from alembic.script import ScriptDirectory
 from fastapi import FastAPI, Request
@@ -41,6 +42,7 @@ from wallybot.infrastructure.settings import Settings, load_settings
 from wallybot.infrastructure.system_clock import SystemClock
 from wallybot.infrastructure.uuid_id_generator import UuidIdGenerator
 from wallybot.market.universe import UniverseFilterConfig
+from wallybot.notifications.telegram import HttpxTelegramTransport
 from wallybot.security.auth import AuthError, AuthService
 from wallybot.security.throttle import Throttle, Throttled
 
@@ -107,6 +109,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.redis = redis
         app.state.auth = AuthService(sessions, config)
         app.state.throttle = Throttle(redis, config.auth_limit, config.auth_window_seconds)
+        telegram_client = httpx.AsyncClient(timeout=10.0)
+        app.state.telegram_transport = HttpxTelegramTransport(telegram_client)
 
         clock = SystemClock()
         provider = KrakenExchange(clock=clock)
@@ -156,6 +160,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await ingestion_task
         except asyncio.CancelledError:
             pass
+        await telegram_client.aclose()
         await redis.aclose()
         await engine.dispose()
 

@@ -1,8 +1,11 @@
 """Lets an operator store their own Telegram bot token (from @BotFather) and destination chat.
 
-Storing this does not by itself send anything -- wiring a scheduler/worker tick to actually call
-TelegramNotifier with this config is separate follow-up work. This route only owns safe storage
-and status reporting: the bot token is never returned once set, only whether one is present.
+This route only owns safe storage and status reporting: the bot token is never returned once
+set, only whether one is present. Actually sending a message is triggered elsewhere -- see
+``wallybot.application.notification_dispatch``, called so far only from the control-plane route
+(``apps/api/system_routes.py``'s ``control()``), since ``apps/api`` is the only backend process
+with internet egress (``worker``/``scheduler``/``research`` are network-isolated, per
+PENDING.md's Fase 7).
 """
 
 from fastapi import APIRouter, Request

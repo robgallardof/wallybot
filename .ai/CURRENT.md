@@ -4,6 +4,61 @@
 recommended delivery order. User said "Continua con el flow y la app ok?" — kept going
 autonomously per this session's established pattern (no check-in between slices).
 
+## Telegram notifications actually wired up (2026-09-16, new session)
+
+Prior commits (4734a55) added encrypted storage for a Telegram bot token + chat id, but nothing
+ever called `TelegramNotifier` -- both the route's and the migration's own docstrings said so
+explicitly ("separate follow-up work"). This slice closed that gap for the one trigger that fits
+today's process topology.
+
+- **Key finding before writing anything**: `worker`/`scheduler` are *also* on the `operational`
+  Docker network (`internal: true`), not just `research` -- only `api` (on `[edge, operational]`)
+  has internet egress. So Telegram sending can only originate from inside `apps/api`, not from a
+  scheduler/worker tick as originally assumed. This also means research-job-failure notifications
+  (the other candidate trigger) aren't reachable yet without a cross-process design (api polling
+  for job-status transitions) -- left for later, noted below.
+- New `wallybot/application/notification_dispatch.py`: `dispatch_telegram_notification(sessions,
+  crypto, transport, notification)` -- reads the singleton `telegram_config` row, no-ops silently
+  if disabled/unconfigured, otherwise decrypts the token and sends. Any failure (bad token,
+  network error) is caught and logged (`TELEGRAM_NOTIFICATION_FAILED`), never raised -- Telegram
+  is a convenience channel, never a dependency of the action that triggered it.
+- New `HttpxTelegramTransport` in `wallybot/notifications/telegram.py`, mirroring
+  `HttpxKrakenTransport`'s shape in `wallybot/exchanges/kraken.py`. Built once in `apps/api/main.py`'s
+  lifespan (`app.state.telegram_transport`, one shared `httpx.AsyncClient`, closed on shutdown).
+- Wired into `apps/api/system_routes.py`'s `control()`: pausing sends a WARNING notification,
+  resuming sends INFO, only when the status/environment actually changed (repeating the same
+  status is a no-op, no duplicate notification). Chosen because it's the one sensitive admin
+  action that already runs entirely inside `apps/api` with `request.app.state.auth.crypto`
+  already available -- no cross-process plumbing needed.
+- Fixed `SystemView.telegram` in the same file: was hardcoded `"DISABLED"` since the field was
+  added before there was anything to report; now reflects the real config (`enabled` + token +
+  chat_id all present).
+- Tests: `tests/integration/test_notification_dispatch.py` (new -- disabled/no-chat-id/happy-path/
+  transport-failure-is-swallowed, using a fake transport, no real network) + 4 new tests appended
+  to `tests/integration/test_telegram_routes.py` (system() reflects enabled/disabled; pausing with
+  Telegram configured sends exactly one notification with the right chat/text; pausing without
+  Telegram configured sends nothing; repeating the same status sends nothing).
+
+**Verified:** full suite 580 passed (457 unit/property + 123 integration, up from 457+113), ruff
+clean repo-wide, pyright clean except the one pre-existing unrelated `auth_routes.py` error
+(confirmed present before this slice too). Rebuilt both `wallybot-api:0.1.0` and
+`wallybot-api-research:0.1.0` (no new migration this slice, but rebuilt both per this session's own
+established lesson about the compose `&app` anchor), ran `docker compose up migrate` (no-op, schema
+unchanged), recreated `api`, brought `worker`/`scheduler`/`research`/`gateway`/`web` up too -- all 8
+services healthy, `/health/ready` → `{"status":"ready"}` through the gateway. Did **not** manually
+curl-test the real running stack's `/api/control` with a real bootstrap token, since that requires
+reading `.secrets/bootstrap_token`'s contents, which `AGENTS.md` forbids outright -- the integration
+suite's `TestClient`-based tests exercise the identical route/app/DB stack instead (real Postgres via
+testcontainers, real `Crypto` encrypt/decrypt, real FastAPI routing), which is the closest available
+substitute given that constraint. `graphify update .` run after the code change.
+
+**Not yet committed** — ask before committing, per repo convention.
+
+**Immediate next actions:** commit this slice if the user agrees. Longer-lived gap noted above:
+research-job-failure notifications need `api` to poll for job-status transitions (or some other
+cross-process signal), since `research` itself has no internet egress to call Telegram directly --
+not started this slice, flagged for whoever picks up Telegram/notifications work next.
+
 ## Latest slice — Parquet ingestion job verified end-to-end + a durability bug fixed (2026-09-16)
 
 The Parquet dataset-ingestion job (`wallybot/application/market_ingestion.py`,

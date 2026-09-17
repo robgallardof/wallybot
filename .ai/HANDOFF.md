@@ -1,4 +1,26 @@
-# Codex UI handoff — 2026-09-12
+# Claude handoff — 2026-09-16 (new session)
+
+Picked up a fresh session with no prior chat context. `.ai/CURRENT.md`/`.ai/HANDOFF.md` were stale
+relative to `git log` -- several slices they described as "not yet committed" (Parquet ingestion,
+research job consumer, wallet/entity intelligence) were already committed by the time this session
+started. **Lesson for the next agent: always cross-check `.ai/CURRENT.md` against `git log` before
+trusting its "not yet committed" claims -- these files lag behind reality between sessions.**
+
+This session's slice: wired the Telegram bot-token storage (committed earlier, unused until now)
+to actually send a notification when an admin pauses/resumes the bot via `/api/control`. See the
+"Telegram notifications actually wired up" entry in `.ai/CURRENT.md` for the full detail, including
+the key architectural finding that `worker`/`scheduler` are *also* network-isolated (not just
+`research`) -- only `apps/api` can reach the internet, so any future notification trigger not
+already inside an `apps/api` request path needs a polling/cross-process design, not a direct call
+from a scheduler tick.
+
+**Not yet committed** — the working tree had one small pre-existing uncommitted frontend diff
+(Docs page architecture-diagram link, `apps/web/src/{proxy.ts,theme.css,lib/locales/en.json}`,
+`docker/web.Dockerfile`, `apps/web/public/architecture.html`) when this session started; left as-is
+since it looked complete and unrelated. This session's own backend changes (telegram wiring) are
+also uncommitted — ask the user before committing either.
+
+## Codex UI handoff — 2026-09-12
 
 Claude is actively modifying backend/connectivity in this working tree. User explicitly assigned Codex UI/UX, especially dark mode. Preserve concurrent changes; do not commit or revert the entire tree.
 
