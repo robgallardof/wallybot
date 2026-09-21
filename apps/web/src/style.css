@@ -414,6 +414,12 @@ input:focus-visible {
   padding: 5px 7px;
   white-space: nowrap;
 }
+.portfolio-export-links {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
 .empty-chart {
   min-height: 223px;
   position: relative;

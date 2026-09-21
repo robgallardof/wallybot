@@ -142,6 +142,14 @@ export function PortfolioPage({
         <article className="panel wide-panel">
           <div className="panel-heading">
             <h2>{i18n.t("Actividad reciente")}</h2>
+            <div className="portfolio-export-links">
+              <a href="/api/portfolio/export?format=csv" download>
+                {i18n.t("Exportar CSV")}
+              </a>
+              <a href="/api/portfolio/export?format=json" download>
+                {i18n.t("Exportar JSON")}
+              </a>
+            </div>
           </div>
           <div className="markets-table-wrap">
             <table className="markets-table">

@@ -1,10 +1,13 @@
 """The signed-in user's read-only PAPER portfolio view, plus one-time initial PAPER funding."""
 
+import csv
+import io
 from datetime import UTC, datetime
 from typing import Literal, cast
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
 from apps.api.dependencies import Admin, SignedIn
@@ -21,6 +24,23 @@ router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 # The only cash currency this pipeline trades against, same assumption
 # `wallybot.application.equity_tracker` and every existing strategy/pair already make.
 CASH_CURRENCY = "USD"
+
+# A safety cap on a full-history export, not a business limit -- large enough that no real PAPER
+# account (this system's own trading cadence) could plausibly exceed it, small enough to bound
+# memory for one request.
+EXPORT_FILL_LIMIT = 50_000
+_EXPORT_FIELDNAMES: tuple[str, ...] = (
+    "id",
+    "venue",
+    "base",
+    "quote",
+    "side",
+    "quantity",
+    "price",
+    "fee",
+    "fee_currency",
+    "occurred_at",
+)
 
 
 def paper_account_id(user_id: str) -> str:
@@ -69,6 +89,56 @@ async def get_portfolio(request: Request, user: SignedIn) -> PortfolioView:
             )
             for fill in fills
         ],
+    )
+
+
+@router.get("/export")
+async def export_portfolio_activity(
+    request: Request, user: SignedIn, format: Literal["csv", "json"] = "csv"
+) -> Response:
+    """Export the signed-in user's own fill history as CSV or JSON.
+
+    Same fields `get_portfolio`'s `activity` already exposes (id, venue, instrument, side,
+    quantity, price, fee, fee_currency, occurred_at) -- no fabricated PnL column: this codebase
+    has no FIFO lot tracking for live PAPER fills yet (`docs/PENDING.md` Fase 4, still open), only
+    for on-chain "smart money" analysis (`wallybot.domain.smart_money`). Adding a PnL column here
+    before that exists would either silently reuse the wrong computation or invent one -- neither
+    acceptable per this codebase's "never fabricate a number" rule.
+    """
+    account_id = paper_account_id(user.id)
+    async with request.app.state.sessions() as db:
+        fills = await PortfolioRepository(db).list_recent_fills(account_id, limit=EXPORT_FILL_LIMIT)
+
+    rows = [
+        {
+            "id": fill.fill_id,
+            "venue": fill.venue,
+            "base": fill.base,
+            "quote": fill.quote,
+            "side": fill.side,
+            "quantity": str(fill.quantity),
+            "price": str(fill.price),
+            "fee": str(fill.fee),
+            "fee_currency": fill.fee_currency,
+            "occurred_at": fill.filled_at.isoformat(),
+        }
+        for fill in fills
+    ]
+
+    if format == "json":
+        return JSONResponse(
+            rows,
+            headers={"Content-Disposition": 'attachment; filename="wallybot-operaciones.json"'},
+        )
+
+    buffer = io.StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=_EXPORT_FIELDNAMES)
+    writer.writeheader()
+    writer.writerows(rows)
+    return Response(
+        content=buffer.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="wallybot-operaciones.csv"'},
     )
 
 

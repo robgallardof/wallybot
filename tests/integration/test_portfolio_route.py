@@ -58,27 +58,31 @@ def add_balanced_posting_pair(
 
 
 def add_fill(db, account_id: str) -> None:
+    add_fill_for(db, account_id, "portfolio-fill", "portfolio-order")
+
+
+def add_fill_for(db, account_id: str, fill_id: str, client_order_id: str) -> None:
     db.execute(
         """INSERT INTO order_intents (
              client_order_id, account_id, environment, venue, base, quote, side, kind, quantity,
              limit_price, decision_id, idempotency_key, risk_assessment_id, config_versions,
              created_at, expires_at, status
            ) VALUES (
-             'portfolio-order', %s, 'PAPER', 'kraken', 'BTC', 'USD', 'BUY', 'MARKET', 0.005,
-             NULL, 'decision-1', 'portfolio-key', 'risk-1', '{}'::jsonb,
+             %s, %s, 'PAPER', 'kraken', 'BTC', 'USD', 'BUY', 'MARKET', 0.005,
+             NULL, 'decision-1', %s, 'risk-1', '{}'::jsonb,
              NOW(), NOW() + interval '1 hour', 'FILLED'
            )""",
-        (account_id,),
+        (client_order_id, account_id, client_order_id),
     )
     db.execute(
         """INSERT INTO fills (
              fill_id, client_order_id, account_id, environment, venue, base, quote, side,
              quantity, price, fee, fee_currency, filled_at
            ) VALUES (
-             'portfolio-fill', 'portfolio-order', %s, 'PAPER', 'kraken', 'BTC', 'USD', 'BUY',
+             %s, %s, %s, 'PAPER', 'kraken', 'BTC', 'USD', 'BUY',
              0.005, 50000, 0.25, 'USD', NOW()
            )""",
-        (account_id,),
+        (fill_id, client_order_id, account_id),
     )
 
 
@@ -202,4 +206,58 @@ def test_portfolio_reads_only_the_signed_in_users_paper_ledger(client, settings,
             "fee_currency": "USD",
             "occurred_at": body["activity"][0]["occurred_at"],
         }
+    ]
+
+
+def test_export_requires_auth(client) -> None:
+    assert client.get("/api/portfolio/export").status_code == 401
+
+
+def test_export_defaults_to_csv_with_only_the_signed_in_users_own_fills(
+    client, settings, db
+) -> None:
+    enroll(client, settings)
+    user_id = db.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()[0]
+    own_account_id = f"paper:{user_id}"
+    add_fill_for(db, own_account_id, "export-csv-own-fill", "export-csv-own-order")
+    add_fill_for(db, "paper:another-user", "someone-elses-fill", "export-csv-other-order")
+
+    response = client.get("/api/portfolio/export")
+
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"].startswith("text/csv")
+    assert "attachment" in response.headers["content-disposition"]
+    lines = response.text.strip().splitlines()
+    assert lines[0] == "id,venue,base,quote,side,quantity,price,fee,fee_currency,occurred_at"
+    assert len(lines) == 2
+    assert lines[1].startswith("export-csv-own-fill,kraken,BTC,USD,BUY,0.005,50000,0.25,USD,")
+    assert "someone-elses-fill" not in response.text
+
+
+def test_export_json_returns_the_same_fields_as_the_portfolio_view(client, settings, db) -> None:
+    enroll(client, settings)
+    user_id = db.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()[0]
+    own_account_id = f"paper:{user_id}"
+    add_fill_for(db, own_account_id, "export-json-own-fill", "export-json-own-order")
+
+    response = client.get("/api/portfolio/export?format=json")
+
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"].startswith("application/json")
+    assert "attachment" in response.headers["content-disposition"]
+    rows = response.json()
+    assert len(rows) == 1
+    assert rows[0]["id"] == "export-json-own-fill"
+    assert rows[0]["fee"] == "0.25"
+    assert "pnl" not in rows[0]
+
+
+def test_export_with_no_fills_is_only_a_header_row(client, settings) -> None:
+    enroll(client, settings)
+
+    response = client.get("/api/portfolio/export")
+
+    assert response.status_code == 200, response.text
+    assert response.text.strip().splitlines() == [
+        "id,venue,base,quote,side,quantity,price,fee,fee_currency,occurred_at"
     ]
