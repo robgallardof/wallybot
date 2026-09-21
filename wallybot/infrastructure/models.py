@@ -566,6 +566,25 @@ class EquitySnapshotRow(Base):
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
 
+class BreakerRow(Base):
+    """Persists `wallybot.domain.breaker.Breaker`. One mutable row per `breaker_type` (a latch,
+    not a log) -- this system has one account, so only one instance of each breaker type can ever
+    be meaningfully active. `wallybot.security.auth.audit` records the trip/clear as an event for
+    the audit trail; this table is the current state, not the history."""
+
+    __tablename__ = "breakers"
+    __table_args__ = (
+        CheckConstraint(
+            "breaker_type IN ('DAILY_LOSS', 'WEEKLY_LOSS', 'DRAWDOWN', 'RECONCILIATION')"
+        ),
+    )
+    breaker_type: Mapped[str] = mapped_column(String(24), primary_key=True)
+    reason: Mapped[str] = mapped_column(String(256))
+    tripped_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    cleared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cleared_by: Mapped[str | None] = mapped_column(String(36))
+
+
 class PriceConsensusResultRow(Base):
     """Persists `wallybot.domain.price_consensus.PriceConsensusResult`. Insert-only, same
     reasoning as every other snapshot table -- each computation is a fact about a moment in time."""

@@ -27,6 +27,7 @@ from apps.api.market_routes import router as market_router
 from apps.api.portfolio_routes import paper_account_id
 from apps.api.portfolio_routes import router as portfolio_router
 from apps.api.research_routes import router as research_router
+from apps.api.risk_routes import router as risk_router
 from apps.api.system_routes import router as system_router
 from apps.api.telegram_routes import router as telegram_router
 from wallybot.application.backtest_orchestrator import BacktestOrchestrator
@@ -211,6 +212,7 @@ async def _decision_loop(
                     "instruments_evaluated": len(result.outcomes),
                     "orders_placed": orders_placed,
                     "reconciliation_healthy": result.reconciliation_healthy,
+                    "active_breakers": [b.breaker_type.value for b in result.active_breakers],
                 },
             )
         except asyncio.CancelledError:
@@ -450,4 +452,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(intelligence_router)
     app.include_router(backtest_router)
     app.include_router(telegram_router)
+    app.include_router(risk_router)
     return app

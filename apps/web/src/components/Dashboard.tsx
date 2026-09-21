@@ -27,6 +27,7 @@ import { SettingsPage } from "./dashboard/pages/SettingsPage";
 import { DocsPage } from "./dashboard/pages/DocsPage";
 import { PortfolioPage } from "./dashboard/pages/PortfolioPage";
 import { usePortfolioData } from "../hooks/usePortfolioData";
+import { useBreakersData } from "../hooks/useBreakersData";
 
 export function Dashboard({
   user,
@@ -71,6 +72,7 @@ export function Dashboard({
   );
   const { telegram, save: saveTelegram } = useTelegramData(page === "settings");
   const { portfolio, fund: fundPortfolio } = usePortfolioData(page === "portfolio");
+  const { breakers, clear: clearBreaker } = useBreakersData(page === "risk");
   function navigate(next: string) {
     router.push(`/${next}`);
   }
@@ -103,7 +105,13 @@ export function Dashboard({
         />
       )}
       {page === "risk" && (
-        <RiskPage dashboard={dashboard} change={change} role={user.role} />
+        <RiskPage
+          dashboard={dashboard}
+          change={change}
+          breakers={breakers}
+          clearBreaker={clearBreaker}
+          role={user.role}
+        />
       )}
       {page === "research" && (
         <BacktestsPage history={backtestHistory} run={runBacktest} />

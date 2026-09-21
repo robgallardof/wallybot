@@ -86,6 +86,18 @@ class OrderCancelView(BaseModel):
     status: str
 
 
+class BreakerView(BaseModel):
+    breaker_type: str
+    reason: str
+    tripped_at: str
+    cleared_at: str | None
+    cleared_by: str | None
+
+
+class BreakerListView(BaseModel):
+    rows: list[BreakerView]
+
+
 class ServiceStatusView(BaseModel):
     age_seconds: int | None
     status: str

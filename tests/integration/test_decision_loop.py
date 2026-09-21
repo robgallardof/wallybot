@@ -13,9 +13,12 @@ from wallybot.application.decision_loop import run_decision_tick
 from wallybot.application.execution_service import ExecutionService
 from wallybot.application.reconciliation_service import ReconciliationService
 from wallybot.data.quality import QualityPolicy
+from wallybot.domain.breaker import BreakerType
 from wallybot.domain.market import Candle, Instrument, MarketSnapshot, MarketType
 from wallybot.domain.order import OrderStatus
+from wallybot.domain.risk import RiskDecision
 from wallybot.exchanges.fake import FakeExchange
+from wallybot.infrastructure.breaker_repository import BreakerRepository
 from wallybot.infrastructure.models import FillRow, LedgerPostingRow, OrderIntentRow
 from wallybot.market.universe import UniverseFilterConfig
 
@@ -111,7 +114,7 @@ def sessions(settings, dependencies):
 def _reset_tables(settings, dependencies):
     with psycopg.connect(dependencies[0].replace("+psycopg", ""), autocommit=True) as connection:
         connection.execute(
-            "TRUNCATE equity_snapshots, ledger_postings, ledger_transactions, "
+            "TRUNCATE equity_snapshots, breakers, ledger_postings, ledger_transactions, "
             "ledger_accounts, fills, order_transitions, order_intents CASCADE"
         )
     yield
@@ -267,3 +270,69 @@ async def test_the_gateways_simulated_balance_resyncs_from_the_ledger_each_tick(
     # The stale pre-existing balance the gateway was constructed with never survives -- it is
     # overwritten from the real ledger (10000, not 999999999) at the start of the tick.
     assert paper_gateway.balances["USD"] < Decimal("10000")
+
+
+async def test_a_tripped_daily_loss_breaker_persists_and_blocks_new_orders(sessions, db) -> None:
+    _seed_cash(db, ACCOUNT_ID, "10000")
+    provider = make_provider()
+    paper_gateway = FakeExchange(clock=FixedClock(NOW), market_data=provider)
+    execution = ExecutionService(gateway=paper_gateway, sessions=sessions, clock=FixedClock(NOW))
+    reconciliation = ReconciliationService(execution=execution, sessions=sessions)
+    clock = FixedClock(NOW)
+    id_generator = SequentialIdGenerator()
+    quality_policy = make_quality_policy()
+    universe_config = make_universe_config()
+
+    first = await run_decision_tick(
+        sessions=sessions,
+        provider=provider,
+        paper_gateway=paper_gateway,
+        execution=execution,
+        reconciliation=reconciliation,
+        clock=clock,
+        id_generator=id_generator,
+        quality_policy=quality_policy,
+        universe_config=universe_config,
+        account_id=ACCOUNT_ID,
+        now=NOW,
+    )
+    assert first.active_breakers == ()
+
+    # A loss of 5% between ticks, well beyond the 2% daily loss limit -- simulates something
+    # having gone wrong elsewhere (this test only needs the equity drop, not how it happened).
+    db.execute("UPDATE ledger_postings SET amount = amount - 500 WHERE amount > 0")
+    later = NOW + timedelta(minutes=5)
+
+    second = await run_decision_tick(
+        sessions=sessions,
+        provider=provider,
+        paper_gateway=paper_gateway,
+        execution=execution,
+        reconciliation=reconciliation,
+        clock=clock,
+        id_generator=id_generator,
+        quality_policy=quality_policy,
+        universe_config=universe_config,
+        account_id=ACCOUNT_ID,
+        now=later,
+    )
+
+    active_types = {b.breaker_type for b in second.active_breakers}
+    assert BreakerType.DAILY_LOSS in active_types
+    # The breaker (not just the metric) is what blocks the trade -- every outcome this tick is
+    # rejected, none placed, even though the same uptrend signal produced a real BUY on tick one.
+    assert all(o.order_status is None for o in second.outcomes)
+    rejected_reasons = [
+        reason
+        for outcome in second.outcomes
+        if outcome.risk_assessment is not None
+        and outcome.risk_assessment.decision is RiskDecision.REJECTED
+        for reason in outcome.risk_assessment.reasons
+    ]
+    assert rejected_reasons
+    assert any("breaker" in reason for reason in rejected_reasons)
+
+    # Persisted, not just returned in-memory -- a fresh read confirms the latch survived.
+    async with sessions() as session:
+        active = await BreakerRepository(session).list_active()
+    assert BreakerType.DAILY_LOSS in {b.breaker_type for b in active}

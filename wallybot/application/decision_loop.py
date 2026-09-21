@@ -13,6 +13,14 @@ takes `account_id` as an input.
 Single bucket (CORE, the most conservative) per tick -- `DecisionPipelineConfig` is still
 single-bucket per run, the same simplification `wallybot.application.equity_tracker` already
 documents; there is no per-instrument bucket assignment in this schema yet.
+
+Persistent circuit breakers (`wallybot.domain.breaker`): daily/weekly loss, drawdown and
+reconciliation health are evaluated and latched every tick via `BreakerRepository`, then every
+currently *active* breaker (including ones tripped on an earlier tick whose underlying metric has
+since recovered -- RISK.md: "a scheduler cannot silently reset a breaker at midnight") feeds
+`RiskEnvironment.active_breakers`. RISK.md's fuller breaker taxonomy (stale data, exchange
+outages, repeated execution errors, unknown orders, mismatches, DB failure, clock drift) has no
+trigger wiring yet; not fabricated as covered here.
 """
 
 from dataclasses import dataclass
@@ -31,6 +39,7 @@ from wallybot.application.equity_tracker import assess_equity
 from wallybot.application.execution_service import ExecutionService
 from wallybot.application.reconciliation_service import ReconciliationService
 from wallybot.data.quality import QualityPolicy
+from wallybot.domain.breaker import Breaker, breakers_to_trip
 from wallybot.domain.clock import Clock
 from wallybot.domain.control import Status
 from wallybot.domain.id_generator import IdGenerator
@@ -38,6 +47,7 @@ from wallybot.domain.market import MarketDataProvider
 from wallybot.domain.portfolio import Bucket, PortfolioPolicy
 from wallybot.domain.risk import ExchangeStatus, RiskPolicy
 from wallybot.exchanges.fake import FakeExchange
+from wallybot.infrastructure.breaker_repository import BreakerRepository
 from wallybot.infrastructure.portfolio_repository import PortfolioRepository
 from wallybot.market.universe import UniverseFilterConfig
 from wallybot.portfolio.simple_allocator import SimplePortfolioAllocator
@@ -78,6 +88,7 @@ RISK_POLICY = RiskPolicy(
 class DecisionTickResult:
     outcomes: tuple[DecisionOutcome, ...]
     reconciliation_healthy: bool
+    active_breakers: tuple[Breaker, ...]
 
 
 async def run_decision_tick(
@@ -106,6 +117,20 @@ async def run_decision_tick(
     assessment = await assess_equity(
         sessions, provider, account_id, "PAPER", CASH_CURRENCY, BUCKET, now
     )
+
+    trips = breakers_to_trip(
+        assessment.daily_loss,
+        assessment.weekly_loss,
+        assessment.drawdown,
+        RISK_POLICY,
+        reconciliation_healthy,
+    )
+    async with sessions.begin() as db:
+        breaker_repo = BreakerRepository(db)
+        for breaker_type, reason in trips:
+            await breaker_repo.trip(breaker_type, reason, now)
+    async with sessions() as db:
+        active_breakers = await BreakerRepository(db).list_active()
 
     pipeline = DecisionPipeline(
         provider=provider,
@@ -143,14 +168,14 @@ async def run_decision_tick(
         # so treating the exchange as healthy here never masks a real outage.
         exchange_status=ExchangeStatus.HEALTHY,
         reconciliation_healthy=reconciliation_healthy,
-        # No persistent operational-breaker subsystem exists yet (stale data/exchange outage/
-        # repeated errors, per RISK.md) -- only the daily/weekly loss and drawdown breakers below
-        # are real. Not fabricated as "no breakers active"; explicitly narrower in scope than
-        # RISK.md's full breaker taxonomy.
-        active_breakers=frozenset(),
+        active_breakers=frozenset(b.breaker_type.value for b in active_breakers),
         daily_loss=assessment.daily_loss,
         weekly_loss=assessment.weekly_loss,
         drawdown=assessment.drawdown,
     )
     outcomes = await pipeline.run(assessment.portfolio_state, risk_environment)
-    return DecisionTickResult(outcomes=outcomes, reconciliation_healthy=reconciliation_healthy)
+    return DecisionTickResult(
+        outcomes=outcomes,
+        reconciliation_healthy=reconciliation_healthy,
+        active_breakers=active_breakers,
+    )

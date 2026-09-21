@@ -225,3 +225,12 @@ export const telegramConfigSchema = z.object({
   chat_id: z.number().nullable(),
   enabled: z.boolean(),
 });
+
+export const breakerSchema = z.object({
+  breaker_type: z.enum(["DAILY_LOSS", "WEEKLY_LOSS", "DRAWDOWN", "RECONCILIATION"]),
+  reason: z.string(),
+  tripped_at: z.string(),
+  cleared_at: z.string().nullable(),
+  cleared_by: z.string().nullable(),
+});
+export const breakerListSchema = z.object({ rows: z.array(breakerSchema) });
