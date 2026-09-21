@@ -202,8 +202,14 @@ async function shell(page: Page, role: "ADMIN" | "VIEWER" = "VIEWER") {
 test("settings and first-steps pages keep actions aligned on desktop and mobile", async ({ page }) => {
   await shell(page, "ADMIN");
   await page.goto("/settings");
-  await expect(page.getByRole("heading", { name: "Observando mercados reales (OBSERVE)" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Activar simulación PAPER" })).toBeVisible();
+  // shell()'s mocked /api/dashboard always returns environment: "PAPER" -- assert the settled
+  // PAPER-state text, not the pre-fetch OBSERVE default. Asserting the default was a race: the
+  // dashboard query resolves asynchronously, and `toBeVisible()` succeeds on first match rather
+  // than a settled one, so it could "pass" by catching the transient pre-hydration render.
+  await expect(page.getByRole("heading", { name: "Simulación PAPER activada" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Desactivar simulación (volver a OBSERVE)" }),
+  ).toBeVisible();
   await expect(page.getByLabel("Token del bot")).toBeVisible();
   await expect(page.getByLabel("Chat ID")).toBeVisible();
   await page.getByLabel("Código de autenticación").fill("123456");
