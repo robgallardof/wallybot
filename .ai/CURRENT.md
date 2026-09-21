@@ -1,5 +1,53 @@
 # Current task
 
+## Instrument-detail route added (2026-09-21, continued further still)
+
+Another Fase 2 gap the audit named directly: "no existe ruta de detalle de instrumento (no
+`/api/markets/{id}`, sin velas)." New `GET /api/markets/{instrument_id:path}` (`:path` converter
+since `Instrument.id` embeds a literal `/` -- `"<venue>:<market_type>:<base>/<quote>"`). New
+`build_instrument_detail` in `wallybot/application/market_overview.py` reuses the exact same
+provider/timeframe/quality_policy `GET /api/markets` already uses -- pulled from
+`app.state.market_overview`'s own bound `functools.partial` kwargs, not a second, potentially-
+drifting config. Returns candles/volume/bid-ask/quality/eligibility for one instrument, honest 404
+when the id doesn't match anything the provider currently discovers. Reused
+`evaluate_instrument`'s quality gate from the slice before this one, so a FAILURE-quality
+instrument's detail also reports `eligible: false` with `data_quality_failure` in the reasons.
+
+Caught a real pyright error while wiring the DTO: `QualityStatus` (a `StrEnum`) doesn't structurally
+satisfy `Literal["PASS","WARNING","FAILURE"]` even though the values match -- needed `.value`.
+Interesting because the identical pattern at `GET /api/markets`'s own `quality_status=row.quality.
+status` line does NOT get flagged, since `overview = await request.app.state.market_overview()`
+infers as `Any` (untyped `app.state`), so pyright never checks it there -- my new function has a
+real return-type annotation (`InstrumentDetail | None`), so the check actually fires. Left the
+older untyped line alone (out of scope, pre-existing, not a new bug).
+
+**Deliberately API-only, no frontend wiring**: a candle chart needs a charting library --
+`ARCHITECTURE.md` names Lightweight Charts as the plan, but it isn't an `apps/web/package.json`
+dependency yet (confirmed via grep, not assumed) -- a real new-dependency/design decision, not
+something to add silently inside this slice. `MarketsPage.tsx` already has a client-side `<details>`
+expand-row for reasons/quality (covers part of the audit's Playwright-tested "keyboard details"),
+so the read-only quality/eligibility half of "detail" was already partly there; only the candle
+chart is the actual remaining gap now.
+
+Added 3 unit tests to `tests/unit/test_market_overview.py`: known instrument returns candles/
+quality, unknown instrument returns `None` (not a fabricated empty detail), FAILURE-quality
+instrument marked ineligible (reusing the same `StaleCandlesProvider` from the prior quality-gate
+slice). No integration test for the route itself -- matches the pre-existing convention: `GET
+/api/markets` itself has zero integration coverage either (real Kraken network dependency), relies
+on the unit-tested `build_market_overview`/`build_instrument_detail` plus live verification against
+the real deployed stack.
+
+**Verified:** full backend suite 796 passed (up from 793), ruff/pyright clean (known
+`auth_routes.py:65` only). No frontend files touched.
+
+**Not yet rebuilt/redeployed or committed this slice.**
+
+**Immediate next actions:** rebuild+redeploy (backend-only), `graphify update .`, verify
+`/api/markets/<real-instrument-id>` live against the deployed stack, commit, keep going per
+"continua...hasta acabar tokens." Remaining audit-surfaced candidate: wiring `MarketCache` into a
+real call path (lower priority, smaller win). Do NOT touch OBSERVE/PAPER/LIVE architecture. Still
+unaddressed: user's "three js es par ael login y eso" comment.
+
 ## Stale Vite references fixed (2026-09-21, continued further still, docs-only)
 
 Small, low-risk pick from the Fase 1/2 audit: `ARCHITECTURE.md:109`, `DEPLOYMENT.md:63`,

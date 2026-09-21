@@ -2,7 +2,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from wallybot.application.market_overview import build_market_overview
+from wallybot.application.market_overview import build_instrument_detail, build_market_overview
 from wallybot.data.quality import QualityPolicy
 from wallybot.domain.quality import QualityStatus
 from wallybot.exchanges.fake import FakeExchange
@@ -233,3 +233,70 @@ async def test_one_failing_instrument_is_excluded_not_a_whole_overview_failure()
 
     assert len(overview.rows) == len(discovered) - 1
     assert failing_id not in {row.instrument.id for row in overview.rows}
+
+
+def _detail_config():
+    return {
+        "timeframe": "1h",
+        "history_candles": 30,
+        "universe_config": UniverseFilterConfig(
+            version=1,
+            min_history_candles=20,
+            min_average_quote_volume=Decimal("0"),
+            max_spread_ratio=Decimal("0.05"),
+        ),
+        "quality_policy": QualityPolicy(
+            version=1,
+            timeframe="1h",
+            max_stale_age=timedelta(hours=3),
+            max_clock_drift=timedelta(minutes=5),
+            max_abnormal_return=Decimal("0.5"),
+        ),
+    }
+
+
+async def test_instrument_detail_returns_candles_and_quality_for_a_known_instrument():
+    clock = FixedClock(datetime(2026, 1, 2, tzinfo=UTC))
+    provider = FakeExchange(clock=clock, seed=1)
+    discovered = await provider.discover_instruments()
+    target = discovered[0]
+
+    detail = await build_instrument_detail(
+        provider=provider, clock=clock, instrument_id=target.id, **_detail_config()
+    )
+
+    assert detail is not None
+    assert detail.instrument.id == target.id
+    assert detail.as_of == clock.at
+    assert detail.bid > 0
+    assert detail.ask >= detail.bid
+    assert len(detail.candles) == 30
+    assert all(candle.instrument.id == target.id for candle in detail.candles)
+
+
+async def test_instrument_detail_returns_none_for_an_unknown_instrument():
+    clock = FixedClock(datetime(2026, 1, 2, tzinfo=UTC))
+    provider = FakeExchange(clock=clock, seed=1)
+
+    detail = await build_instrument_detail(
+        provider=provider, clock=clock, instrument_id="fake:SPOT:NOPE/USD", **_detail_config()
+    )
+
+    assert detail is None
+
+
+async def test_instrument_detail_marks_failure_quality_ineligible():
+    clock = FixedClock(datetime(2026, 1, 2, tzinfo=UTC))
+    wrapped = FakeExchange(clock=clock, seed=1)
+    discovered = await wrapped.discover_instruments()
+    stale_id = discovered[0].id
+    provider = StaleCandlesProvider(wrapped, stale_id, timedelta(days=30))
+
+    detail = await build_instrument_detail(
+        provider=provider, clock=clock, instrument_id=stale_id, **_detail_config()
+    )
+
+    assert detail is not None
+    assert detail.quality.status == QualityStatus.FAILURE
+    assert "data_quality_failure" in detail.reasons
+    assert detail.eligible is False

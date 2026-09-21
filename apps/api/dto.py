@@ -193,6 +193,32 @@ class MarketsView(BaseModel):
     rows: list[MarketRowView]
 
 
+class CandleView(BaseModel):
+    open_time: str
+    close_time: str
+    open: str
+    high: str
+    low: str
+    close: str
+    volume: str
+
+
+class InstrumentDetailView(BaseModel):
+    id: str
+    venue: str
+    base: str
+    quote: str
+    as_of: str
+    bid: str
+    ask: str
+    spread_ratio: str
+    quality_status: Literal["PASS", "WARNING", "FAILURE"]
+    quality_reasons: list[str]
+    eligible: bool
+    rejection_reasons: list[str]
+    candles: list[CandleView]
+
+
 class SmartMoneyRowView(BaseModel):
     wallet_id: str
     status: Literal["SCORED", "INSUFFICIENT_DATA"]

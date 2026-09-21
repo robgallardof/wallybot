@@ -13,10 +13,10 @@ from decimal import Decimal
 
 from wallybot.data.quality import QualityPolicy, evaluate_series_quality
 from wallybot.domain.clock import Clock
-from wallybot.domain.market import TIMEFRAME_DURATIONS, Instrument, MarketDataProvider
+from wallybot.domain.market import TIMEFRAME_DURATIONS, Candle, Instrument, MarketDataProvider
 from wallybot.domain.quality import QualityReport
 from wallybot.features.simple import SimpleFeatureEngine
-from wallybot.market.universe import UniverseFilterConfig, evaluate_universe
+from wallybot.market.universe import UniverseFilterConfig, evaluate_instrument, evaluate_universe
 from wallybot.scoring.simple import score_momentum
 
 DEFAULT_MAX_CONCURRENCY = 6
@@ -117,3 +117,53 @@ async def build_market_overview(
         for instrument in instruments
     )
     return MarketOverview(as_of=now, rows=rows)
+
+
+@dataclass(frozen=True)
+class InstrumentDetail:
+    instrument: Instrument
+    as_of: datetime
+    bid: Decimal
+    ask: Decimal
+    candles: tuple[Candle, ...]
+    quality: QualityReport
+    eligible: bool
+    reasons: tuple[str, ...]
+
+
+async def build_instrument_detail(
+    provider: MarketDataProvider,
+    clock: Clock,
+    instrument_id: str,
+    timeframe: str,
+    history_candles: int,
+    universe_config: UniverseFilterConfig,
+    quality_policy: QualityPolicy,
+) -> InstrumentDetail | None:
+    """Candles/volume/quality for one instrument, e.g. for a detail/chart view -- `None` when
+    `instrument_id` doesn't match anything the provider currently discovers, so the caller can
+    honestly return 404 rather than a fabricated empty detail. Same quality/eligibility gate
+    `build_market_overview` applies, just for a single instrument instead of the whole universe.
+    """
+    now = clock.now()
+    since = now - TIMEFRAME_DURATIONS[timeframe] * history_candles
+    instruments = await provider.discover_instruments()
+    instrument = next((i for i in instruments if i.id == instrument_id), None)
+    if instrument is None:
+        return None
+
+    candles = await provider.fetch_candles(instrument, timeframe, since, history_candles)
+    snapshot = await provider.fetch_snapshot(instrument)
+    quality = evaluate_series_quality(candles, quality_policy, now)
+    evaluation = evaluate_instrument(instrument, candles, snapshot, universe_config, quality)
+
+    return InstrumentDetail(
+        instrument=instrument,
+        as_of=now,
+        bid=snapshot.bid,
+        ask=snapshot.ask,
+        candles=tuple(candles),
+        quality=quality,
+        eligible=evaluation.eligible,
+        reasons=evaluation.reasons,
+    )

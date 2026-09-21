@@ -1,5 +1,18 @@
 # Claude handoff — 2026-09-16 (new session)
 
+## Instrument-detail route added — 2026-09-21 (continued further still)
+
+Full detail in `.ai/CURRENT.md`. New `GET /api/markets/{instrument_id:path}` (candles/volume/
+bid-ask/quality/eligibility for one instrument) -- reuses `GET /api/markets`'s own provider/
+timeframe/quality_policy config, never a second copy. API-only this slice; the candle chart itself
+needs a charting library that isn't installed yet (`ARCHITECTURE.md` plans Lightweight Charts, not
+in `package.json`) -- a real dependency decision, not silently added here.
+
+**Verified:** 796 backend tests (up from 793), ruff/pyright clean. About to rebuild/redeploy/commit.
+
+**Immediate next actions:** per "continua...hasta acabar tokens" -- remaining candidate: wire
+`MarketCache`. Do not touch OBSERVE/PAPER/LIVE architecture.
+
 ## Stale Vite references fixed — 2026-09-21 (continued further still, docs-only)
 
 Small pick from the Fase 1/2 audit: `ARCHITECTURE.md`, `DEPLOYMENT.md`, `AGENTS.md` and
