@@ -1,5 +1,27 @@
 # Claude handoff — 2026-09-16 (new session)
 
+## Persistent circuit breakers committed — 2026-09-20 (new session)
+
+Fresh session, no prior chat history. Found the breaker slice already fully built and sitting
+uncommitted in the working tree (matching the prior session's own "Immediate next actions" in
+`.ai/CURRENT.md`). Verified it rather than assuming "uncommitted" meant "incomplete": full suite
+661 passed, ruff/pyright clean, frontend eslint/tsc clean, rebuilt every Docker image and
+redeployed the whole stack, migration `0029_breakers` applied cleanly, all 8 services healthy.
+Committed with the user's explicit approval (`dbbb9d5`). See `.ai/CURRENT.md`'s matching entry for
+full technical detail.
+
+User also pasted a pseudocode trading strategy idea (VIX/Fear&Greed-conditioned equities DCA on
+SMH/NVDA + a crypto-sentiment branch) mid-session. **Not implemented** -- recorded as a new
+unchecked `docs/PENDING.md` Fase 3 item instead, since it needs an equities market/venue adapter
+and a VIX/Fear&Greed data source, neither of which exists in this codebase yet (`MarketType` is
+crypto-`SPOT`-only today). Needs an explicit user decision on a data provider before any code gets
+written -- flagged back to the user, not started unilaterally, per `AGENTS.md`'s "avoid
+speculative architecture changes."
+
+**Immediate next actions:** ask the user what's next -- walk-forward/backtest UI wiring, further
+`PENDING.md` phase auditing (Fase 6 AI, Fase 8 Telegram), the new equities/VIX strategy idea
+(pending a data-provider decision), or something else entirely.
+
 ## Portfolio slice committed, working tree backlog cleared — 2026-09-17 (new session)
 
 Picked up a fresh session with no prior chat context, user said "continua con lo pendiente acaba

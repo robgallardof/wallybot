@@ -1,5 +1,43 @@
 # Current task
 
+## Persistent operational circuit breakers finished (2026-09-20)
+
+Picked up the working tree exactly where the prior session's "Immediate next actions" pointed --
+persistent circuit breakers was already fully built and sitting uncommitted (domain `Breaker`/
+`breakers_to_trip`, `BreakerRepository`, migration `0029_breakers`, `/api/risk/breakers` routes,
+`run_decision_tick` wiring, `useBreakersData`/`RiskPage` frontend, `tests/unit/test_breaker.py` +
+`tests/integration/test_breaker_repository.py` + `test_risk_routes.py`). This session verified it
+end-to-end rather than assuming "uncommitted" meant "unfinished": full suite 661 passed, ruff/
+pyright clean, frontend eslint/tsc clean, rebuilt every image (`docker compose build`) and
+redeployed the whole stack (`docker compose up -d`) -- migration `0029` applied cleanly, all 8
+services healthy, `/health/ready` -> `{"status":"ready"}`, `GET /api/risk/breakers` returns 401
+unauthenticated (route mounted, auth-gated as intended). `graphify update .` run after confirming.
+Checked off in `docs/PENDING.md` Fase 3.
+
+Only daily/weekly loss, drawdown and reconciliation are modeled -- RISK.md's fuller taxonomy
+(stale data, abnormal spread/volatility, exchange outages, repeated execution errors, unknown
+orders, DB failure, clock drift) still has no trigger wiring, documented as such in
+`wallybot/domain/breaker.py`'s own module docstring, not silently implied as covered.
+
+**User also pasted a pseudocode trading strategy this session** (regime-conditioned DCA for
+equities using VIX/Fear&Greed on SMH/NVDA, reserve injection on VIX>25 or RSI_Stocks<35, plus a
+crypto branch: Fear sentiment -> BTC spot buy, otherwise staggered limit orders at -5%/-10%).
+Recorded as a new unchecked item in `docs/PENDING.md` Fase 3, **not implemented** -- two real
+prerequisites are missing: (1) `wallybot.domain.market.MarketType` only has `SPOT` crypto via
+Kraken today, no equities venue/adapter exists; (2) no VIX or Fear&Greed data source is wired
+anywhere in the codebase. This is new `Strategy`-shaped work (`wallybot/domain/strategy.py`), not
+a risk/breaker change -- needs an explicit user decision on an equities/VIX data provider before
+any code gets written, per `AGENTS.md`'s "avoid speculative architecture changes."
+
+**Not yet committed** -- ask before committing, per repo convention. Working tree also still has
+the unrelated-looking `apps/api/dto.py`/`apps/api/main.py`/`wallybot/infrastructure/models.py`
+diffs, all part of this same breaker slice (DTO views, router registration, `BreakerRow`) -- one
+cohesive change, safe to commit together.
+
+**Immediate next actions:** ask the user to commit this slice, then ask what's next -- walk-forward/
+backtest UI wiring, further `PENDING.md` phase auditing (Fase 6 AI, Fase 8 Telegram), the new
+equities/VIX strategy idea (pending a data-provider decision), or something else entirely.
+
 ## Order cancellation orchestration (2026-09-17, continued again)
 
 User picked this from the audit's punch list as the next increment after the live loop landed.

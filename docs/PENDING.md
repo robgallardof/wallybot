@@ -70,12 +70,13 @@ Las entregas documentadas en [PHASE_2](PHASE_2.md) y [PHASE_3](PHASE_3.md) son a
 - [ ] Componer features, régimen, estrategia, consenso, asignación y riesgo; guardar tanto decisiones rechazadas como aprobadas con entradas/versiones.
 - [ ] Ampliar regímenes con evidencia de volatilidad, amplitud y condiciones anormales; el clasificador inicial de momentum no cubre toda la taxonomía original.
 - [ ] Incorporar las demás estrategias solicitadas cuando exista hipótesis y datos: breakout, pullback, reversión, rotación y variantes de volumen/volatilidad.
+- [ ] Nueva idea de estrategia propuesta por el usuario (2026-09-20, sin implementar): DCA condicionado por régimen para renta variable (VIX, Fear & Greed Index) sobre SMH/NVDA con inyección de reserva si VIX>25 o RSI_Stocks<35, más una rama cripto (Fear→compra spot BTC, si no→limit orders escalonados -5%/-10%). Requiere decisiones de scope antes de construirse: (1) `MarketType` hoy solo tiene `SPOT` cripto vía Kraken -- no existe integración de renta variable ni de VIX/Fear&Greed como fuente de datos; (2) encaja como un nuevo `Strategy` (`wallybot/domain/strategy.py`) consumido por `RegimeClassification`, no como cambio al motor de riesgo/breakers. No iniciar sin decisión explícita del usuario sobre el proveedor de datos de renta variable/VIX.
 - [ ] Implementar tamaño por distancia al stop y presupuesto de riesgo, costes, capacidad de efectivo, reservas, impacto y límites de liquidez.
 - [ ] Enlazar evaluación con intención exacta, cuenta, entorno, digest, versiones y caducidad; persistir aprobación y reserva atómicamente.
 - [ ] Calcular equity, pérdidas diaria/semanal y high-water mark ajustados por flujos externos; conservarlos tras reinicios.
 - [ ] Completar concentración por activo entre venues, clusters, volatilidad y correlación; configuración requerida ausente debe fallar de forma cerrada.
 - [ ] Soportar reducciones y cierres sin vender más de lo poseído; el allocator inicial no implementa todavía el flujo SELL.
-- [ ] Implementar breakers persistentes, motivo y rearme autorizado; no reiniciarlos silenciosamente al cambiar de día.
+- [x] Implementar breakers persistentes, motivo y rearme autorizado; no reiniciarlos silenciosamente al cambiar de día. (2026-09-20: `wallybot/domain/breaker.py`, `BreakerRepository`, migración `0029_breakers`, `run_decision_tick` evalúa y traba cada breaker por tick, `POST /api/risk/breakers/{type}/clear` exige Admin+MFA reciente, UI en RiskPage.)
 - [ ] Separar pausa de entradas, cancelación de órdenes, cierre de posiciones y emergencia; reflejar resultados reales y acciones pendientes.
 - [ ] Exponer límites, consumo, reservas, pérdidas, incumplimientos y razones en la pantalla de riesgo.
 - [ ] Alcanzar y demostrar el objetivo de cobertura de ramas de riesgo de [TESTING](../TESTING.md), incluyendo concurrencia, parciales y límites exactos.
