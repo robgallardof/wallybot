@@ -1,5 +1,27 @@
 # Claude handoff — 2026-09-16 (new session)
 
+## Flaky Settings e2e fixed + CSV/JSON trade export — 2026-09-21 (same session, continued)
+
+Two more small, well-scoped, unblocked increments after Telegram commands (user: "hace falta
+muchisimo," keep going). Full detail in `.ai/CURRENT.md`'s matching entry.
+
+1. Fixed the Settings e2e flake flagged in the previous handoff entry -- it was asserting the
+   OBSERVE-state UI while the shared mock always returns `environment: "PAPER"`, only "passing" by
+   catching a pre-hydration transient render. Fixed by asserting the settled state instead.
+2. `GET /api/portfolio/export?format=csv|json` -- full PAPER fill history for the signed-in user's
+   own account. No PnL column: no FIFO lot tracking exists for live PAPER fills (`docs/PENDING.md`
+   Fase 4 still open), and this codebase's own convention is to never fabricate a number rather
+   than reuse an unrelated computation or invent one.
+
+**Verified:** full suite 713 passed, ruff/pyright clean (same known `auth_routes.py:65` error),
+frontend eslint/tsc clean, Playwright 11/11 twice in a row. Rebuilt/redeployed (no new migration),
+all 8 services healthy. Both committed with the user's established "commit and continue" mode this
+session (`09b3947` e2e fix, `f053fce` export).
+
+**Immediate next actions:** ask the user what's next. See `.ai/CURRENT.md` for the current
+candidate list (Fase 7 research runner, Fase 8 reports/dedup, other transversal-backlog rows are
+unblocked; Fase 6 AI and the equities/VIX idea need external decisions; Fase 9 LIVE stays gated).
+
 ## Telegram inbound commands — 2026-09-20 (same session, continued)
 
 Third slice this session (after breakers and walk-forward). Full technical detail in
