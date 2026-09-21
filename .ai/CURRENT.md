@@ -1,5 +1,79 @@
 # Current task
 
+## Observability + 3 parallel agents + concurrent-session merge + /help (2026-09-21, continued)
+
+Biggest single slice this session. User asked to keep going "hasta que se acaben tokens" and to
+use multiple agents in parallel. Sequence, in order:
+
+**1. Observability** (`docs/PENDING.md`'s transversal "Observabilidad" row): `wallybot/infrastructure/
+metrics.py` -- decision/price-consensus/market-ingestion/telegram-command tick counters, active
+breakers gauge, reconciliation health + UNKNOWN-orders gauges, research-queue-depth gauge, service
+heartbeat-age gauge (its own background loop, `_heartbeat_metrics_loop` in `apps/api/main.py` --
+deliberately NOT only updated on `/api/system` page views, since a metric that goes stale whenever
+nobody's looking at a dashboard defeats the point). `docker-compose.yml` got an opt-in `monitoring`
+profile (`docker compose --profile monitoring up -d`, matching what DEPLOYMENT.md already specified)
+running Prometheus + Grafana, both loopback-only (neither has real auth). `/api/metrics` itself is
+unauthenticated (Prometheus can't hold a session cookie) but blocked at the public edge by
+`docker/gateway.conf`'s `location = /api/metrics { return 404; }` -- network isolation is the real
+boundary, same trust model this codebase already uses for worker/scheduler/research. 5 alert rules
+in `docker/alerts.yml`, all rehearsed for real with `promtool test rules docker/alerts_test.yml`
+(synthetic series, confirmed pending→firing transitions) and cross-checked against the live
+Prometheus's own `/api/v1/rules`. "Costes" (AI spend) deliberately not covered -- nothing to measure
+yet. OpenTelemetry tracing deliberately not attempted -- a much bigger, separate investment.
+
+**2. Three parallel worktree-isolated agents**, launched together while the observability work was
+still being verified:
+- Telegram daily/weekly reports + notification dedup/rate-limit (closes the rest of Fase 8).
+- `GET /api/events` cursor pagination + server-side search/filter (closes most of the "Eventos y
+  logs" transversal row).
+- `docs/TRADING.md`/`STRATEGIES.md`/`AI.md`/`RESEARCH.md`/`BACKTESTING.md`/`OPERATIONS.md` (closes
+  the "Documentación" transversal row).
+
+Each ran in its own git worktree (uncommitted, never touched the shared Docker stack or committed
+anything, per their own instructions) and reported back independently. Merged all three into the
+main worktree by hand (no real commits existed in the worktrees to `git merge`) -- copied
+non-overlapping files wholesale, manually reconciled the few files more than one agent touched
+(`apps/api/system_routes.py` needed the events-pagination rewrite of `events()` *and* the
+heartbeat-metrics addition to `system()` *and* the dedup call-site change in `control()`;
+`apps/api/main.py` needed both the observability loops and the new `_telegram_report_loop`).
+Verified the fully-merged state before moving on: 758 passed (up from 723).
+
+**3. Found unrelated concurrent work already sitting in the main working tree**, not from me or my
+3 agents: a real FIFO PnL implementation (`wallybot/application/portfolio_performance.py`,
+`compute_fifo_performance`, wired into `GET /api/portfolio`'s new `performance` field -- closes
+most of Fase 4's "lotes FIFO... PnL realizado" item), a secure Telegram pairing flow (`/start
+<one-time code>` replacing manual chat_id entry, SHA-256 digest comparison, migration
+`0032_telegram_pairing`), and a `PageSkeleton` loading-state refactor across several pages plus a
+`DocsPage.tsx` content rewrite. **Asked the user rather than guessing or overwriting** -- another
+Claude Code session/window on this same folder, apparently the user's own. User said "comitea todo
+integra todo" (commit everything, integrate everything). Fixed two real issues found in that
+work before integrating: a `ruff` unused-import lint error, and a `pyright` Protocol-variance error
+(`FillLike` Protocol's plain attributes don't structurally satisfy SQLAlchemy's `Mapped[str]`
+columns under pyright -- fixed by accepting the concrete `FillRow` type directly instead of a
+Protocol, documented why in the module). Also fixed two Playwright tests that broke against the
+new `DocsPage.tsx` copy and the new `PageSkeleton` loading UI (updated assertions to match the real
+new text/markup, did not revert the product changes).
+
+**4. Added `/help`/`/commands` to the Telegram bot** (user's own request, mid-session): lists every
+recognized command with a one-line description; `/start` is also an alias for it once already
+paired (Telegram's own convention for a bot's entry point), separate from `/start <code>`'s
+pre-pairing meaning.
+
+**Verified, fully combined state:** 769 backend tests passed, ruff/pyright clean (same one known
+`auth_routes.py:65` error), frontend eslint/tsc clean, Playwright 12/12 (twice in a row after the
+DocsPage/PageSkeleton test fixes). Rebuilt every Docker image, redeployed with
+`--profile monitoring`, both migrations (`0031_telegram_reports`, `0032_telegram_pairing`) applied
+cleanly, all 10 services (8 core + Prometheus + Grafana) healthy. `graphify update .` run twice
+(after the merge, and again after the `/help` addition).
+
+**Not yet committed** -- about to commit now, user has explicitly said to integrate and commit
+everything together.
+
+**Immediate next actions:** ask what's next. Realistic unblocked remainders: delivery-failure
+handling for Telegram reports (Fase 8's last unchecked item), OpenTelemetry tracing, backups,
+config versioning, remaining Fase 1/2 items. Blocked: Fase 6 AI (provider decision), the
+equities/VIX strategy idea, Fase 9 LIVE (human-only gates).
+
 ## Research jobs: quota + UI (2026-09-21, continued)
 
 Fourth increment this session, per user's continued "hace falta muchas cosas" -- they also asked
@@ -852,3 +926,26 @@ Final verification: all 8 mocked observability browser tests passed with the fro
 ## Backtest form clarity — 2026-09-15
 
 Codex UI: allocation now explicitly a fraction, with examples for allocation/fees/slippage. Dates disclose browser time zone and UTC transport; invalid or reversed/equal windows are blocked before API submission with translated accessible errors. Instrument names are required with max length 16; feature window required, 1–500 per API. Decimal strings remain unchanged in requests. Focused browser test passed for rejected dates without POST, ES/EN errors, decimal payloads, successful execution/history and server 422. ESLint/TypeScript passed. No backend or deployment changes; previous Docker availability limitation remains.
+
+## Portfolio accounting and deployed PAPER clarity — 2026-09-21
+
+Codex added deterministic FIFO accounting for each signed-in user's PAPER ledger: realised PnL and
+open cost basis are exposed in `GET /api/portfolio` and rendered in the portfolio. The page now
+states correctly that the application is deployed while PAPER is only its isolated simulation
+account; it never moves external funds. No unverified mark-to-market value is displayed.
+
+The app stack was rebuilt and redeployed: API, web, worker, scheduler, research worker and
+migration service are healthy; `http://localhost:3333/health/ready` returned `{"status":"ready"}`.
+`uv run pytest tests/unit/test_portfolio_performance.py tests/integration/test_portfolio_route.py`
+passed 15 tests. The tree remains intentionally shared/dirty with concurrent work; do not reset
+or commit unrelated changes.
+
+## Telegram token-first pairing — 2026-09-21
+
+Telegram no longer requires a manually discovered Chat ID. An ADMIN stores a bot token, receives
+a one-time `/start <code>`, and the API long-poll loop allowlists only the chat that returns that
+exact code. The code is returned only in that authenticated POST response and its SHA-256 digest
+is the sole persisted value. Wrong codes are ignored without reply. Migration `0032_telegram_pairing`
+applied during the full redeploy; all services are healthy and `/health/ready` returned ready.
+Focused route/loop coverage: 33 passed; Ruff and web TypeScript passed. Never use a bot token
+posted in chat: revoke it in @BotFather first.

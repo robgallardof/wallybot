@@ -1,5 +1,32 @@
 # Claude handoff — 2026-09-16 (new session)
 
+## Observability + 3 parallel agents + concurrent-session merge + /help — 2026-09-21 (continued)
+
+Biggest slice this session. Full detail in `.ai/CURRENT.md`'s matching entry. Key lessons for next
+time:
+
+1. **Worktree-isolated parallel agents never commit and never touch the shared Docker stack** (by
+   instruction) -- merging their work back means manually reading each agent's `git diff` inside
+   its own worktree and applying it by hand when more than one agent (or your own uncommitted
+   work) touches the same file. `git worktree remove --force` + `git branch -D` once merged.
+2. **If you find unrelated uncommitted work already in the shared main working tree that you
+   didn't create, stop and ask before touching it** -- it may be a concurrent session (it was,
+   here: FIFO PnL, a Telegram pairing flow, a loading-skeleton refactor). Don't guess, don't
+   silently overwrite, don't silently commit it either.
+3. A Protocol with plain attributes doesn't structurally satisfy SQLAlchemy 2's `Mapped[T]`
+   columns under pyright (class-level descriptor type vs. resolved instance type) -- if you hit
+   this, accept the concrete ORM row type directly instead of fighting the Protocol.
+4. Prometheus alert rules can and should be rehearsed for real with `promtool test rules` before
+   claiming "alertas ensayadas" -- synthetic time series, assert the pending→firing transition at
+   the right eval_time. `promtool` ships inside the official `prom/prometheus` image.
+
+**Verified, fully combined state:** 769 backend tests, ruff/pyright clean (known `auth_routes.py:65`
+only), frontend eslint/tsc clean, Playwright 12/12. Rebuilt/redeployed with
+`--profile monitoring`, migrations 0031+0032 applied, all 10 services healthy.
+
+**Immediate next actions:** commit (user already said to integrate+commit everything), then ask
+what's next.
+
 ## Research jobs: quota + UI — 2026-09-21 (same session, continued)
 
 Fourth increment. Full detail in `.ai/CURRENT.md`. Key lesson for next time: **before scoping a
@@ -220,3 +247,27 @@ Final verification: all 8 mocked observability browser tests passed with the fro
 ## Backtest form clarity — 2026-09-15
 
 Codex UI: allocation now explicitly a fraction, with examples for allocation/fees/slippage. Dates disclose browser time zone and UTC transport; invalid or reversed/equal windows are blocked before API submission with translated accessible errors. Instrument names are required with max length 16; feature window required, 1–500 per API. Decimal strings remain unchanged in requests. Focused browser test passed for rejected dates without POST, ES/EN errors, decimal payloads, successful execution/history and server 422. ESLint/TypeScript passed. No backend or deployment changes; previous Docker availability limitation remains.
+
+## Portfolio accounting and deployed PAPER clarity — 2026-09-21
+
+Portfolio data is tenant-scoped to `paper:<user-id>`. `wallybot/application/portfolio_performance.py`
+matches fills oldest-first with FIFO and fails closed for invalid sales or a non-quote-currency
+fee. `apps/api/portfolio_routes.py` presents aggregate realised PnL/open cost basis and the web
+renders it. Export intentionally remains raw ledger rows because per-fill PnL for a partial FIFO
+close is ambiguous. Do not label PAPER as an undeployed/staging instance: it is the simulation
+account inside the deployed app. It remains deliberate safety policy; LIVE/withdrawals are not
+enabled.
+
+Current deployment was rebuilt successfully and `/health/ready` returned ready. Targeted
+portfolio tests: 15 passed. Preserve concurrent uncommitted work and do not make a broad commit.
+
+## Telegram token-first pairing — 2026-09-21
+
+`migrations/versions/0032_telegram_pairing.py` adds `telegram_config.pairing_code_hash`.
+`POST /api/telegram` with a token/no chat, or `start_pairing: true`, returns a one-time code only
+to the authenticated admin; `GET` never returns it. `run_telegram_command_tick` uses the pending
+digest to process only `/start <code>`, atomically persists the matching chat id, clears the hash,
+and then resumes its existing allowlisted-command behavior. It never executes commands while
+pairing. Tests: 33 focused Telegram route/loop tests passed. Full docker rebuild/redeploy passed;
+`migrate` exited 0 and every service was healthy. Do not use any bot token supplied in chat;
+require a fresh revoked/reissued token.
