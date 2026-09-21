@@ -1,4 +1,5 @@
 import json
+from collections.abc import Awaitable
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Protocol
@@ -7,11 +8,21 @@ from wallybot.domain.market import Instrument, MarketSnapshot
 
 
 class RedisLike(Protocol):
-    """The narrow slice of redis.asyncio.Redis this cache actually uses."""
+    """The narrow slice of redis.asyncio.Redis this cache actually uses.
 
-    async def set(self, key: str, value: str, px: int | None = None) -> object: ...
+    `key`/`value` are positional-only and `px` keyword-only -- matching exactly how this module
+    calls them -- so pyright compares `redis.asyncio.Redis`'s real methods (whose first positional
+    parameter is named `name`, not `key`) structurally by position, not by name, and does not
+    reject a real `Redis` instance as a mismatch on a parameter name nobody ever passes by keyword.
+    Declared as plain methods returning `Awaitable[...]`, not `async def`, to match redis-py's own
+    command-mixin stubs (typed generically as a plain, non-async-declared return, even though the
+    real async client's methods are awaitable at runtime) -- an `async def` Protocol method
+    compares against `Coroutine[Any, Any, T]` specifically, which redis-py's stubs never declare.
+    """
 
-    async def get(self, key: str) -> bytes | None: ...
+    def set(self, key: str, value: str, /, *, px: int | None = None) -> Awaitable[object]: ...
+
+    def get(self, key: str, /) -> Awaitable[bytes | None]: ...
 
 
 class MarketCache:

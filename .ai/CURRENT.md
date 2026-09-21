@@ -1,5 +1,47 @@
 # Current task
 
+## MarketCache wired into the Markets view (2026-09-21, continued further still)
+
+Last of the Fase 1/2 audit's "safe, unblocked" list: `MarketCache` (`wallybot/infrastructure/
+market_cache.py`) was real, tested, but connected to zero real call paths. `build_market_overview`
+now checks it first for each instrument's bid/ask snapshot (`DEFAULT_SNAPSHOT_CACHE_TTL = 30s`)
+before hitting the provider; on a miss it fetches and populates the cache. `apps/api/main.py`'s
+`app.state.market_overview` partial now passes a real `MarketCache(redis)`. Candles are NOT
+cached -- `MarketCache` only ever stored a single `MarketSnapshot`, and that's still true; candles
+are the actually-expensive part of the fetch and still go straight to the provider every load. A
+cache hit still doesn't imply freshness (ADR-003) -- quality is still always evaluated against
+fresh candles, never the cached snapshot.
+
+**Real pyright bug found and fixed while wiring this** (not a new one I introduced -- pre-existing,
+just never triggered because nothing had passed a concrete `Redis` into `MarketCache` in
+type-checked code before): `RedisLike.set`'s declared param name (`key`) didn't match
+`redis.asyncio.Redis.set`'s real first param name (`name`) as a keyword-usable positional-or-
+keyword parameter, so pyright rejected a real `Redis` as not structurally satisfying the protocol.
+Fixed properly, not suppressed: made `key`/`value` positional-only and `px` keyword-only (matching
+exactly how this module actually calls them), and switched the protocol's methods from `async def`
+to plain methods returning `Awaitable[...]` -- an `async def` Protocol method structurally compares
+against `Coroutine[Any, Any, T]`, which redis-py's own command-mixin stubs never declare (they type
+generically as a bare `ResponseT`, despite being awaitable at runtime).
+
+Added 2 new unit tests to `tests/unit/test_market_overview.py` (`FakeMarketCache` +
+`CountingProvider`): a cache hit skips the provider's `fetch_snapshot` call entirely; a cache miss
+fetches once and populates the cache. The existing `tests/integration/test_market_cache.py` (real
+Redis via testcontainers) was untouched and still passes.
+
+**Verified:** full backend suite 798 passed (up from 796), ruff/pyright clean (known
+`auth_routes.py:65` only).
+
+**Not yet rebuilt/redeployed or committed this slice.**
+
+**Immediate next actions:** rebuild+redeploy, `graphify update .`, verify the Markets page still
+serves real data live, commit. This closes out the Fase 1/2 audit's list of safe, unblocked items
+this session picked up unilaterally -- remaining items either need an explicit product/config
+decision (user administration, RISK_POLICY/PORTFOLIO_POLICY versioning, stop-distance-based sizing)
+or are human-only (CI-remote, Fedora/Cloudflare, Fase 9 LIVE gates). Worth asking the user directly
+next: which of those larger, decision-gated items to scope and start, or whether to keep sweeping
+for more small safe items first. Do NOT touch OBSERVE/PAPER/LIVE architecture. Still unaddressed:
+user's "three js es par ael login y eso" comment.
+
 ## Instrument-detail route added (2026-09-21, continued further still)
 
 Another Fase 2 gap the audit named directly: "no existe ruta de detalle de instrumento (no

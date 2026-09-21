@@ -1,5 +1,20 @@
 # Claude handoff — 2026-09-16 (new session)
 
+## MarketCache wired into the Markets view — 2026-09-21 (continued further still)
+
+Full detail in `.ai/CURRENT.md`. `MarketCache` was real/tested but unused -- now `build_market_
+overview` checks it first for each instrument's bid/ask snapshot (30s TTL) before hitting the
+provider. Candles still aren't cached (the cache never supported series, only a single snapshot).
+Found and fixed a real pre-existing pyright gap in `RedisLike`'s Protocol definition while wiring a
+real `Redis` instance into it for the first time (param names/async-vs-Awaitable mismatches against
+redis-py's own imprecise stubs).
+
+**Verified:** 798 backend tests (up from 796), ruff/pyright clean. About to rebuild/redeploy/commit.
+
+**This closes out the Fase 1/2 audit's safe, unblocked backlog items.** Remaining candidates all
+need an explicit product/config decision (user administration, RISK_POLICY versioning,
+stop-distance sizing) or are human-only. Worth checking with the user on direction next.
+
 ## Instrument-detail route added — 2026-09-21 (continued further still)
 
 Full detail in `.ai/CURRENT.md`. New `GET /api/markets/{instrument_id:path}` (candles/volume/

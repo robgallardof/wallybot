@@ -53,6 +53,7 @@ from wallybot.infrastructure.historical_ingestion_cursor_repository import (
     HistoricalIngestionCursorRepository,
 )
 from wallybot.infrastructure.logging import configure_logging
+from wallybot.infrastructure.market_cache import MarketCache
 from wallybot.infrastructure.metrics import (
     ACTIVE_BREAKERS,
     DECISION_TICK_DURATION,
@@ -395,6 +396,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             history_candles=30,
             universe_config=decision_universe_config,
             quality_policy=quality_policy,
+            cache=MarketCache(redis),
             feature_window=20,
         )
         app.state.backtest_orchestrator = BacktestOrchestrator(

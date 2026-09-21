@@ -300,3 +300,105 @@ async def test_instrument_detail_marks_failure_quality_ineligible():
     assert detail.quality.status == QualityStatus.FAILURE
     assert "data_quality_failure" in detail.reasons
     assert detail.eligible is False
+
+
+class FakeMarketCache:
+    """In-memory stand-in for `wallybot.infrastructure.market_cache.MarketCache` -- same
+    get_snapshot/set_snapshot shape, no real Redis."""
+
+    def __init__(self) -> None:
+        self.store: dict[str, tuple] = {}
+
+    async def get_snapshot(self, instrument):
+        return self.store.get(instrument.id)
+
+    async def set_snapshot(self, snapshot, ttl) -> None:
+        self.store[snapshot.instrument.id] = snapshot
+
+
+class CountingProvider:
+    """Wraps a real provider and counts fetch_snapshot calls per instrument -- proves whether the
+    cache actually short-circuited the network fetch, not just that the numbers came out right."""
+
+    def __init__(self, wrapped) -> None:
+        self._wrapped = wrapped
+        self.snapshot_calls: dict[str, int] = {}
+
+    async def discover_instruments(self):
+        return await self._wrapped.discover_instruments()
+
+    async def fetch_candles(self, instrument, timeframe, since, limit):
+        return await self._wrapped.fetch_candles(instrument, timeframe, since, limit)
+
+    async def fetch_snapshot(self, instrument):
+        self.snapshot_calls[instrument.id] = self.snapshot_calls.get(instrument.id, 0) + 1
+        return await self._wrapped.fetch_snapshot(instrument)
+
+
+async def test_a_cache_hit_skips_the_provider_snapshot_fetch():
+    clock = FixedClock(datetime(2026, 1, 2, tzinfo=UTC))
+    wrapped = FakeExchange(clock=clock, seed=1)
+    provider = CountingProvider(wrapped)
+    discovered = await wrapped.discover_instruments()
+    target = discovered[0]
+
+    cache = FakeMarketCache()
+    cache.store[target.id] = await wrapped.fetch_snapshot(target)
+
+    await build_market_overview(
+        provider=provider,
+        clock=clock,
+        timeframe="1h",
+        history_candles=30,
+        universe_config=UniverseFilterConfig(
+            version=1,
+            min_history_candles=20,
+            min_average_quote_volume=Decimal("0"),
+            max_spread_ratio=Decimal("0.05"),
+        ),
+        quality_policy=QualityPolicy(
+            version=1,
+            timeframe="1h",
+            max_stale_age=timedelta(hours=3),
+            max_clock_drift=timedelta(minutes=5),
+            max_abnormal_return=Decimal("0.5"),
+        ),
+        feature_window=20,
+        cache=cache,
+    )
+
+    assert target.id not in provider.snapshot_calls
+
+
+async def test_a_cache_miss_fetches_and_populates_the_cache():
+    clock = FixedClock(datetime(2026, 1, 2, tzinfo=UTC))
+    wrapped = FakeExchange(clock=clock, seed=1)
+    provider = CountingProvider(wrapped)
+    discovered = await wrapped.discover_instruments()
+    target = discovered[0]
+    cache = FakeMarketCache()
+
+    await build_market_overview(
+        provider=provider,
+        clock=clock,
+        timeframe="1h",
+        history_candles=30,
+        universe_config=UniverseFilterConfig(
+            version=1,
+            min_history_candles=20,
+            min_average_quote_volume=Decimal("0"),
+            max_spread_ratio=Decimal("0.05"),
+        ),
+        quality_policy=QualityPolicy(
+            version=1,
+            timeframe="1h",
+            max_stale_age=timedelta(hours=3),
+            max_clock_drift=timedelta(minutes=5),
+            max_abnormal_return=Decimal("0.5"),
+        ),
+        feature_window=20,
+        cache=cache,
+    )
+
+    assert provider.snapshot_calls.get(target.id) == 1
+    assert target.id in cache.store

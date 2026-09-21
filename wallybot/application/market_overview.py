@@ -8,7 +8,7 @@ product's own stated priority: "connect data -> quality -> scanner -> API -> mar
 
 import asyncio
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from wallybot.data.quality import QualityPolicy, evaluate_series_quality
@@ -16,10 +16,15 @@ from wallybot.domain.clock import Clock
 from wallybot.domain.market import TIMEFRAME_DURATIONS, Candle, Instrument, MarketDataProvider
 from wallybot.domain.quality import QualityReport
 from wallybot.features.simple import SimpleFeatureEngine
+from wallybot.infrastructure.market_cache import MarketCache
 from wallybot.market.universe import UniverseFilterConfig, evaluate_instrument, evaluate_universe
 from wallybot.scoring.simple import score_momentum
 
 DEFAULT_MAX_CONCURRENCY = 6
+# ADR-003: a disposable hot-tier accelerator, not a freshness guarantee -- candles (which quality
+# actually gates on) are always fetched fresh regardless; only the lightweight bid/ask snapshot is
+# ever served from cache, and only for this short a window.
+DEFAULT_SNAPSHOT_CACHE_TTL = timedelta(seconds=30)
 
 
 @dataclass(frozen=True)
@@ -49,6 +54,8 @@ async def build_market_overview(
     quality_policy: QualityPolicy,
     feature_window: int,
     max_concurrency: int = DEFAULT_MAX_CONCURRENCY,
+    cache: MarketCache | None = None,
+    cache_ttl: timedelta = DEFAULT_SNAPSHOT_CACHE_TTL,
 ) -> MarketOverview:
     now = clock.now()
     since = now - TIMEFRAME_DURATIONS[timeframe] * history_candles
@@ -66,7 +73,11 @@ async def build_market_overview(
                 candles = await provider.fetch_candles(
                     instrument, timeframe, since, history_candles
                 )
-                snapshot = await provider.fetch_snapshot(instrument)
+                snapshot = await cache.get_snapshot(instrument) if cache is not None else None
+                if snapshot is None:
+                    snapshot = await provider.fetch_snapshot(instrument)
+                    if cache is not None:
+                        await cache.set_snapshot(snapshot, ttl=cache_ttl)
             except Exception:
                 # One instrument's provider hiccup never takes down the whole overview -- it's
                 # simply excluded, same "a fetch failure is never shown as a valid quote"
