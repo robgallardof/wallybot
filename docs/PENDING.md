@@ -129,12 +129,12 @@ Las entregas documentadas en [PHASE_2](PHASE_2.md) y [PHASE_3](PHASE_3.md) son a
 
 ## Fase 7: agentes de investigación aislados
 
-- [ ] Convertir el research worker actual en ejecutor de experimentos con cola, cuotas, cancelación y artefactos.
+- [x] Convertir el research worker actual en ejecutor de experimentos con cola, cuotas, cancelación y artefactos. (2026-09-21: la cola -- `JobRow`/`ResearchJobRepository.claim_next` con `skip_locked` -- y la cancelación -- `request_cancellation`, dominio `ResearchJob.cancel`/`request_cancellation` -- ya existían, probadas solo a nivel de `research_runner.py`, sin ruta HTTP cubierta ni cuota. Esta sesión: `ResearchJobRepository.count_active()` + cuota `MAX_ACTIVE_RESEARCH_JOBS=5` en `POST /api/research/jobs` -- Fase 7 explícitamente no tiene cuentas por usuario, así que la cuota es de profundidad de cola del sistema completo, no por cuenta -- y `tests/integration/test_research_routes.py`, que no existía.) Sigue siendo solo re-ejecución de un backtest existente por `experiment_id`, no un ejecutor genérico de "pruebas, análisis, candidatos y reportes" -- eso depende de Fase 6 (IA) para tener algo que ejecutar.
 - [ ] Proporcionar vistas/exportaciones saneadas y lectura analítica limitada; separar claves, escritura y red de producción.
 - [ ] Integrar agentes con herramientas autorizadas para pruebas, análisis, candidatos y reportes; código generado requiere revisión.
 - [ ] Añadir identidad de servicio y protección de replay si se introduce un endpoint de agente.
 - [ ] Implementar propuestas de cambios/promoción con revisión humana y trazabilidad, sin autoaprobación.
-- [ ] Entregar UI de trabajos, historial, resultados, consumo y fallos.
+- [x] Entregar UI de trabajos, historial, resultados, consumo y fallos. (2026-09-21: `ResearchJobsPanel.tsx` en la página de Investigación -- crear, listar con estado/intentos/artefacto/error, cancelar. Antes no existía ninguna UI, solo la API.)
 
 **Aceptación:** pruebas negativas demuestran que investigación no obtiene credenciales de trading, no modifica límites ni envía órdenes y no agota recursos del proceso operativo.
 

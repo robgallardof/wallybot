@@ -1,5 +1,27 @@
 # Claude handoff — 2026-09-16 (new session)
 
+## Research jobs: quota + UI — 2026-09-21 (same session, continued)
+
+Fourth increment. Full detail in `.ai/CURRENT.md`. Key lesson for next time: **before scoping a
+`docs/PENDING.md` item as a big build, check the actual code first** -- Fase 7's queue/cancellation
+backend (`ResearchJob` domain type, `ResearchJobRepository`, `apps/api/research_routes.py`) was
+already fully built and working, just had zero test coverage and zero frontend. The real gap was
+much smaller than the unchecked PENDING.md boxes implied. Added: a system-wide queue-depth quota
+(5 active jobs), `tests/integration/test_research_routes.py` (previously nonexistent),
+`ResearchJobsPanel.tsx` on the Investigación page.
+
+**Found**: `TestClient.delete()` doesn't take a `json=` kwarg in this httpx/starlette version --
+use `client.request("DELETE", url, json=...)`. First DELETE-with-body test in this suite; worth
+remembering if another DELETE route gets tested.
+
+**Verified:** full suite 721 passed, ruff/pyright clean (known `auth_routes.py:65` error only),
+frontend eslint/tsc clean, Playwright 12/12. Rebuilt/redeployed (no new migration), all 8 services
+healthy.
+
+**Immediate next actions:** ask the user to commit, then what's next. Fase 7's remaining items
+need Fase 6 (AI provider) to exist first. Unblocked candidates: Fase 8 reports/dedup, transversal
+backlog rows (observability, event pagination, config versioning, docs).
+
 ## Flaky Settings e2e fixed + CSV/JSON trade export — 2026-09-21 (same session, continued)
 
 Two more small, well-scoped, unblocked increments after Telegram commands (user: "hace falta

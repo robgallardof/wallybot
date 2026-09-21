@@ -1,5 +1,51 @@
 # Current task
 
+## Research jobs: quota + UI (2026-09-21, continued)
+
+Fourth increment this session, per user's continued "hace falta muchas cosas" -- they also asked
+for an honest progress/gap report (answered in chat, not duplicated here; see this file's and
+`docs/PENDING.md`'s per-phase state for the durable version).
+
+Investigated Fase 7 ("agentes de investigación aislados") expecting a big build, found it was
+**much closer to done than its unchecked boxes suggested** -- another instance of this file's own
+recurring lesson that `docs/PENDING.md` lags real code. `ResearchJob`'s domain type already had
+full `cancel`/`request_cancellation` methods; `ResearchJobRepository` already had a real
+`skip_locked` queue (`claim_next`) and `request_cancellation`; `apps/api/research_routes.py`
+already had working `POST`/`GET`/`DELETE` routes. What was actually missing: (1) no quota at all,
+(2) **zero integration test coverage** for those routes (only `research_runner.py`'s execution
+side was tested), (3) **zero frontend** -- the API was fully wired and usable via curl, but nothing
+in `apps/web` ever called it.
+
+Closed all three:
+- `ResearchJobRepository.count_active()` + `MAX_ACTIVE_RESEARCH_JOBS=5` quota in
+  `create_research_job` (429 when exceeded) -- system-wide, not per-user, since this codebase has
+  no multi-tenant research quotas concept (single admin, matching every other simplification here).
+- `tests/integration/test_research_routes.py` (new, 8 tests): auth, VIEWER-can-list-not-create,
+  create/list/cancel happy path, cancelling unknown/already-terminal jobs, the quota rejecting a
+  6th job and freeing up after a cancel. Found along the way: `TestClient.delete()` doesn't accept
+  a `json=` kwarg in this httpx/starlette version -- needs `client.request("DELETE", url, json=...)`,
+  the first DELETE-with-body route test in this suite.
+- `ResearchJobsPanel.tsx` composed into `BacktestsPage.tsx`'s "Investigación" page: a create form
+  (experiment_id + purpose, ADMIN only) and a jobs table (status/attempts/artifact-or-error/
+  requested-at, cancel button on PENDING/RUNNING rows, ADMIN only) -- VIEWER sees the table
+  read-only. `apps/web/src/lib/api-client.ts`'s `api()` gained an optional `method` param (was
+  GET/POST-only inferred from body presence) since this is the first DELETE call the frontend makes.
+
+**Verified:** full backend suite 721 passed (up from 713), ruff/pyright clean (same known
+`auth_routes.py:65` error), frontend eslint/tsc clean, Playwright 12/12 (added one new test for
+create/list/cancel). Rebuilt every Docker image and redeployed (no new migration -- `jobs` table
+already existed), all 8 services healthy, `GET /api/research/jobs` returns 401 unauthenticated.
+`graphify update .` run after the changes.
+
+**Not yet committed** -- ask before committing, per repo convention.
+
+**Immediate next actions:** ask the user what's next. Fase 7's remaining items (agent-tool
+integration, service identity/replay protection for an agent endpoint, human-reviewed promotion
+workflow) are blocked on Fase 6 (AI provider) existing first -- there's nothing to give tools to or
+promote yet. Realistic unblocked candidates: Fase 8's remaining daily/weekly Telegram reports +
+notification dedup, "Pendientes transversales" rows (observability/Prometheus, event
+search/pagination, config versioning, docs).
+
 ## Flaky Settings e2e fixed + CSV/JSON trade export (2026-09-21, continued)
 
 Two more increments after Telegram commands, per user's "hace falta muchisimo" (keep going,
