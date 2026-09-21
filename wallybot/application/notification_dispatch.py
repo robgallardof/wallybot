@@ -14,6 +14,13 @@ para evitar spam.") -- an identical severity+title pair within its dedup window,
 hourly cap of sends, is silently dropped before ever reaching the Telegram transport. The
 dedup/rate-limit decision itself is pure and lives in the domain module; this function only
 consults it around the existing config-lookup-then-send flow.
+
+A delivery failure (PENDING.md Fase 8: "Manejar fallos de entrega sin alterar verdad financiera;
+reportar ambigüedad de envío") never alters financial truth -- the state change that triggered the
+notification already committed before this function was ever called, and a failed send here can't
+undo it. It writes a `TELEGRAM_NOTIFICATION_FAILED` audit event instead (visible on the existing
+Events/Activity page), so an operator who only watches Telegram doesn't wrongly read silence as
+"nothing happened."
 """
 
 import logging
@@ -24,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from wallybot.domain.notification_throttle import NotificationThrottle
 from wallybot.infrastructure.telegram_config_repository import TelegramConfigRepository
 from wallybot.notifications.telegram import Notification, TelegramNotifier, TelegramTransport
+from wallybot.security.auth import audit
 from wallybot.security.crypto import Crypto
 
 logger = logging.getLogger("wallybot")
@@ -49,7 +57,10 @@ async def dispatch_telegram_notification(
     :returns: ``None`` always. A missing/disabled config, a throttled send, a decrypt failure, or
         a delivery failure are all logged (``TELEGRAM_NOTIFICATION_SKIPPED``/
         ``TELEGRAM_NOTIFICATION_SUPPRESSED``/``TELEGRAM_NOTIFICATION_FAILED``) and swallowed --
-        Telegram is a convenience channel, never a dependency of the action that triggered the
+        a delivery failure additionally writes a ``TELEGRAM_NOTIFICATION_FAILED`` audit event, the
+        one exception to "swallowed silently" here, since delivery ambiguity itself is worth
+        surfacing even when the underlying action already succeeded. Telegram is a convenience
+        channel, never a dependency of the action that triggered the
         notification.
     """
     async with sessions() as db:
@@ -72,3 +83,13 @@ async def dispatch_telegram_notification(
         await notifier.notify(chat_id, notification)
     except Exception:
         logger.warning("TELEGRAM_NOTIFICATION_FAILED")
+        # Never alters financial truth (the caller's own state change already committed before
+        # this function was ever invoked) -- this only reports the delivery ambiguity itself, so
+        # an operator who only checks Telegram doesn't wrongly assume "no message means nothing
+        # happened." Visible on the existing Events/Activity page, no new UI surface needed.
+        async with sessions.begin() as db:
+            audit(
+                db,
+                "TELEGRAM_NOTIFICATION_FAILED",
+                message=f"Could not deliver Telegram notification: {notification.title}"[:256],
+            )

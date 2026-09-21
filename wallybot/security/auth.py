@@ -34,14 +34,16 @@ class Identity:
     mfa_at: int
 
 
-def audit(db: AsyncSession, event: str, actor: str | None = None) -> None:
+def audit(
+    db: AsyncSession, event: str, actor: str | None = None, message: str | None = None
+) -> None:
     db.add(
         EventRow(
             id=str(uuid4()),
             timestamp=int(time.time()),
             actor=actor,
             event=event,
-            message=event.replace("_", " ").lower(),
+            message=message or event.replace("_", " ").lower(),
             correlation_id=str(uuid4()),
         )
     )

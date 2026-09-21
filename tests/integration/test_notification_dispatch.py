@@ -116,6 +116,24 @@ async def test_a_transport_failure_is_swallowed_not_raised(sessions, crypto) -> 
     )  # no raise
 
 
+async def test_a_transport_failure_writes_an_audit_event_reporting_the_ambiguity(
+    sessions, crypto, dependencies
+) -> None:
+    await _configure(sessions, crypto, enabled=True, chat_id=42, token="bot-secret")
+    transport = FakeTransport(fails=True)
+
+    await dispatch_telegram_notification(
+        sessions, crypto, transport, NOTIFICATION, NotificationThrottle(), NOW
+    )
+
+    with psycopg.connect(dependencies[0].replace("+psycopg", ""), autocommit=True) as connection:
+        row = connection.execute(
+            "SELECT event, message FROM events WHERE event = 'TELEGRAM_NOTIFICATION_FAILED'"
+        ).fetchone()
+    assert row is not None
+    assert "Bot paused" in row[1]
+
+
 async def test_an_identical_notification_is_deduplicated_within_the_window(
     sessions, crypto
 ) -> None:
