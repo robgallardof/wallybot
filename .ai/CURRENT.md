@@ -1,5 +1,48 @@
 # Current task
 
+## Flaky Settings e2e fixed + CSV/JSON trade export (2026-09-21, continued)
+
+Two more increments after Telegram commands, per user's "hace falta muchisimo" (keep going,
+picking well-scoped unblocked items rather than the ones needing external decisions or blocked by
+human-only gates).
+
+**1. Fixed the pre-existing flaky Settings e2e test** flagged in the previous entry.
+`observability.spec.ts`'s "settings and first-steps..." asserted the OBSERVE-state heading/button
+while `shell()`'s mocked `/api/dashboard` always returns `environment: "PAPER"` -- it only "passed"
+by catching a transient pre-hydration render before the mocked fetch resolved (`toBeVisible()`
+succeeds on first match, not a settled one). Asserted the settled PAPER-state text instead: 5/5
+clean runs afterward, vs. ~40% failures before on unmodified `master` (confirmed via `git stash`).
+
+**2. CSV/JSON export of PAPER trade history** (`Pendientes transversales` "Exportación" row).
+New `GET /api/portfolio/export?format=csv|json` (SignedIn, own account only) --
+`PortfolioRepository.list_recent_fills(account_id, limit=EXPORT_FILL_LIMIT)` with a 50k safety cap
+(not a business limit), same fields `get_portfolio`'s `activity` already exposes. **Deliberately no
+PnL column**: this codebase has no FIFO lot tracking for live PAPER fills yet (`docs/PENDING.md`
+Fase 4's "lotes FIFO... PnL realizado/no realizado" is still unchecked) -- only
+`wallybot.domain.smart_money` computes FIFO PnL, and that's for on-chain whale analysis, not this
+account. Fabricating a PnL number here would violate this codebase's own "never fabricate" rule
+documented all over `historical_query.py`/`market.py`/etc. Frontend: two plain download links
+("Exportar CSV"/"Exportar JSON") on the Portfolio page's Actividad reciente panel -- a same-origin
+`<a download>` works fine here since the session cookie rides along automatically, no client-side
+fetch/blob plumbing needed.
+
+**Verified:** full backend suite 713 passed (up from 709), ruff/pyright clean (same one
+pre-existing `auth_routes.py:65` error), frontend eslint/tsc clean, Playwright 11/11 (twice in a
+row). Rebuilt every Docker image and redeployed (no new migration this slice), all 8 services
+healthy, `/health/ready` -> `{"status":"ready"}`, `GET /api/portfolio/export` returns 401
+unauthenticated. `graphify update .` run after the changes.
+
+**Not yet committed this sub-slice** -- ask before committing, per repo convention (the e2e fix and
+the export feature landed in the same working-tree pass but are logically separate; consider
+splitting into two commits same as prior slices this session).
+
+**Immediate next actions:** ask the user what's next. Realistic non-blocked candidates left:
+Fase 7 (research runner as a real queued executor, not just backtest re-run), Fase 8's remaining
+daily/weekly Telegram reports + notification dedup/grouping, other rows in "Pendientes
+transversales" (observability/Prometheus, config versioning, event search/pagination). Blocked on
+external decisions: Fase 6 AI (model/API key), the equities/VIX strategy idea. Explicitly gated,
+not startable unilaterally: Fase 9 LIVE.
+
 ## Telegram inbound commands (2026-09-20, continued)
 
 User picked "Fase 8: Telegram comandos entrantes" from the punch list after breakers + walk-forward

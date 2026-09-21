@@ -180,7 +180,7 @@ Las entregas documentadas en [PHASE_2](PHASE_2.md) y [PHASE_3](PHASE_3.md) son a
 | Seguridad | Rotación cifrada de secretos de proveedores y claves de respaldo, permisos mínimos, exportación de auditoría protegida y escaneos actualizados; nunca exponer secretos en herramientas o fixtures |
 | Backups | Copia fuera del host, custodia separada de la clave, restauración periódica y cobertura de datasets irreproducibles; definir RPO/RTO y verificar disco/retención |
 | Analítica de costes | Separar fees, slippage atribuido, IA, proveedores e infraestructura; rendimientos ajustados por flujos externos sin doble descuento |
-| Exportación | CSV/JSON de operaciones, comisiones, moneda y PnL con permisos y pruebas de exactitud; sin reglas fiscales jurisdiccionales dentro del motor |
+| Exportación | ✅ (2026-09-21) `GET /api/portfolio/export?format=csv\|json`: operaciones/comisiones/moneda del historial completo de fills PAPER del usuario, con permisos (solo su propia cuenta) y pruebas de exactitud. **PnL deliberadamente excluido** -- no hay lotes FIFO para fills PAPER todavía (Fase 4, sigue sin marcar); agregar una columna sin ese cálculo real habría sido fabricar un número. Sin reglas fiscales jurisdiccionales dentro del motor. |
 | Configuración | Versiones, validación y flags experimentales OFF; modificaciones sensibles auditadas y sin reinicios que restablezcan límites |
 | Documentación | Actualizar estados obsoletos; añadir TRADING, STRATEGIES, AI, RESEARCH, BACKTESTING y guías de operación/desastre junto a sus implementaciones |
 | Herramientas del repositorio | Recuperar `.ai/HANDOFF.md` y coherencia del contexto; verificar disponibilidad real de Graphify/Serena antes de afirmar indexado actualizado |
