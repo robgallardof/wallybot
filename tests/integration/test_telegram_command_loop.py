@@ -44,11 +44,13 @@ class FakeCommandTransport:
         self.sent.append((url, form))
 
 
-def _message(update_id: int, chat_id: int, text: str) -> dict:
-    return {
-        "update_id": update_id,
-        "message": {"chat": {"id": chat_id}, "text": text},
-    }
+def _message(
+    update_id: int, chat_id: int, text: str, language_code: str | None = None
+) -> dict:
+    message: dict = {"chat": {"id": chat_id}, "text": text}
+    if language_code is not None:
+        message["from"] = {"id": chat_id, "language_code": language_code}
+    return {"update_id": update_id, "message": message}
 
 
 @pytest.fixture(scope="module")
@@ -165,6 +167,21 @@ async def test_status_command_from_the_allowlisted_chat_gets_a_reply(sessions, c
     assert url.endswith("/sendMessage")
     assert form["chat_id"] == str(ALLOWED_CHAT_ID)
     assert "RUNNING" in form["text"]
+
+
+async def test_status_command_replies_in_english_for_an_english_client(sessions, crypto) -> None:
+    await _configure(sessions, crypto)
+    async with sessions.begin() as db:
+        await TelegramConfigRepository(db).set_last_update_id(99)
+
+    transport = FakeCommandTransport(
+        [_message(100, ALLOWED_CHAT_ID, "/status", language_code="en-US")]
+    )
+    await run_telegram_command_tick(sessions, crypto, transport, SequentialIds(), None, NOW)
+
+    reply = transport.sent[0][1]["text"]
+    assert reply.startswith("Environment: ")
+    assert "Status: RUNNING" in reply
 
 
 async def test_help_command_lists_every_recognized_command(sessions, crypto) -> None:
