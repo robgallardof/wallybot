@@ -4,6 +4,7 @@ from decimal import Decimal
 import pytest
 
 from wallybot.domain.market import Candle, Instrument, MarketSnapshot, MarketType
+from wallybot.domain.quality import QualityIssue, QualityReport, QualityStatus
 from wallybot.market.universe import (
     UniverseFilterConfig,
     eligible_instruments,
@@ -125,6 +126,39 @@ def test_rejects_unavailable_snapshot():
     assert "unavailable" in evaluation.reasons
 
 
+def test_quality_is_ignored_when_not_provided():
+    instrument = make_instrument()
+    candles = make_candles(instrument, 10, volume=Decimal("100"), price=Decimal("100"))
+    snapshot = make_snapshot(instrument, Decimal("0.001"))
+    evaluation = evaluate_instrument(instrument, candles, snapshot, CONFIG)
+    assert evaluation.eligible
+
+
+def test_rejects_failure_quality():
+    instrument = make_instrument()
+    candles = make_candles(instrument, 10, volume=Decimal("100"), price=Decimal("100"))
+    snapshot = make_snapshot(instrument, Decimal("0.001"))
+    failing_quality = QualityReport(
+        status=QualityStatus.FAILURE, issues=(QualityIssue("stale", "latest candle too old"),)
+    )
+    evaluation = evaluate_instrument(instrument, candles, snapshot, CONFIG, failing_quality)
+    assert not evaluation.eligible
+    assert "data_quality_failure" in evaluation.reasons
+
+
+def test_warning_quality_does_not_block_eligibility():
+    instrument = make_instrument()
+    candles = make_candles(instrument, 10, volume=Decimal("100"), price=Decimal("100"))
+    snapshot = make_snapshot(instrument, Decimal("0.001"))
+    warning_quality = QualityReport(
+        status=QualityStatus.WARNING,
+        issues=(QualityIssue("abnormal_return", "one candle moved 60% in one step"),),
+    )
+    evaluation = evaluate_instrument(instrument, candles, snapshot, CONFIG, warning_quality)
+    assert evaluation.eligible
+    assert evaluation.reasons == ()
+
+
 def test_evaluate_universe_and_eligible_instruments_filter_correctly():
     good = make_instrument(base="BTC")
     bad = make_instrument(base="ETH")
@@ -139,5 +173,29 @@ def test_evaluate_universe_and_eligible_instruments_filter_correctly():
         {good.id: good_candles, bad.id: bad_candles},
         snapshots,
         CONFIG,
+    )
+    assert eligible_instruments(evaluations) == [good]
+
+
+def test_evaluate_universe_threads_quality_by_instrument():
+    good = make_instrument(base="BTC")
+    bad = make_instrument(base="ETH")
+    candles = make_candles(good, 10, volume=Decimal("100"), price=Decimal("100"))
+    bad_candles = make_candles(bad, 10, volume=Decimal("100"), price=Decimal("100"))
+    snapshots = {
+        good.id: make_snapshot(good, Decimal("0.001")),
+        bad.id: make_snapshot(bad, Decimal("0.001")),
+    }
+    quality_by_instrument = {
+        bad.id: QualityReport(
+            status=QualityStatus.FAILURE, issues=(QualityIssue("stale", "too old"),)
+        )
+    }
+    evaluations = evaluate_universe(
+        [good, bad],
+        {good.id: candles, bad.id: bad_candles},
+        snapshots,
+        CONFIG,
+        quality_by_instrument,
     )
     assert eligible_instruments(evaluations) == [good]

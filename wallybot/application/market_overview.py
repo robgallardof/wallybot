@@ -82,7 +82,9 @@ async def build_market_overview(
 
     evaluations = {
         e.instrument.id: e
-        for e in evaluate_universe(instruments, candles_by_id, snapshots_by_id, universe_config)
+        for e in evaluate_universe(
+            instruments, candles_by_id, snapshots_by_id, universe_config, quality_by_id
+        )
     }
 
     engine = SimpleFeatureEngine()

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from wallybot.domain.market import Candle, Instrument, MarketSnapshot
+from wallybot.domain.quality import QualityReport, QualityStatus
 
 
 @dataclass(frozen=True)
@@ -36,7 +37,14 @@ def evaluate_instrument(
     candles: list[Candle],
     snapshot: MarketSnapshot | None,
     config: UniverseFilterConfig,
+    quality: QualityReport | None = None,
 ) -> UniverseEvaluation:
+    """`quality` is optional -- `wallybot.application.decision_pipeline` already excludes
+    FAILURE-quality instruments from the candidate list it passes in here, so it never needs to
+    pass one. A caller that hasn't pre-filtered (e.g. `market_overview.py`'s read-only Markets
+    view) passes its own per-instrument `QualityReport` instead of duplicating this check --
+    ARCHITECTURE.md: "quality checks gate features," not just the live trading path.
+    """
     reasons: list[str] = []
     if len(candles) < config.min_history_candles:
         reasons.append("insufficient_history")
@@ -51,6 +59,8 @@ def evaluate_instrument(
         reasons.append("unavailable")
     elif snapshot.spread_ratio > config.max_spread_ratio:
         reasons.append("wide_spread")
+    if quality is not None and quality.status == QualityStatus.FAILURE:
+        reasons.append("data_quality_failure")
     return UniverseEvaluation(instrument=instrument, eligible=not reasons, reasons=tuple(reasons))
 
 
@@ -59,6 +69,7 @@ def evaluate_universe(
     candles_by_instrument: dict[str, list[Candle]],
     snapshots_by_instrument: dict[str, MarketSnapshot],
     config: UniverseFilterConfig,
+    quality_by_instrument: dict[str, QualityReport] | None = None,
 ) -> list[UniverseEvaluation]:
     return [
         evaluate_instrument(
@@ -66,6 +77,7 @@ def evaluate_universe(
             candles_by_instrument.get(instrument.id, []),
             snapshots_by_instrument.get(instrument.id),
             config,
+            quality_by_instrument.get(instrument.id) if quality_by_instrument else None,
         )
         for instrument in instruments
     ]

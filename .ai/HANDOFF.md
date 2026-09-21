@@ -1,5 +1,20 @@
 # Claude handoff — 2026-09-16 (new session)
 
+## Quality gate closed on the Markets view — 2026-09-21 (continued further still)
+
+Full detail in `.ai/CURRENT.md`. Fixed a real gap the Fase 1/2 audit surfaced: the live trading
+path (`decision_pipeline.py`) already excluded FAILURE-quality instruments before scoring, but the
+read-only Markets page (`market_overview.py`) didn't apply the same gate. `evaluate_instrument`/
+`evaluate_universe` (`wallybot/market/universe.py`) now take an optional `QualityReport` and block
+eligibility on FAILURE status -- backward-compatible, no change needed to the already-correct
+trading path.
+
+**Verified:** 793 backend tests (up from 788), ruff/pyright clean. About to rebuild/redeploy/commit.
+
+**Immediate next actions:** per "continua...hasta acabar tokens" -- remaining audit-surfaced
+candidates: wire `MarketCache` (built, unused, lower priority), fix stale Vite references in root
+docs, instrument-detail route. Do not touch OBSERVE/PAPER/LIVE architecture.
+
 ## Risk limits exposed + Fase 1/2 audit reconciled — 2026-09-21 (continued further still)
 
 Full detail in `.ai/CURRENT.md`. New: `GET /api/risk/limits` (RISK_POLICY's limits + consumption/

@@ -1,5 +1,48 @@
 # Current task
 
+## Quality gate closed on the Markets view (2026-09-21, continued further still)
+
+Picked from the Fase 1/2 audit's own findings: Fase 2's "Pasar siempre por calidad antes de
+features y ranking" was checked NOT fully covered -- `decision_pipeline.py` (the live trading path)
+already excludes FAILURE-quality instruments before scoring (confirmed real, at
+`decision_pipeline.py:151-155`, deliberate and documented), but `market_overview.py` (the read-only
+Markets page) never applied that same gate -- a FAILURE-quality instrument (stale data, broken
+sync) could show up `eligible: true` and get scored/ranked right alongside good data, contradicting
+this doc's own P0 line: "fallos del proveedor se muestran como fallo, nunca como cotizaciones
+válidas."
+
+Fixed at the shared root both paths already use: `evaluate_instrument`/`evaluate_universe`
+(`wallybot/market/universe.py`) now accept an optional `QualityReport`/`dict[str, QualityReport]`
+and append a `data_quality_failure` reason (eligible=False) when status is FAILURE. Optional and
+backward-compatible -- `decision_pipeline.py`/`scanner.py` need no change since FAILURE instruments
+never reach `scan_universe` there in the first place; only `market_overview.py` now threads its
+already-computed `quality_by_id` through. WARNING status still doesn't block eligibility --
+"aplicar una política explícita a cada WARNING" (which specific WARNING reasons are tolerable) is
+genuinely unimplemented, not silently claimed done -- would need a real policy-config decision, not
+a bug fix.
+
+Added 4 new unit tests to `tests/unit/test_universe.py` (quality ignored when omitted, FAILURE
+blocks, WARNING doesn't block, `evaluate_universe`'s dict threading) and 1 to
+`tests/unit/test_market_overview.py` (a `StaleCandlesProvider` wrapper shifts one instrument's
+candles 30 days into the past -- real staleness, not a mocked status -- confirms it's excluded from
+scoring/ranking while an unaffected instrument in the same universe stays eligible).
+
+**Verified:** full backend suite 793 passed (up from 788), ruff/pyright clean (known
+`auth_routes.py:65` only), `tests/integration/test_decision_pipeline.py` still green (confirms no
+regression to the already-correct live trading path). No frontend files touched this slice.
+
+**Not yet rebuilt/redeployed or committed this slice.**
+
+**Immediate next actions:** rebuild+redeploy (backend-only, no migration), `graphify update .`,
+commit, keep going per "continua...hasta acabar tokens." Remaining audit-surfaced candidates:
+wiring `MarketCache` into a real call path (built, tested, unused -- lower priority, smaller win
+since it only caches single-instrument snapshots, not the candle fetches that dominate the actual
+request cost), fixing stale Vite references in `ARCHITECTURE.md`/`DEPLOYMENT.md`/root `AGENTS.md`,
+an instrument-detail route (`GET /api/markets/{id}` + candles). Larger/riskier, needs explicit
+scoping first: user administration, config versioning for `RISK_POLICY`/`PORTFOLIO_POLICY`. Do NOT
+touch OBSERVE/PAPER/LIVE architecture (explicit user instruction). Still unaddressed: user's "three
+js es par ael login y eso" comment.
+
 ## Risk limits exposed + Fase 1/2 audit reconciled (2026-09-21, continued further still)
 
 **1. `GET /api/risk/limits`** (closes Fase 3's "Exponer límites, consumo, reservas, pérdidas,
