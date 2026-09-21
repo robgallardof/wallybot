@@ -1,5 +1,69 @@
 # Current task
 
+## Telegram inbound commands (2026-09-20, continued)
+
+User picked "Fase 8: Telegram comandos entrantes" from the punch list after breakers + walk-forward
+landed. Scoped via `AskUserQuestion` before writing code (two real architecture decisions, not
+cosmetic): **long-polling** (`getUpdates`), not a webhook -- this self-hosted stack has no public
+domain/TLS ingress to receive a Telegram-pushed webhook; and the command set (user said "todo lo
+necesario") -- read-only `/status`/`/breakers`/`/portfolio` plus sensitive `/pause`/`/resume`,
+scoped per RISK.md/SECURITY.md's explicit requirement that sensitive commands need an
+expiring/anti-replay token confirmed through the existing Admin+fresh-MFA web flow, never executed
+directly from Telegram.
+
+- `wallybot/domain/telegram_confirmation.py`: `TelegramConfirmation`/`TelegramAction`, a 5-minute
+  TTL. `/pause`/`/resume` only ever create one of these; they never flip `ControlRow` themselves.
+- `wallybot/application/telegram_commands.py`: pure text→command parsing, no free-text chat surface.
+- `wallybot/application/telegram_command_loop.py`: `run_telegram_command_tick` -- long-polls
+  `getUpdates`, replies to query commands immediately (reading `ControlRow`/`BreakerRepository`/
+  latest `EquitySnapshot`), creates a confirmation for `/pause`/`/resume`. Only the operator's
+  single allowlisted `chat_id` (from `telegram_config`) is ever acted on; everything else is
+  silently ignored, never replied to. First poll after enabling only establishes the `getUpdates`
+  cursor baseline -- never executes a backlog of pre-existing messages as if just sent.
+  `GET_UPDATES_TIMEOUT_SECONDS=8` is deliberately under the shared `HttpxTelegramTransport`
+  client's 10s request timeout (documented in the module docstring) -- a real bug that would have
+  silently broken long-polling if missed.
+  `apps/api/main.py`'s `_telegram_command_loop` wrapper resolves the admin/account each tick
+  (same DB-lookup-stays-in-apps/api split as `_decision_loop`), wired into the lifespan alongside
+  the other background tasks, skipped under `environment == "test"` like its siblings.
+- New `POST /api/telegram/confirmations/{id}/confirm` (Admin, fresh MFA -- same `admin()`
+  dependency every other sensitive route already uses) executes the actual pause/resume by reusing
+  `wallybot.domain.control.Control.change()`, the identical domain call `/api/control` makes, then
+  marks the confirmation consumed and notifies back over Telegram only if the state actually
+  changed. `GET /api/telegram/confirmations` (SignedIn) lists pending ones for the Settings page,
+  polled every 10s.
+- Migration `0030_telegram_commands`: `telegram_config.last_update_id` (the poll cursor) +
+  new `telegram_confirmations` table, `wally_api` grants (same reasoning as every other
+  apps/api-only table: only that process has internet egress).
+- Frontend: `useTelegramConfirmationsData.ts`, a new panel in `SettingsPage.tsx` between the
+  Telegram config and MFA panels (visible to any role when a pending request exists, "Confirmar"
+  button gated to ADMIN, mirroring `RiskPage.tsx`'s breaker table pattern).
+
+**Verified:** full backend suite 709 passed (up from 661 pre-breakers), ruff/pyright clean (same
+one pre-existing unrelated `auth_routes.py:65` error), frontend eslint/tsc clean, full Playwright
+suite 11/11 green. Rebuilt every Docker image and redeployed the whole stack; migration `0030`
+applied cleanly, all 8 services healthy, `/health/ready` -> `{"status":"ready"}`,
+`GET /api/telegram/confirmations` returns 401 unauthenticated (route mounted), `api`'s own logs
+show a clean `API_STARTED` with no traceback from the new background task. Did **not** log into the
+real running stack's UI to click through the flow -- the login page needs a TOTP code this agent
+neither has nor should read from `.secrets/`, same constraint this file has documented before;
+relied on the full backend+Playwright automated coverage instead.
+
+**Found, not caused by this slice, flagged rather than silently fixed**: `apps/web/e2e/
+observability.spec.ts`'s "settings and first-steps..." test flakes independently of any change
+here (~40% failure rate reproduced on `master` before this slice too, isolated via `git stash`) --
+`shell()`'s mocked `/api/dashboard` always returns `environment: "PAPER"`, but the test asserts the
+OBSERVE-state heading/button; it only "passes" by catching a transient pre-hydration render before
+the mocked fetch resolves, since `expect(locator).toBeVisible()` succeeds on first match rather
+than a settled one. Out of scope for this Telegram slice (unrelated file, pre-existing on
+`master`) -- worth a real fix (assert the settled PAPER-state text, or wait for the dashboard query
+to resolve first) next time someone touches Settings/observability e2e tests.
+
+**Immediate next actions:** ask the user to commit this slice, then ask what's next -- the flaky
+Settings e2e test found above, daily/weekly Telegram reports (Fase 8's remaining unchecked item,
+notification dedup/grouping), further `PENDING.md` phase auditing, or the equities/VIX strategy
+idea (still pending a data-provider decision).
+
 ## Persistent operational circuit breakers finished (2026-09-20)
 
 Picked up the working tree exactly where the prior session's "Immediate next actions" pointed --

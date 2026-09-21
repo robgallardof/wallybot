@@ -141,8 +141,8 @@ Las entregas documentadas en [PHASE_2](PHASE_2.md) y [PHASE_3](PHASE_3.md) son a
 ## Fase 8: Telegram, notificaciones y reportes
 
 - [ ] Integrar notificaciones por severidad, agrupación, deduplicación y límites para evitar spam.
-- [ ] Implementar comandos de consulta y operación con IDs numéricos autorizados y permisos por comando.
-- [ ] Confirmar acciones sensibles con tokens expiran/anti-replay y MFA web cuando corresponda.
+- [x] Implementar comandos de consulta y operación con IDs numéricos autorizados y permisos por comando. (2026-09-20: `/status`, `/breakers`, `/portfolio` de solo lectura + `/pause`/`/resume` sensibles, long-polling en `apps/api` -- único chat_id permitido en `telegram_config`, cualquier otro chat se ignora sin respuesta.)
+- [x] Confirmar acciones sensibles con tokens expiran/anti-replay y MFA web cuando corresponda. (2026-09-20: `wallybot/domain/telegram_confirmation.py` + `POST /api/telegram/confirmations/{id}/confirm` -- Admin+MFA reciente vía la dependencia `admin()` existente, confirmación de un solo uso que expira a los 5 minutos, Telegram nunca ejecuta la acción por sí solo.)
 - [ ] Generar reportes diarios/semanales con rendimiento neto, costes, benchmarks, riesgos y problemas de servicio.
 - [ ] Manejar fallos de entrega sin alterar verdad financiera; reportar ambigüedad de envío.
 

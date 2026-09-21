@@ -1,5 +1,32 @@
 # Claude handoff — 2026-09-16 (new session)
 
+## Telegram inbound commands — 2026-09-20 (same session, continued)
+
+Third slice this session (after breakers and walk-forward). Full technical detail in
+`.ai/CURRENT.md`'s matching entry. Summary: `/status`/`/breakers`/`/portfolio` read-only Telegram
+commands plus `/pause`/`/resume` that only ever create an expiring confirmation the operator
+completes through the existing Admin+fresh-MFA web flow (`POST /api/telegram/confirmations/{id}/
+confirm`) -- Telegram itself never executes a sensitive action. Long-polling (`getUpdates`), not a
+webhook, since this self-hosted stack has no public HTTPS ingress -- confirmed with the user via
+`AskUserQuestion` before writing any code, along with the command scope.
+
+**Real bug worth remembering for next time anyone touches Telegram polling**: the shared
+`HttpxTelegramTransport` client has a 10s request timeout; Telegram's long-poll `timeout` param
+must stay comfortably under that or httpx raises a read timeout before Telegram ever replies. Used
+8s. If a future slice wants longer long-polling, it needs its own httpx client with a longer
+timeout, not just a bigger `timeout` param on the shared one.
+
+**Found but explicitly not fixed (pre-existing, unrelated file)**: `apps/web/e2e/
+observability.spec.ts`'s "settings and first-steps..." test flakes on `master` itself (~40%,
+verified via `git stash` before touching anything) -- the mocked dashboard always says
+`environment: "PAPER"` but the test asserts OBSERVE-state text, only passing by catching a
+pre-hydration transient render. Flagged to the user, not silently rewritten -- out of scope for a
+Telegram-commands slice.
+
+**Immediate next actions:** ask the user to commit (full verification already done: 709 backend
+tests, Playwright 11/11, stack rebuilt/redeployed, migration `0030` applied, all 8 services
+healthy), then ask what's next.
+
 ## Persistent circuit breakers committed — 2026-09-20 (new session)
 
 Fresh session, no prior chat history. Found the breaker slice already fully built and sitting
