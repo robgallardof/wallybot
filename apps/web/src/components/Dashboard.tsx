@@ -30,7 +30,7 @@ import { DocsPage } from "./dashboard/pages/DocsPage";
 import { MfaConfirmationModal } from "./MfaConfirmationModal";
 import { PortfolioPage } from "./dashboard/pages/PortfolioPage";
 import { usePortfolioData } from "../hooks/usePortfolioData";
-import { useBreakersData } from "../hooks/useBreakersData";
+import { useBreakersData, useRiskLimitsData } from "../hooks/useBreakersData";
 
 export function Dashboard({
   user,
@@ -86,6 +86,7 @@ export function Dashboard({
     page === "portfolio" || page === "dashboard",
   );
   const { breakers, clear: clearBreaker } = useBreakersData(page === "risk");
+  const riskLimits = useRiskLimitsData(page === "risk");
   function navigate(next: string) {
     router.push(`/${next}`);
   }
@@ -130,6 +131,7 @@ export function Dashboard({
           change={change}
           breakers={breakers}
           clearBreaker={clearBreaker}
+          riskLimits={riskLimits}
           role={user.role}
         />
       )}

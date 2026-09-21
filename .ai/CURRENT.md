@@ -1,5 +1,56 @@
 # Current task
 
+## Risk limits exposed + Fase 1/2 audit reconciled (2026-09-21, continued further still)
+
+**1. `GET /api/risk/limits`** (closes Fase 3's "Exponer límites, consumo, reservas, pérdidas,
+incumplimientos y razones en la pantalla de riesgo"). Read-only: `RISK_POLICY`'s configured limits
+(daily/weekly loss, drawdown) are always present; equity/high-water-mark/consumption/breach fields
+come from the latest persisted `EquitySnapshot` the decision loop already writes each PAPER tick --
+deliberately does NOT re-price positions live (no `MarketDataProvider` dependency in this route),
+so it's honestly "as of the last decision tick," never a fresher number than what was actually
+computed. `None`, not a fabricated zero, when no snapshot exists yet (still OBSERVE, or PAPER never
+run). Reuses `wallybot.domain.breaker.breakers_to_trip`'s own threshold math for the
+breached/not-breached verdict per metric, rather than re-deriving it. New `RiskLimitsView` DTO,
+new "Límites y consumo" panel in `RiskPage.tsx` (percent formatting follows the exact
+`(Number(x) * 100).toFixed(2)}%` precedent `BacktestsPage.tsx` already established for
+Decimal-string ratios). **Not covered**: "reservas" (capacity reserve) -- no such concept exists
+separately from the RECONCILIATION breaker in this endpoint.
+
+**2. Reconciled the Fase 1/2 audit** a background fork agent ran earlier this session (read-only,
+20 items checked against real code, not against `docs/PENDING.md`'s own checkboxes). Tally: 1 DONE,
+15 PARTIALLY DONE, 4 NOT STARTED (2 of those human-only: CI-remote, Fedora/Cloudflare). Checked off
+the one genuinely DONE item (Fase 2's instrument metadata/market-rules unification -- already real
+in `wallybot/domain/market.py`'s `Instrument`). Added a dated "Auditoría 2026-09-21" summary
+paragraph to both Fase 1 and Fase 2 in `docs/PENDING.md`, right before each phase's Aceptación line
+-- key findings: Playwright's `webServer` never actually routes through the real nginx gateway
+(port 3334→8001 directly, not 3333); `ARCHITECTURE.md`/`DEPLOYMENT.md`/`AGENTS.md` still have real
+stale Vite references; no user-admin/session-revoke/TOTP-replace routes exist at all; quality
+scoring doesn't gate the market ranking despite being computed; `MarketCache` is fully built,
+tested, and wired into zero real call paths; only 2 of 4 required feature types (SMA, momentum)
+exist. Left every "partially done" item unchecked (per this doc's own convention: `[x]` means the
+core capability shipped, not "some evidence exists") -- did not check off any item just because
+the audit found real substance, only the one the audit called fully DONE.
+
+**Verified:** full backend suite 788 passed (up from 784), ruff/pyright clean (known
+`auth_routes.py:65` only). Frontend: eslint clean, `tsc --noEmit` clean, Playwright 12/12 (RiskPage
+itself has no e2e coverage, before or after this slice -- pre-existing gap, not introduced here;
+the 11 new backend integration tests in `tests/integration/test_risk_routes.py` are the real
+coverage for the new route).
+
+**Not yet rebuilt/redeployed or committed this slice.**
+
+**Immediate next actions:** rebuild+redeploy, `graphify update .`, commit, keep going per
+"continua...hasta acabar tokens." Realistic unblocked candidates surfaced by the audit: wiring
+`MarketCache` into at least one real call path (built, tested, unused), gating market
+scoring/ranking on quality status (computed but not enforced), fixing the stale Vite references in
+`ARCHITECTURE.md`/`DEPLOYMENT.md`/root `AGENTS.md`, an instrument-detail route
+(`GET /api/markets/{id}` + candles). Larger/riskier, needs explicit scoping first: user
+administration (list/revoke sessions, password change, TOTP replace), config versioning for
+`RISK_POLICY`/`PORTFOLIO_POLICY` (touches financial risk limits directly). Blocked: Fase 6 AI,
+equities/VIX strategy, Fase 9 LIVE, CI-remote and Fedora/Cloudflare (both human-only). Do NOT touch
+OBSERVE/PAPER/LIVE architecture (explicit user instruction). Still unaddressed: user's "three js es
+par ael login y eso" comment.
+
 ## Audit-log export + i18n Telegram bot (2026-09-21, continued further)
 
 Continuing the user's "sigue hasta acabar tokens" directive. Two more closed items:

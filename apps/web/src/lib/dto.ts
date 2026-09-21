@@ -283,3 +283,19 @@ export const breakerSchema = z.object({
   cleared_by: z.string().nullable(),
 });
 export const breakerListSchema = z.object({ rows: z.array(breakerSchema) });
+
+export const riskLimitsSchema = z.object({
+  policy_version: z.number(),
+  max_daily_loss: z.string(),
+  max_weekly_loss: z.string(),
+  max_drawdown: z.string(),
+  as_of: z.string().nullable(),
+  equity: z.string().nullable(),
+  high_water_mark: z.string().nullable(),
+  daily_loss: z.string().nullable(),
+  weekly_loss: z.string().nullable(),
+  drawdown: z.string().nullable(),
+  daily_loss_breached: z.boolean(),
+  weekly_loss_breached: z.boolean(),
+  drawdown_breached: z.boolean(),
+});

@@ -1,5 +1,21 @@
 # Claude handoff — 2026-09-16 (new session)
 
+## Risk limits exposed + Fase 1/2 audit reconciled — 2026-09-21 (continued further still)
+
+Full detail in `.ai/CURRENT.md`. New: `GET /api/risk/limits` (RISK_POLICY's limits + consumption/
+breach state, read-only from the latest `EquitySnapshot`, no live market repricing) -- closes Fase
+3's risk-limits-on-screen item. Also reconciled a background audit agent's Fase 1/2 findings into
+`docs/PENDING.md` (1 DONE / 15 PARTIALLY DONE / 4 NOT STARTED of 20 items) -- checked off only the
+one genuinely complete item, added dated summary paragraphs for the rest rather than checking
+partial items as done.
+
+**Verified:** 788 backend tests (up from 784), frontend eslint/tsc/Playwright all clean. About to
+rebuild/redeploy/commit.
+
+**Immediate next actions:** per "continua...hasta acabar tokens" -- realistic candidates the audit
+surfaced: wire `MarketCache` into a real call path, gate ranking on quality status, fix stale Vite
+references in root docs, instrument-detail route. Do not touch OBSERVE/PAPER/LIVE architecture.
+
 ## Audit-log export + i18n Telegram bot — 2026-09-21 (continued further)
 
 Full detail in `.ai/CURRENT.md`'s matching entry. New: `GET /api/events/export?format=csv|json`

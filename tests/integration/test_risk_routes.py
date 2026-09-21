@@ -107,3 +107,64 @@ def test_clear_breaker_rejects_an_unknown_type(client, settings, db) -> None:
     )
 
     assert response.status_code == 404
+
+
+def test_limits_requires_auth(client) -> None:
+    assert client.get("/api/risk/limits").status_code == 401
+
+
+def test_limits_reports_the_configured_policy_with_no_snapshot_history(client, settings) -> None:
+    enroll(client, settings)
+
+    response = client.get("/api/risk/limits")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["max_daily_loss"] == "0.02"
+    assert body["max_weekly_loss"] == "0.05"
+    assert body["max_drawdown"] == "0.10"
+    assert body["as_of"] is None
+    assert body["equity"] is None
+    assert body["daily_loss_breached"] is False
+    assert body["weekly_loss_breached"] is False
+    assert body["drawdown_breached"] is False
+
+
+def seed_equity_snapshot(db, account_id: str, equity: str, high_water_mark: str) -> None:
+    db.execute(
+        """INSERT INTO equity_snapshots (account_id, environment, equity, high_water_mark,
+             recorded_at)
+           VALUES (%s, 'PAPER', %s, %s, NOW())""",
+        (account_id, equity, high_water_mark),
+    )
+
+
+def test_limits_computes_drawdown_from_the_latest_snapshot(client, settings, db) -> None:
+    enroll(client, settings)
+    user_id = db.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()[0]
+    account_id = f"paper:{user_id}"
+    seed_equity_snapshot(db, account_id, "9000", "10000")
+
+    response = client.get("/api/risk/limits")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["equity"] == "9000"
+    assert body["high_water_mark"] == "10000"
+    assert body["as_of"] is not None
+    assert body["drawdown"] == "0.1"
+    assert body["drawdown_breached"] is True
+
+
+def test_limits_below_every_threshold_reports_no_breach(client, settings, db) -> None:
+    enroll(client, settings)
+    user_id = db.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()[0]
+    account_id = f"paper:{user_id}"
+    seed_equity_snapshot(db, account_id, "9999", "10000")
+
+    response = client.get("/api/risk/limits")
+
+    body = response.json()
+    assert body["drawdown_breached"] is False
+    assert body["daily_loss_breached"] is False
+    assert body["weekly_loss_breached"] is False

@@ -105,6 +105,27 @@ class BreakerListView(BaseModel):
     rows: list[BreakerView]
 
 
+class RiskLimitsView(BaseModel):
+    """Limits, consumption and breach state for the Risk page -- RISK_POLICY's configured limits
+    always present; equity/loss/drawdown fields are `None` until the decision loop has recorded at
+    least one `EquitySnapshot` for this account (e.g. still in OBSERVE, never run PAPER yet), never
+    fabricated as zero."""
+
+    policy_version: int
+    max_daily_loss: str
+    max_weekly_loss: str
+    max_drawdown: str
+    as_of: str | None
+    equity: str | None
+    high_water_mark: str | None
+    daily_loss: str | None
+    weekly_loss: str | None
+    drawdown: str | None
+    daily_loss_breached: bool
+    weekly_loss_breached: bool
+    drawdown_breached: bool
+
+
 class ServiceStatusView(BaseModel):
     age_seconds: int | None
     status: str

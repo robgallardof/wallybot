@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Pause, Play, ShieldCheck } from "lucide-react";
 import i18n from "../../../lib/i18n";
-import type { breakerListSchema, dashboardSchema } from "../../../lib/dto";
+import type { breakerListSchema, dashboardSchema, riskLimitsSchema } from "../../../lib/dto";
 import type { UseMutationResult, UseQueryResult } from "@tanstack/react-query";
 import type { z } from "zod";
 import { Button } from "../../ui/button";
@@ -13,21 +13,28 @@ const BREAKER_LABELS: Record<string, string> = {
   RECONCILIATION: "Conciliación",
 };
 
+function asPercent(value: string): string {
+  return `${(Number(value) * 100).toFixed(2)}%`;
+}
+
 export function RiskPage({
   dashboard,
   change,
   breakers,
   clearBreaker,
+  riskLimits,
   role,
 }: {
   dashboard: UseQueryResult<z.infer<typeof dashboardSchema>>;
   change: UseMutationResult<unknown, Error, { status: string; environment?: string }>;
   breakers: UseQueryResult<z.infer<typeof breakerListSchema>>;
   clearBreaker: UseMutationResult<unknown, Error, string>;
+  riskLimits: UseQueryResult<z.infer<typeof riskLimitsSchema>>;
   role: string;
 }) {
   useTranslation();
   const activeBreakers = (breakers.data?.rows ?? []).filter((row) => row.cleared_at === null);
+  const limits = riskLimits.data;
 
   return (
     <div className="portfolio-stack">
@@ -77,6 +84,94 @@ export function RiskPage({
             <small>{i18n.t("Requiere una sesión verificada con MFA en los últimos 5 minutos.")}</small>
           </div>
         </div>
+      </article>
+
+      <article className="panel wide-panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">{i18n.t("LÍMITES")}</span>
+            <h2>{i18n.t("Límites y consumo")}</h2>
+          </div>
+          <ShieldCheck size={20} />
+        </div>
+        {riskLimits.isPending && <p className="muted">{i18n.t("Cargando…")}</p>}
+        {riskLimits.isError && (
+          <p className="error" role="alert">
+            {i18n.t("No se pudieron cargar los límites de riesgo.")}
+          </p>
+        )}
+        {limits && limits.as_of === null && (
+          <p className="muted">
+            {i18n.t(
+              "Todavía no hay equity registrado para esta cuenta -- el ciclo de decisión solo registra equity mientras la instancia está en PAPER y en ejecución.",
+            )}
+          </p>
+        )}
+        {limits && limits.as_of !== null && (
+          <div className="markets-table-wrap">
+            <table className="markets-table">
+              <thead>
+                <tr>
+                  <th>{i18n.t("Métrica")}</th>
+                  <th>{i18n.t("Consumo")}</th>
+                  <th>{i18n.t("Límite")}</th>
+                  <th>{i18n.t("Estado")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>{i18n.t("Pérdida diaria")}</td>
+                  <td>{asPercent(limits.daily_loss ?? "0")}</td>
+                  <td>{asPercent(limits.max_daily_loss)}</td>
+                  <td>
+                    <span
+                      className={
+                        limits.daily_loss_breached ? "quality-pill quality-warning" : "quality-pill quality-pass"
+                      }
+                    >
+                      {limits.daily_loss_breached ? i18n.t("Al límite") : i18n.t("OK")}
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td>{i18n.t("Pérdida semanal")}</td>
+                  <td>{asPercent(limits.weekly_loss ?? "0")}</td>
+                  <td>{asPercent(limits.max_weekly_loss)}</td>
+                  <td>
+                    <span
+                      className={
+                        limits.weekly_loss_breached ? "quality-pill quality-warning" : "quality-pill quality-pass"
+                      }
+                    >
+                      {limits.weekly_loss_breached ? i18n.t("Al límite") : i18n.t("OK")}
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td>{i18n.t("Drawdown")}</td>
+                  <td>{asPercent(limits.drawdown ?? "0")}</td>
+                  <td>{asPercent(limits.max_drawdown)}</td>
+                  <td>
+                    <span
+                      className={
+                        limits.drawdown_breached ? "quality-pill quality-warning" : "quality-pill quality-pass"
+                      }
+                    >
+                      {limits.drawdown_breached ? i18n.t("Al límite") : i18n.t("OK")}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p className="muted">
+              {i18n.t("Equity: {{equity}} · Máximo histórico: {{hwm}} · Actualizado: {{asOf}}", {
+                equity: limits.equity,
+                hwm: limits.high_water_mark,
+                asOf: new Date(limits.as_of).toLocaleString(i18n.resolvedLanguage),
+              })}
+            </p>
+          </div>
+        )}
       </article>
 
       <article className="panel wide-panel">
