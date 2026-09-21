@@ -139,6 +139,30 @@ async def test_bootstrap_is_computed_only_when_a_seed_is_requested(tmp_path) -> 
     assert outcome.bootstrap is None
 
 
+async def test_walk_forward_is_computed_only_when_windows_are_requested(tmp_path) -> None:
+    write_fixture(tmp_path)
+    orchestrator = make_orchestrator(tmp_path)
+
+    outcome = await orchestrator.run(make_request())
+    assert outcome.walk_forward is None
+
+    # 11 candles / 2 windows = 5 candles/window, at or above feature_window(3) + 2 = 5 -- just
+    # enough for each window's own BacktestEngine.run() to succeed independently.
+    outcome = await orchestrator.run(make_request(walk_forward_windows=2))
+    assert outcome.walk_forward is not None
+    assert len(outcome.walk_forward) == 2
+    assert [window.index for window in outcome.walk_forward] == [0, 1]
+
+
+async def test_walk_forward_with_too_few_candles_per_window_fails_closed(tmp_path) -> None:
+    write_fixture(tmp_path)
+    orchestrator = make_orchestrator(tmp_path)
+
+    # 11 candles / 3 windows = 3 candles/window, below feature_window(3) + 2 = 5 needed.
+    with pytest.raises(InsufficientHistoricalData):
+        await orchestrator.run(make_request(walk_forward_windows=3))
+
+
 async def test_an_unknown_instrument_is_rejected_rather_than_fabricated(tmp_path) -> None:
     write_fixture(tmp_path)
     orchestrator = make_orchestrator(tmp_path, instruments=[])

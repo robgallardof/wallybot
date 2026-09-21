@@ -6,6 +6,7 @@ from apps.api.dto import (
     BacktestHistoryRowView,
     BacktestHistoryView,
     BacktestRunView,
+    BacktestWalkForwardWindowView,
 )
 from apps.api.schemas import BacktestRun
 from wallybot.application.backtest_orchestrator import BacktestRequest
@@ -34,6 +35,7 @@ async def run_backtest(body: BacktestRun, request: Request, user: Protected) -> 
                 slippage_pct=body.slippage_pct,
                 bootstrap_seed=body.bootstrap_seed,
                 bootstrap_samples=body.bootstrap_samples,
+                walk_forward_windows=body.walk_forward_windows,
             )
         )
     except ValueError as exc:
@@ -79,6 +81,25 @@ async def run_backtest(body: BacktestRun, request: Request, user: Protected) -> 
                 probability_of_loss=str(bootstrap.probability_of_loss),
             )
             if bootstrap is not None
+            else None
+        ),
+        walk_forward=(
+            [
+                BacktestWalkForwardWindowView(
+                    index=window.index,
+                    trade_count=len(window.result.trades),
+                    final_equity=str(window.result.final_equity),
+                    total_return_pct=str(window.result.total_return_pct),
+                    max_drawdown_pct=str(window.result.max_drawdown_pct),
+                    win_rate=(
+                        str(window.result.win_rate)
+                        if window.result.win_rate is not None
+                        else None
+                    ),
+                )
+                for window in outcome.walk_forward
+            ]
+            if outcome.walk_forward is not None
             else None
         ),
     )

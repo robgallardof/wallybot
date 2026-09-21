@@ -15,6 +15,7 @@ export interface RunBacktestInput {
   fee_rate: string;
   slippage_pct: string;
   bootstrap_seed: number | null;
+  walk_forward_windows: number | null;
 }
 
 export function useBacktestsData(enabled = true) {

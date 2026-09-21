@@ -106,7 +106,7 @@ Las entregas documentadas en [PHASE_2](PHASE_2.md) y [PHASE_3](PHASE_3.md) son a
 - [ ] Consultar Parquet con DuckDB usando manifiestos inmutables, hashes, límites de recursos y versiones de esquema.
 - [ ] Registrar dataset, código, dependencias, configuración, semilla y divisiones temporales de cada experimento.
 - [ ] Implementar backtesting con modelo de fills y costes explícito; compartir reglas verificables con PAPER.
-- [ ] Implementar walk-forward, Monte Carlo y bootstrapping, con muestra e incertidumbre reportadas.
+- [x] Implementar walk-forward y bootstrapping, con muestra e incertidumbre reportadas. (2026-09-20: `wallybot/backtest/evaluation.py`'s `run_walk_forward`/`bootstrap_trade_pnls` ya existían y estaban probados de forma aislada; esta sesión los conectó a `BacktestOrchestrator`/`POST /api/backtests`/`BacktestsPage.tsx` -- ambos opcionales por request vía `walk_forward_windows`/`bootstrap_seed`, independientes entre sí.) Pendiente: Monte Carlo real (simulación de trayectorias de precio) sigue sin construirse -- el bootstrap resamplea PnLs de operaciones ya realizadas, no es lo mismo.
 - [ ] Controlar leakage y sesgos de selección/supervivencia; documentar límites de historia y activos deslistados.
 - [ ] Calcular métricas de estrategia/portafolio, atribución por activo/régimen/bucket y concentración de beneficios.
 - [ ] Comparar BTC, ETH, efectivo y portafolio pasivo sobre ventanas y supuestos equivalentes.

@@ -142,6 +142,7 @@ def test_running_a_backtest_persists_and_is_visible_in_history(client, settings,
     assert body["trade_count"] == 1
     assert body["instrument_base"] == "BTC"
     assert body["bootstrap"] is None
+    assert body["walk_forward"] is None
 
     history = client.get("/api/backtests")
     assert history.status_code == 200
@@ -149,6 +150,25 @@ def test_running_a_backtest_persists_and_is_visible_in_history(client, settings,
     assert len(rows) == 1
     assert rows[0]["experiment_id"] == body["experiment_id"]
     assert rows[0]["trade_count"] == 1
+
+
+def test_running_a_backtest_with_walk_forward_windows_returns_per_window_results(
+    client, settings, tmp_path
+) -> None:
+    write_fixture(tmp_path)
+    wire_fake_orchestrator(client, tmp_path)
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+
+    response = client.post(
+        "/api/backtests",
+        json=run_body(walk_forward_windows=2),
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 200, response.text
+    windows = response.json()["walk_forward"]
+    assert len(windows) == 2
+    assert [w["index"] for w in windows] == [0, 1]
 
 
 def test_running_a_backtest_requires_csrf(client, settings, tmp_path) -> None:

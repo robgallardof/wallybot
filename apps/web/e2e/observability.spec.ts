@@ -613,6 +613,7 @@ test("backtests page runs a backtest, refreshes history and surfaces a 422 as an
     win_rate: "0.5",
     created_at: "2026-01-10T00:00:00Z",
     bootstrap: null,
+    walk_forward: null,
   };
   await page.route("**/api/backtests", async (route) => {
     if (route.request().method() === "GET") {

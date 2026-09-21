@@ -154,6 +154,14 @@ export const backtestBootstrapSchema = z.object({
   p95_total_pnl: z.string(),
   probability_of_loss: z.string(),
 });
+export const backtestWalkForwardWindowSchema = z.object({
+  index: z.number(),
+  trade_count: z.number(),
+  final_equity: z.string(),
+  total_return_pct: z.string(),
+  max_drawdown_pct: z.string(),
+  win_rate: z.string().nullable(),
+});
 export const backtestRunSchema = z.object({
   experiment_id: z.string(),
   instrument_venue: z.string(),
@@ -168,6 +176,7 @@ export const backtestRunSchema = z.object({
   win_rate: z.string().nullable(),
   created_at: z.string(),
   bootstrap: backtestBootstrapSchema.nullable(),
+  walk_forward: z.array(backtestWalkForwardWindowSchema).nullable(),
 });
 export const backtestHistoryRowSchema = z.object({
   experiment_id: z.string(),

@@ -263,6 +263,15 @@ class BacktestBootstrapView(BaseModel):
     probability_of_loss: str
 
 
+class BacktestWalkForwardWindowView(BaseModel):
+    index: int
+    trade_count: int
+    final_equity: str
+    total_return_pct: str
+    max_drawdown_pct: str
+    win_rate: str | None
+
+
 class BacktestRunView(BaseModel):
     experiment_id: str
     instrument_venue: str
@@ -277,6 +286,7 @@ class BacktestRunView(BaseModel):
     win_rate: str | None
     created_at: str
     bootstrap: BacktestBootstrapView | None
+    walk_forward: list[BacktestWalkForwardWindowView] | None
 
 
 class BacktestHistoryRowView(BaseModel):

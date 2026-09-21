@@ -55,6 +55,8 @@ export function BacktestsPage({
   const [slippagePct, setSlippagePct] = useState("0.0005");
   const [bootstrap, setBootstrap] = useState(false);
   const [bootstrapSeed, setBootstrapSeed] = useState("42");
+  const [walkForward, setWalkForward] = useState(false);
+  const [walkForwardWindows, setWalkForwardWindows] = useState("3");
   const [dateError, setDateError] = useState(false);
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -80,6 +82,7 @@ export function BacktestsPage({
       fee_rate: feeRate,
       slippage_pct: slippagePct,
       bootstrap_seed: bootstrap ? Number(bootstrapSeed) : null,
+      walk_forward_windows: walkForward ? Number(walkForwardWindows) : null,
     });
   }
 
@@ -263,6 +266,26 @@ export function BacktestsPage({
               />
             </label>
           )}
+          <label className="backtest-checkbox">
+            <input
+              type="checkbox"
+              checked={walkForward}
+              onChange={(event) => setWalkForward(event.target.checked)}
+            />
+            {i18n.t("Validación walk-forward")}
+          </label>
+          {walkForward && (
+            <label>
+              {i18n.t("Número de ventanas")}
+              <input
+                type="number"
+                min={2}
+                max={20}
+                value={walkForwardWindows}
+                onChange={(event) => setWalkForwardWindows(event.target.value)}
+              />
+            </label>
+          )}
           <button
             className="button button-primary"
             type="submit"
@@ -323,6 +346,36 @@ export function BacktestsPage({
                   },
                 )}
               </p>
+            )}
+            {result.walk_forward && (
+              <div className="markets-table-wrap">
+                <table className="markets-table">
+                  <thead>
+                    <tr>
+                      <th>{i18n.t("Ventana")}</th>
+                      <th>{i18n.t("Operaciones")}</th>
+                      <th>{i18n.t("Retorno total")}</th>
+                      <th>{i18n.t("Máximo drawdown")}</th>
+                      <th>{i18n.t("Tasa de acierto")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.walk_forward.map((window) => (
+                      <tr key={window.index}>
+                        <td>{window.index + 1}</td>
+                        <td>{window.trade_count}</td>
+                        <td>{(Number(window.total_return_pct) * 100).toFixed(2)}%</td>
+                        <td>{(Number(window.max_drawdown_pct) * 100).toFixed(2)}%</td>
+                        <td>
+                          {window.win_rate !== null
+                            ? `${(Number(window.win_rate) * 100).toFixed(0)}%`
+                            : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         )}

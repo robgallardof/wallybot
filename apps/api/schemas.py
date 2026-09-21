@@ -62,6 +62,7 @@ class BacktestRun(Input):
     slippage_pct: Decimal = Field(default=Decimal("0.0005"), ge=0, le=1)
     bootstrap_seed: int | None = None
     bootstrap_samples: int = Field(default=2000, ge=100, le=20000)
+    walk_forward_windows: int | None = Field(default=None, ge=2, le=20)
 
     @field_validator("window_start", "window_end")
     @classmethod

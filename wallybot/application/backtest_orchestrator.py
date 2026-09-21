@@ -1,8 +1,11 @@
 """BacktestOrchestrator: wires Slice 1 (`read_candles`) -> Slice 2 (`BacktestEngine`) -> Slice 3
-(optional bootstrap resampling) into the one real path from a requested dataset window to a
+(optional bootstrap resampling and walk-forward segmentation, both from
+`wallybot.backtest.evaluation`) into the one real path from a requested dataset window to a
 comparable backtest outcome -- the end-to-end composition every earlier Phase 5 slice's own
 "Explicitly not built" section flagged as missing ("no code that actually calls
-BacktestEngine/ExperimentRepository together end-to-end").
+BacktestEngine/ExperimentRepository together end-to-end"). Both are opt-in per request
+(`bootstrap_seed`/`walk_forward_windows`) and independent of each other and of the main `result` --
+a request can ask for either, both, or neither.
 
 Persistence is deliberately NOT this orchestrator's job: like `ShadowDecisionService`, it returns
 a pure `ExperimentRecord` for the caller (the API route, which already owns a DB session) to
@@ -33,7 +36,12 @@ from decimal import Decimal
 from pathlib import Path
 
 from wallybot.backtest.engine import BacktestCostModel, BacktestEngine, BacktestResult
-from wallybot.backtest.evaluation import BootstrapResult, bootstrap_trade_pnls
+from wallybot.backtest.evaluation import (
+    BootstrapResult,
+    WalkForwardWindow,
+    bootstrap_trade_pnls,
+    run_walk_forward,
+)
 from wallybot.data.historical_query import QueryResourceLimits, read_candles
 from wallybot.domain.clock import Clock
 from wallybot.domain.experiment import ExperimentRecord
@@ -72,6 +80,7 @@ class BacktestRequest:
     slippage_pct: Decimal
     bootstrap_seed: int | None = None
     bootstrap_samples: int = DEFAULT_BOOTSTRAP_SAMPLES
+    walk_forward_windows: int | None = None
 
 
 @dataclass(frozen=True)
@@ -79,6 +88,7 @@ class BacktestOutcome:
     record: ExperimentRecord
     result: BacktestResult
     bootstrap: BootstrapResult | None
+    walk_forward: tuple[WalkForwardWindow, ...] | None
 
 
 class BacktestOrchestrator:
@@ -150,6 +160,16 @@ class BacktestOrchestrator:
                 result, request.bootstrap_samples, request.bootstrap_seed
             )
 
+        walk_forward = None
+        if request.walk_forward_windows is not None:
+            try:
+                walk_forward = run_walk_forward(
+                    engine, candles, request.starting_equity, request.allocation_pct,
+                    request.walk_forward_windows,
+                )
+            except ValueError as exc:
+                raise InsufficientHistoricalData(str(exc)) from exc
+
         # Instrument precision is optional at the domain level (some market-data-only providers,
         # e.g. Tiingo, don't report it) -- but a reproducible ExperimentRecord always needs it, so
         # this fails closed rather than persisting a record a later re-run couldn't reconstruct.
@@ -192,4 +212,6 @@ class BacktestOrchestrator:
             win_rate=result.win_rate,
             created_at=self.clock.now(),
         )
-        return BacktestOutcome(record=record, result=result, bootstrap=bootstrap)
+        return BacktestOutcome(
+            record=record, result=result, bootstrap=bootstrap, walk_forward=walk_forward
+        )
