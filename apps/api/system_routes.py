@@ -1,11 +1,16 @@
+import csv
+import io
 import time
 from datetime import UTC, datetime
+from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, Response
+from fastapi.responses import JSONResponse
 from sqlalchemy import and_, or_, select, text
 
 from apps.api.dependencies import Admin, SignedIn
 from apps.api.dto import (
+    AuditEventView,
     ControlView,
     DashboardView,
     EventPageView,
@@ -140,6 +145,77 @@ async def events(
             for row in page
         ],
         next_before=next_before,
+    )
+
+
+# A safety cap, not a business limit -- same reasoning as portfolio_routes.py's EXPORT_FILL_LIMIT.
+EXPORT_EVENT_LIMIT = 50_000
+_AUDIT_EXPORT_FIELDNAMES: tuple[str, ...] = (
+    "id",
+    "timestamp",
+    "actor",
+    "event",
+    "message",
+    "correlation_id",
+)
+
+
+@router.get("/events/export")
+async def export_events(
+    request: Request,
+    user: SignedIn,
+    format: Literal["csv", "json"] = "csv",
+    since: int | None = None,
+    until: int | None = None,
+) -> Response:
+    """Export the audit trail as CSV or JSON -- unlike `events()`, includes `actor` and
+    `correlation_id`, withheld from the regular paginated feed but exactly what a compliance
+    export needs. Same authentication as the regular feed (`SignedIn`): this is a read of data
+    every signed-in user can already page through one screen at a time, just bulk and complete
+    instead. `since`/`until` (Unix seconds, inclusive) optionally scope the export to a window;
+    unset means the most recent `EXPORT_EVENT_LIMIT` rows.
+    """
+    conditions = []
+    if since is not None:
+        conditions.append(EventRow.timestamp >= since)
+    if until is not None:
+        conditions.append(EventRow.timestamp <= until)
+    stmt = (
+        select(EventRow)
+        .order_by(EventRow.timestamp.desc(), EventRow.id.desc())
+        .limit(EXPORT_EVENT_LIMIT)
+    )
+    if conditions:
+        stmt = stmt.where(and_(*conditions))
+    async with request.app.state.sessions() as db:
+        rows = (await db.scalars(stmt)).all()
+
+    export_rows = [
+        AuditEventView(
+            id=row.id,
+            timestamp=datetime.fromtimestamp(row.timestamp, UTC).isoformat(),
+            actor=row.actor,
+            event=row.event,
+            message=row.message,
+            correlation_id=row.correlation_id,
+        )
+        for row in rows
+    ]
+
+    if format == "json":
+        return JSONResponse(
+            [row.model_dump() for row in export_rows],
+            headers={"Content-Disposition": 'attachment; filename="wallybot-audit-log.json"'},
+        )
+
+    buffer = io.StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=_AUDIT_EXPORT_FIELDNAMES)
+    writer.writeheader()
+    writer.writerows(row.model_dump() for row in export_rows)
+    return Response(
+        content=buffer.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="wallybot-audit-log.csv"'},
     )
 
 

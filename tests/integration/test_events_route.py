@@ -122,3 +122,72 @@ def test_events_rejects_a_malformed_cursor(client, settings) -> None:
     response = client.get("/api/events", params={"before": "not-a-cursor"})
 
     assert response.status_code == 400
+
+
+def test_export_requires_auth(client) -> None:
+    assert client.get("/api/events/export").status_code == 401
+
+
+def test_export_defaults_to_csv_and_includes_actor_and_correlation_id(
+    client, settings, db
+) -> None:
+    enroll(client, settings)
+    db.execute(
+        "INSERT INTO events (id, timestamp, actor, event, message, correlation_id) "
+        "VALUES (%s, %s, %s, %s, %s, %s)",
+        ("export-csv-1", 5000, "admin-id", "EXPORT_TEST", "export test message", "corr-1"),
+    )
+
+    response = client.get("/api/events/export", params={"since": 4999, "until": 5001})
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    lines = response.text.strip().splitlines()
+    assert lines[0] == "id,timestamp,actor,event,message,correlation_id"
+    assert lines[1].startswith("export-csv-1,")
+    assert "admin-id" in lines[1]
+    assert "corr-1" in lines[1]
+
+
+def test_export_json_returns_the_audit_fields(client, settings, db) -> None:
+    enroll(client, settings)
+    db.execute(
+        "INSERT INTO events (id, timestamp, actor, event, message, correlation_id) "
+        "VALUES (%s, %s, %s, %s, %s, %s)",
+        ("export-json-1", 5001, None, "EXPORT_TEST_JSON", "json export message", "corr-2"),
+    )
+
+    response = client.get("/api/events/export", params={"format": "json"})
+
+    assert response.status_code == 200
+    rows = response.json()
+    matching = [row for row in rows if row["id"] == "export-json-1"]
+    assert len(matching) == 1
+    row = matching[0]
+    assert row["actor"] is None
+    assert row["event"] == "EXPORT_TEST_JSON"
+    assert row["correlation_id"] == "corr-2"
+
+
+def test_export_since_and_until_bound_the_window(client, settings, db) -> None:
+    enroll(client, settings)
+    insert_event(db, "window-before", 6000, event="WINDOWTEST")
+    insert_event(db, "window-inside", 6100, event="WINDOWTEST")
+    insert_event(db, "window-after", 6200, event="WINDOWTEST")
+
+    response = client.get(
+        "/api/events/export",
+        params={"format": "json", "since": 6050, "until": 6150},
+    )
+
+    ids = {row["id"] for row in response.json()}
+    assert ids == {"window-inside"}
+
+
+def test_export_with_no_matching_events_is_only_a_header_row(client, settings) -> None:
+    enroll(client, settings)
+
+    response = client.get("/api/events/export", params={"until": 1})
+
+    lines = response.text.strip().splitlines()
+    assert lines == ["id,timestamp,actor,event,message,correlation_id"]

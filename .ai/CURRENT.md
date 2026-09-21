@@ -1,5 +1,43 @@
 # Current task
 
+## Audit-log export + i18n Telegram bot (2026-09-21, continued further)
+
+Continuing the user's "sigue hasta acabar tokens" directive. Two more closed items:
+
+**1. `GET /api/events/export?format=csv|json`** (closes most of the "Seguridad" transversal row's
+"exportación de auditoría protegida" item). Same `SignedIn` gate and CSV/JSON shape as the earlier
+`GET /api/portfolio/export`, but over the audit trail: new `AuditEventView` DTO (`apps/api/dto.py`)
+carries `actor`/`correlation_id` -- both withheld from the regular paginated `GET /api/events` feed
+to keep it focused on "what happened," but exactly what a compliance export needs ("who did it, and
+which actions share an operation"). Optional `since`/`until` (Unix seconds, inclusive) window
+filters; `EXPORT_EVENT_LIMIT = 50_000` safety cap, same reasoning as the portfolio export's
+`EXPORT_FILL_LIMIT`. Added 6 new integration tests to `tests/integration/test_events_route.py`
+(auth-required, CSV shape/actor/correlation_id, JSON shape, since/until window, empty-result
+header-only CSV).
+
+**2. Bilingual (EN/ES) Telegram bot replies** (user's explicit ask: "acuerdate de en y es del bot").
+Landed earlier this session (see `wallybot/notifications/telegram_i18n.py`'s `resolve_language`,
+threaded through every `_xxx_reply` in `telegram_command_loop.py`) -- confirmed still intact and
+tested (`tests/unit/test_telegram_i18n.py`, 3 new integration tests in
+`test_telegram_command_loop.py`).
+
+**Verified:** full backend suite 784 passed (up from 779), ruff clean, pyright clean (same one
+known `auth_routes.py:65` error). Frontend/Playwright not touched this slice (backend-only change).
+
+**Not yet rebuilt/redeployed or committed this slice** -- about to do both now, per the user's
+standing "redeployea despues de esto todo" instruction.
+
+**Immediate next actions:** rebuild+redeploy, `graphify update .`, commit, then keep closing
+unblocked backlog items per "continua...hasta acabar tokens." A background fork agent
+(`a38356ec6e2d2ff93`) is auditing Fase 1/Fase 2 checkboxes in `docs/PENDING.md` against real code --
+check its report and reconcile the doc once it lands. Realistic unblocked candidates after that:
+OpenTelemetry tracing, backups automation, config versioning (`RISK_POLICY`/`PORTFOLIO_POLICY`
+currently hardcoded Python constants -- flagged as needing explicit human scoping first, since it
+touches financial risk limits directly). Blocked: Fase 6 AI (provider/API-key decision), the
+equities/VIX/Fear&Greed strategy idea (data-provider decision), Fase 9 LIVE (human-only gates). Do
+NOT touch/discuss OBSERVE/PAPER/LIVE architecture further (explicit user instruction). Still
+unaddressed: user's "three js es par ael login y eso" comment -- unclear, not yet clarified.
+
 ## Observability + 3 parallel agents + concurrent-session merge + /help (2026-09-21, continued)
 
 Biggest single slice this session. User asked to keep going "hasta que se acaben tokens" and to

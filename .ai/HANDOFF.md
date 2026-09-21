@@ -1,5 +1,20 @@
 # Claude handoff — 2026-09-16 (new session)
 
+## Audit-log export + i18n Telegram bot — 2026-09-21 (continued further)
+
+Full detail in `.ai/CURRENT.md`'s matching entry. New: `GET /api/events/export?format=csv|json`
+(audit trail export with `actor`/`correlation_id`, `SignedIn`-gated, `since`/`until` filters, 50k
+cap) -- closes most of the "Seguridad" transversal row. Confirmed the EN/ES Telegram bot i18n from
+earlier this session is intact and tested.
+
+**Verified:** 784 backend tests passed (up from 779), ruff/pyright clean (known
+`auth_routes.py:65` only). About to rebuild/redeploy/commit.
+
+**Immediate next actions:** check the Fase 1/2 audit fork agent's (`a38356ec6e2d2ff93`) report and
+reconcile `docs/PENDING.md` against it. Then keep closing unblocked backlog per "continua...hasta
+acabar tokens" -- do not touch OBSERVE/PAPER/LIVE architecture (explicit user instruction), do not
+start Fase 6 AI/equities-VIX strategy/Fase 9 LIVE without an explicit decision/gate clearance.
+
 ## Observability + 3 parallel agents + concurrent-session merge + /help — 2026-09-21 (continued)
 
 Biggest slice this session. Full detail in `.ai/CURRENT.md`'s matching entry. Key lessons for next

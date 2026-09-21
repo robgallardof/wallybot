@@ -133,6 +133,19 @@ class EventPageView(BaseModel):
     next_before: str | None
 
 
+class AuditEventView(BaseModel):
+    """Same rows `EventView` exposes, plus `actor`/`correlation_id` -- withheld from the regular
+    paginated feed to keep it focused on "what happened", but exactly what an audit export needs
+    ("who did it, and which actions are part of the same operation")."""
+
+    id: str
+    timestamp: str
+    actor: str | None
+    event: str
+    message: str
+    correlation_id: str
+
+
 class ControlView(BaseModel):
     status: Status
     environment: Environment
