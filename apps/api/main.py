@@ -1,4 +1,5 @@
 import asyncio
+import time
 from collections import deque
 from contextlib import asynccontextmanager
 from datetime import timedelta
@@ -21,7 +22,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from apps.api.auth_routes import router as auth_router
 from apps.api.backtest_routes import router as backtest_router
 from apps.api.connection_routes import router as connection_router
-from apps.api.dependencies import SignedIn
 from apps.api.intelligence_routes import router as intelligence_router
 from apps.api.market_routes import router as market_router
 from apps.api.portfolio_routes import paper_account_id
@@ -38,10 +38,13 @@ from wallybot.application.market_overview import build_market_overview
 from wallybot.application.price_consensus_job import ProviderSource, run_price_consensus_tick
 from wallybot.application.reconciliation_service import ReconciliationService
 from wallybot.application.telegram_command_loop import run_telegram_command_tick
+from wallybot.application.telegram_report_job import run_telegram_report_tick
 from wallybot.data.historical import HistoricalStore
 from wallybot.data.historical_query import DEFAULT_QUERY_LIMITS
 from wallybot.data.quality import QualityPolicy
+from wallybot.domain.breaker import BreakerType
 from wallybot.domain.control import Environment, Status
+from wallybot.domain.notification_throttle import NotificationThrottle
 from wallybot.domain.provider_reliability import ProviderCallOutcome
 from wallybot.exchanges.fake import FakeExchange
 from wallybot.exchanges.kraken import KrakenExchange
@@ -50,7 +53,19 @@ from wallybot.infrastructure.historical_ingestion_cursor_repository import (
     HistoricalIngestionCursorRepository,
 )
 from wallybot.infrastructure.logging import configure_logging
-from wallybot.infrastructure.models import ControlRow, UserRow
+from wallybot.infrastructure.metrics import (
+    ACTIVE_BREAKERS,
+    DECISION_TICK_DURATION,
+    DECISION_TICKS,
+    MARKET_INGESTION_TICKS,
+    ORDERS_PLACED,
+    PRICE_CONSENSUS_TICKS,
+    RECONCILIATION_HEALTHY,
+    RECONCILIATION_UNKNOWN_ORDERS,
+    SERVICE_HEARTBEAT_AGE,
+    TELEGRAM_COMMAND_TICKS,
+)
+from wallybot.infrastructure.models import ControlRow, HeartbeatRow, UserRow
 from wallybot.infrastructure.settings import Settings, load_settings
 from wallybot.infrastructure.system_clock import SystemClock
 from wallybot.infrastructure.uuid_id_generator import UuidIdGenerator
@@ -69,6 +84,28 @@ REQUESTS = Counter("wallybot_http_requests_total", "Requests by status class", [
 # persists what that endpoint only ever showed ephemerally.
 MARKET_INGESTION_TIMEFRAME = "1h"
 MARKET_INGESTION_INTERVAL_SECONDS = 3600
+
+
+# Independent of `apps/api/system_routes.py`'s `/api/system` route (which also refreshes this
+# same gauge, but only when someone actually loads the System page) -- a metric that only updates
+# on UI traffic defeats the point of background alerting, so this loop keeps it fresh on its own,
+# same as every other metric in this file.
+HEARTBEAT_METRICS_INTERVAL_SECONDS = 30
+
+
+async def _heartbeat_metrics_loop(sessions, logger) -> None:
+    while True:
+        try:
+            now = int(time.time())
+            async with sessions() as db:
+                beats = (await db.scalars(select(HeartbeatRow))).all()
+            for beat in beats:
+                SERVICE_HEARTBEAT_AGE.labels(beat.service).set(max(0, now - beat.timestamp))
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.warning("HEARTBEAT_METRICS_TICK_FAILED")
+        await asyncio.sleep(HEARTBEAT_METRICS_INTERVAL_SECONDS)
 
 
 async def _market_ingestion_loop(
@@ -99,10 +136,12 @@ async def _market_ingestion_loop(
                     "errors": errors,
                 },
             )
+            MARKET_INGESTION_TICKS.labels("success").inc()
         except asyncio.CancelledError:
             raise
         except Exception:
             logger.warning("MARKET_DATA_INGESTION_FAILED")
+            MARKET_INGESTION_TICKS.labels("failure").inc()
         await asyncio.sleep(MARKET_INGESTION_INTERVAL_SECONDS)
 
 
@@ -138,10 +177,12 @@ async def _price_consensus_loop(
                 sessions, crypto, clock, static_sources, clock.now(), outcomes
             )
             logger.info("PRICE_CONSENSUS_COMPUTED")
+            PRICE_CONSENSUS_TICKS.labels("success").inc()
         except asyncio.CancelledError:
             raise
         except Exception:
             logger.warning("PRICE_CONSENSUS_TICK_FAILED")
+            PRICE_CONSENSUS_TICKS.labels("failure").inc()
         await asyncio.sleep(PRICE_CONSENSUS_INTERVAL_SECONDS)
 
 
@@ -191,6 +232,7 @@ async def _decision_loop(
                 await asyncio.sleep(DECISION_INTERVAL_SECONDS)
                 continue
 
+            tick_started = time.monotonic()
             result = await run_decision_tick(
                 sessions=sessions,
                 provider=provider,
@@ -204,6 +246,7 @@ async def _decision_loop(
                 account_id=paper_account_id(admin_id),
                 now=clock.now(),
             )
+            DECISION_TICK_DURATION.observe(time.monotonic() - tick_started)
             orders_placed = sum(
                 1 for outcome in result.outcomes if outcome.order_status is not None
             )
@@ -216,10 +259,20 @@ async def _decision_loop(
                     "active_breakers": [b.breaker_type.value for b in result.active_breakers],
                 },
             )
+            DECISION_TICKS.labels("success").inc()
+            ORDERS_PLACED.inc(orders_placed)
+            RECONCILIATION_HEALTHY.set(1 if result.reconciliation_healthy else 0)
+            RECONCILIATION_UNKNOWN_ORDERS.set(result.reconciliation_unknown_orders)
+            active_types = {b.breaker_type.value for b in result.active_breakers}
+            for breaker_type in BreakerType:
+                ACTIVE_BREAKERS.labels(breaker_type.value).set(
+                    1 if breaker_type.value in active_types else 0
+                )
         except asyncio.CancelledError:
             raise
         except Exception:
             logger.warning("DECISION_TICK_FAILED")
+            DECISION_TICKS.labels("failure").inc()
         await asyncio.sleep(DECISION_INTERVAL_SECONDS)
 
 
@@ -247,11 +300,53 @@ async def _telegram_command_loop(
             await run_telegram_command_tick(
                 sessions, crypto, transport, id_generator, account_id, clock.now()
             )
+            TELEGRAM_COMMAND_TICKS.labels("success").inc()
         except asyncio.CancelledError:
             raise
         except Exception:
             logger.warning("TELEGRAM_COMMAND_TICK_FAILED")
+            TELEGRAM_COMMAND_TICKS.labels("failure").inc()
             await asyncio.sleep(5)
+
+
+# Only cares about "has the UTC date/ISO week changed since the last report" (see
+# `wallybot.application.telegram_report_job`'s own `last_sent_key` check), so this can poll far
+# less often than the 8s Telegram long-poll above -- 30 minutes is prompt enough after a
+# day/week boundary without adding meaningful load. The tick itself
+# (`run_telegram_report_tick`) lives in `wallybot.application.telegram_report_job`, same split
+# as every other loop in this module.
+TELEGRAM_REPORT_INTERVAL_SECONDS = 1800
+
+
+async def _telegram_report_loop(
+    sessions,
+    crypto: Crypto,
+    transport,
+    throttle: NotificationThrottle,
+    clock: SystemClock,
+    logger,
+) -> None:
+    while True:
+        try:
+            async with sessions() as db:
+                admin_id = await db.scalar(
+                    select(UserRow.id).where(UserRow.role == "ADMIN").order_by(UserRow.created_at)
+                )
+            if admin_id is not None:
+                await run_telegram_report_tick(
+                    sessions,
+                    crypto,
+                    transport,
+                    throttle,
+                    paper_account_id(admin_id),
+                    "PAPER",
+                    clock.now(),
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.warning("TELEGRAM_REPORT_TICK_FAILED")
+        await asyncio.sleep(TELEGRAM_REPORT_INTERVAL_SECONDS)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -273,6 +368,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.throttle = Throttle(redis, config.auth_limit, config.auth_window_seconds)
         telegram_client = httpx.AsyncClient(timeout=10.0)
         app.state.telegram_transport = HttpxTelegramTransport(telegram_client)
+        app.state.notification_throttle = NotificationThrottle()
 
         clock = SystemClock()
         provider = KrakenExchange(clock=clock)
@@ -315,6 +411,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         execution = ExecutionService(gateway=paper_gateway, sessions=sessions, clock=clock)
         reconciliation = ReconciliationService(execution=execution, sessions=sessions)
         app.state.execution = execution
+        heartbeat_metrics_task = asyncio.create_task(_heartbeat_metrics_loop(sessions, logger))
         ingestion_task = asyncio.create_task(
             _market_ingestion_loop(
                 provider=provider,
@@ -383,8 +480,33 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 )
             )
         )
+        # Same test-suite exclusion as price_consensus_task/decision_task/telegram_command_task
+        # above: real-clock writes to `telegram_reports` against the shared test Postgres
+        # container would non-deterministically race whatever a given test seeded/asserted, and
+        # no test in this suite expects an outbound report on its own. Tests exercise
+        # `run_telegram_report_tick` directly instead.
+        telegram_report_task = (
+            None
+            if config.environment == "test"
+            else asyncio.create_task(
+                _telegram_report_loop(
+                    sessions,
+                    app.state.auth.crypto,
+                    app.state.telegram_transport,
+                    app.state.notification_throttle,
+                    clock,
+                    logger,
+                )
+            )
+        )
         logger.info("API_STARTED")
         yield
+        if telegram_report_task is not None:
+            telegram_report_task.cancel()
+            try:
+                await telegram_report_task
+            except asyncio.CancelledError:
+                pass
         if telegram_command_task is not None:
             telegram_command_task.cancel()
             try:
@@ -406,6 +528,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ingestion_task.cancel()
         try:
             await ingestion_task
+        except asyncio.CancelledError:
+            pass
+        heartbeat_metrics_task.cancel()
+        try:
+            await heartbeat_metrics_task
         except asyncio.CancelledError:
             pass
         await telegram_client.aclose()
@@ -494,8 +621,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return JSONResponse({"status": "not_ready"}, status_code=503)
         return {"status": "ready"}
 
+    # Unauthenticated: Prometheus can't hold a session cookie, so this relies on network
+    # isolation instead, the same trust boundary this codebase already uses for
+    # worker/scheduler/research (`internal: true` Docker networks, PENDING.md Fase 7). The
+    # gateway's nginx config (`docker/gateway.conf`) has an explicit `location = /api/metrics
+    # { return 404; }` block so this is never reachable from the public edge -- only Prometheus,
+    # on the `operational` network alongside `api`, ever reaches it (`api:8000/api/metrics`
+    # directly, bypassing the gateway).
     @app.get("/api/metrics")
-    async def metrics(user: SignedIn):
+    async def metrics():
         return Response(generate_latest(), media_type="text/plain; version=0.0.4")
 
     app.include_router(auth_router)

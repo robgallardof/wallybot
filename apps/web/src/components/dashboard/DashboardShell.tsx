@@ -23,6 +23,7 @@ import { ThemeToggle } from "../ThemeToggle";
 import { Button } from "../ui/button";
 
 const navigation = [
+  ["docs", "Documentación", BookOpen],
   ["dashboard", "Resumen", LayoutDashboard],
   ["portfolio", "Portafolio", Wallet],
   ["connections", "Conexiones", Cable],
@@ -33,8 +34,54 @@ const navigation = [
   ["events", "Actividad", Activity],
   ["system", "Sistema", Settings2],
   ["settings", "Configuración", Settings],
-  ["docs", "Documentación", BookOpen],
 ] as const;
+
+const PAGE_META: Record<string, { eyebrow: string; description: string }> = {
+  dashboard: {
+    eyebrow: "PANORAMA",
+    description: "Lo esencial de tu instancia, sin métricas inventadas.",
+  },
+  portfolio: {
+    eyebrow: "PORTAFOLIO",
+    description: "Saldos, actividad y resultados de tu cuenta de simulación.",
+  },
+  connections: {
+    eyebrow: "CONEXIONES",
+    description: "Proveedores y wallets de consulta, separados de la ejecución.",
+  },
+  markets: {
+    eyebrow: "MERCADOS",
+    description: "Cotizaciones y calidad de datos para investigar con contexto.",
+  },
+  intelligence: {
+    eyebrow: "INTELIGENCIA",
+    description: "Señales observables para revisar antes de tomar una decisión.",
+  },
+  research: {
+    eyebrow: "INVESTIGACIÓN",
+    description: "Pruebas reproducibles sobre datos históricos; no ejecutan operaciones.",
+  },
+  risk: {
+    eyebrow: "RIESGO",
+    description: "Controles que priorizan preservar el capital y revisar excepciones.",
+  },
+  events: {
+    eyebrow: "ACTIVIDAD",
+    description: "Registro de eventos y cambios relevantes de tu instancia.",
+  },
+  system: {
+    eyebrow: "SISTEMA",
+    description: "Estado de las dependencias y procesos que sostienen WallyBot.",
+  },
+  settings: {
+    eyebrow: "CONFIGURACIÓN",
+    description: "Preferencias de tu instancia, simulación y alertas privadas.",
+  },
+  docs: {
+    eyebrow: "GUÍA",
+    description: "Qué hace cada sección y cómo empezar de forma segura.",
+  },
+};
 
 export function DashboardShell({
   user,
@@ -58,6 +105,8 @@ export function DashboardShell({
   useTranslation();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const title = navigation.find(([key]) => key === page)?.[1] ?? "Resumen";
+  const meta = PAGE_META[page] ?? PAGE_META.dashboard;
+  const showSafetyNotice = ["dashboard", "portfolio", "risk", "settings"].includes(page);
 
   function selectPage(key: string) {
     setMobileNavOpen(false);
@@ -169,24 +218,10 @@ export function DashboardShell({
         <div className="page">
           <div className="page-heading">
             <div>
-              <span className="eyebrow">{i18n.t("PORTFOLIO & RESEARCH")}</span>
-              <h1>
-                {page === "dashboard"
-                  ? i18n.t("Una visión clara.")
-                  : i18n.t(title)}
-              </h1>
-              <p className="muted">
-                {page === "dashboard"
-                  ? i18n.t(
-                      "Tu capital, tu actividad y el estado de tu sistema, en un solo lugar.",
-                    )
-                  : i18n.t("Información de tu instancia privada de WallyBot.")}
-              </p>
+              <span className="eyebrow">{i18n.t(meta.eyebrow)}</span>
+              <h1>{page === "dashboard" ? i18n.t("Una visión clara.") : i18n.t(title)}</h1>
+              <p className="muted">{i18n.t(meta.description)}</p>
             </div>
-            <span className="phase-tag">
-              {i18n.t("FASE 01")}
-              <span>{i18n.t("Base operativa")}</span>
-            </span>
           </div>
           {hasError && (
             <p role="alert" className="error">
@@ -200,24 +235,20 @@ export function DashboardShell({
               {i18n.t(mutationError)}
             </p>
           )}
-          <div className="notice">
-            <ShieldCheck size={19} />
-            <div>
-              <strong>
-                {i18n.t("Estás en un entorno seguro de preparación.")}
-              </strong>
-              <span>
-                {" "}
-                {environment === "PAPER"
-                  ? i18n.t(
-                      "Simulando órdenes en modo PAPER. Desactívalo en Configuración para volver a solo observar.",
-                    )
-                  : i18n.t(
-                      "Observando mercados reales. Activa PAPER en Configuración para simular.",
-                    )}
-              </span>
+          {showSafetyNotice && (
+            <div className="notice">
+              <ShieldCheck size={19} />
+              <div>
+                <strong>{i18n.t("Entorno seguro")}</strong>
+                <span>
+                  {" "}
+                  {environment === "PAPER"
+                    ? i18n.t("Simulando órdenes con datos de mercado; no se mueven fondos externos.")
+                    : i18n.t("Observando mercados reales; todavía no se generan órdenes.")}
+                </span>
+              </div>
             </div>
-          </div>
+          )}
           {children}
           <footer className="page-footer">
             <span>

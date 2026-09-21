@@ -15,6 +15,7 @@ class TelegramCommand(StrEnum):
     PORTFOLIO = "PORTFOLIO"
     PAUSE = "PAUSE"
     RESUME = "RESUME"
+    HELP = "HELP"
 
 
 _COMMANDS: dict[str, TelegramCommand] = {
@@ -23,6 +24,9 @@ _COMMANDS: dict[str, TelegramCommand] = {
     "/portfolio": TelegramCommand.PORTFOLIO,
     "/pause": TelegramCommand.PAUSE,
     "/resume": TelegramCommand.RESUME,
+    "/help": TelegramCommand.HELP,
+    "/commands": TelegramCommand.HELP,
+    "/start": TelegramCommand.HELP,
 }
 
 

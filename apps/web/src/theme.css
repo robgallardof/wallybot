@@ -473,6 +473,30 @@
 :root .loading {
   color: var(--text);
 }
+:root .page-skeleton {
+  display: grid;
+  gap: 14px;
+  max-width: 1120px;
+}
+:root .skeleton-line,
+:root .skeleton-card {
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+  background: linear-gradient(100deg, var(--surface-raised) 30%, var(--surface) 50%, var(--surface-raised) 70%);
+  background-size: 200% 100%;
+  border-radius: 9px;
+  display: block;
+}
+:root .skeleton-kicker { height: 12px; width: 112px; }
+:root .skeleton-title { height: 34px; width: min(420px, 80%); }
+:root .skeleton-copy { height: 18px; width: min(620px, 100%); }
+:root .skeleton-cards {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  margin-top: 10px;
+}
+:root .skeleton-card { height: 152px; }
+@keyframes skeleton-pulse { to { background-position: -200% 0; } }
 :root .language-selector {
   display: flex;
   align-items: center;
@@ -978,6 +1002,11 @@
   padding: 30px 12px;
   text-align: center;
 }
+:root .activity-load-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
 :root .activity-panel .event-row {
   align-items: flex-start;
 }
@@ -1177,6 +1206,69 @@
   font-size: 13px;
   margin: 20px 0 0;
 }
+:root .telegram-chat-help {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+  margin-top: 18px;
+  padding: 12px 14px;
+}
+:root .telegram-chat-help summary {
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 600;
+}
+:root .telegram-chat-help ol { margin: 10px 0 8px; padding-left: 20px; }
+:root .telegram-chat-help p { margin: 0; }
+:root .telegram-pairing {
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-raised));
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 12px;
+  display: grid;
+  gap: 8px;
+  margin: 14px 0;
+  padding: 14px 16px;
+}
+:root .telegram-pairing p { margin: 0; }
+:root .telegram-pairing code {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+  padding: 9px 10px;
+  user-select: all;
+}
+:root .mfa-modal-backdrop {
+  align-items: center;
+  background: rgb(15 23 42 / 46%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: fixed;
+  z-index: 100;
+}
+:root .mfa-modal {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 24px 64px rgb(0 0 0 / 25%);
+  max-width: 430px;
+  padding: 28px;
+  position: relative;
+  width: 100%;
+}
+:root .mfa-modal h2 { font-size: 20px; margin: 16px 0 8px; }
+:root .mfa-modal form { display: grid; gap: 14px; margin-top: 20px; }
+:root .mfa-modal label { display: grid; font-size: 13px; gap: 8px; }
+:root .mfa-modal input { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font: inherit; min-height: 44px; padding: 10px 12px; }
+:root .mfa-modal-icon { color: var(--accent); }
+:root .mfa-modal-close { background: transparent; border: 0; color: var(--muted); cursor: pointer; padding: 8px; position: absolute; right: 12px; top: 12px; }
 :root .settings-form {
   align-items: end;
   border-top: 1px solid var(--border);
@@ -1723,6 +1815,10 @@
 :root .page-heading > div {
   max-width: 720px;
 }
+:root .page-heading .eyebrow {
+  display: block;
+  margin-bottom: 8px;
+}
 :root .notice {
   box-shadow: none;
   margin-bottom: 20px;
@@ -1826,6 +1922,86 @@
   box-shadow: 0 4px 16px rgb(0 0 0 / 5%);
   transform: none;
 }
+:root .section-intro {
+  align-items: flex-start;
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  margin: 26px 0 12px;
+}
+:root .section-intro h3 {
+  font-size: 16px;
+  letter-spacing: -0.2px;
+  margin: 5px 0 0;
+}
+:root .section-intro p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+  max-width: 420px;
+}
+:root .connection-setup {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 24px;
+}
+:root .connection-registry .section-intro {
+  margin-top: 24px;
+}
+:root .connection-empty {
+  background: var(--surface-raised);
+  border-radius: 10px;
+  color: var(--muted);
+  margin: 14px 0 0;
+  padding: 14px;
+}
+:root .risk-control-state {
+  align-items: center;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 18px;
+}
+:root .risk-control-state h3 { margin: 0 0 4px; }
+:root .risk-control-state p { margin: 0; }
+:root .risk-control-action {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+:root .risk-control-action small {
+  color: var(--muted);
+  font-size: 11px;
+  max-width: 240px;
+  text-align: right;
+}
+:root .breaker-empty {
+  align-items: flex-start;
+  background: var(--positive-soft);
+  border: 1px solid color-mix(in srgb, var(--positive) 25%, var(--border));
+  border-radius: 12px;
+  color: var(--positive);
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+}
+:root .breaker-empty strong { color: var(--text); }
+:root .breaker-empty p {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 4px 0 0;
+}
+:root .system-group-card {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+}
+:root .system-group-card h3 { font-size: 15px; }
 @media (max-width: 800px) {
   :root .page-heading {
     align-items: flex-start;
@@ -1837,6 +2013,16 @@
   :root .metric {
     min-height: 132px;
   }
+  :root .section-intro {
+    flex-direction: column;
+    gap: 8px;
+  }
+  :root .risk-control-state { grid-template-columns: auto minmax(0, 1fr); }
+  :root .risk-control-action {
+    align-items: stretch;
+    grid-column: 1 / -1;
+  }
+  :root .risk-control-action small { max-width: none; text-align: left; }
 }
 @media (max-width: 600px) {
   :root :is(.market-filters, .activity-filters, .backtest-form, .connection-form, .settings-form) {

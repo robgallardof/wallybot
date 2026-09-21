@@ -3,6 +3,8 @@ chat (SECURITY.md: "allowlisted numeric user/chat IDs"). Query commands (`/statu
 `/portfolio`) reply immediately with a snapshot; sensitive commands (`/pause`, `/resume`) never
 execute directly -- they create a `wallybot.domain.telegram_confirmation.TelegramConfirmation` the
 operator must confirm through the existing Admin+fresh-MFA web flow, and reply saying so.
+`/help`/`/commands` (also `/start`, once already paired -- Telegram's own convention for a bot's
+entry point) list every recognized command with a one-line description.
 
 Only `apps/api` calls this: same "sole process with internet egress" constraint as
 `price_consensus_job`/`notification_dispatch`. `apps/api/main.py`'s `_telegram_command_loop`
@@ -17,6 +19,7 @@ value at or above the client's own timeout would make httpx raise a read timeout
 ever replies.
 """
 
+import hmac
 from datetime import datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -31,7 +34,7 @@ from wallybot.infrastructure.models import ControlRow
 from wallybot.infrastructure.telegram_config_repository import TelegramConfigRepository
 from wallybot.infrastructure.telegram_confirmation_repository import TelegramConfirmationRepository
 from wallybot.notifications.telegram import TelegramCommandTransport
-from wallybot.security.crypto import Crypto
+from wallybot.security.crypto import Crypto, digest
 
 GET_UPDATES_TIMEOUT_SECONDS = 8
 
@@ -46,12 +49,18 @@ async def run_telegram_command_tick(
 ) -> None:
     async with sessions() as db:
         config = await TelegramConfigRepository(db).get()
-    if (
-        config is None
-        or not config.enabled
-        or not config.encrypted_bot_token
-        or config.chat_id is None
-    ):
+    if config is None or not config.encrypted_bot_token:
+        return
+
+    # Before a destination is known, long-poll only to process an exact one-time /start pairing
+    # code. No command is ever executed in this state and arbitrary chats receive no response.
+    if config.chat_id is None:
+        if config.pairing_code_hash is None:
+            return
+        await _run_pairing_tick(sessions, crypto, transport, config, now)
+        return
+
+    if not config.enabled:
         return
 
     token = crypto.decrypt(config.encrypted_bot_token)
@@ -87,6 +96,56 @@ async def run_telegram_command_tick(
         await TelegramConfigRepository(db).set_last_update_id(max_update_id)
 
 
+async def _run_pairing_tick(
+    sessions: async_sessionmaker[AsyncSession], crypto: Crypto, transport: TelegramCommandTransport,
+    config, now: datetime,
+) -> None:
+    token = crypto.decrypt(config.encrypted_bot_token)
+    base_url = f"https://api.telegram.org/bot{token}"
+    params = {"timeout": str(GET_UPDATES_TIMEOUT_SECONDS)}
+    if config.last_update_id is not None:
+        params["offset"] = str(config.last_update_id + 1)
+    payload = await transport.get_json(f"{base_url}/getUpdates", params)
+    updates = payload.get("result", [])
+    if not updates:
+        return
+    max_update_id = max(update["update_id"] for update in updates)
+    for update in updates:
+        message = update.get("message")
+        if not message or "text" not in message or "chat" not in message:
+            continue
+        supplied = _pairing_code(message["text"])
+        if supplied is None or not hmac.compare_digest(digest(supplied), config.pairing_code_hash):
+            continue
+        chat_id = message["chat"]["id"]
+        async with sessions.begin() as db:
+            paired = await TelegramConfigRepository(db).complete_pairing(chat_id, max_update_id)
+        if paired:
+            await transport.post_form(
+                f"{base_url}/sendMessage",
+                {
+                    "chat_id": str(chat_id),
+                    "text": "WallyBot vinculado. Las alertas y comandos seguros ya están listos.",
+                },
+            )
+        return
+    async with sessions.begin() as db:
+        await TelegramConfigRepository(db).set_last_update_id(max_update_id)
+
+
+def _pairing_code(text: str) -> str | None:
+    parts = text.strip().split(maxsplit=1)
+    if len(parts) != 2 or parts[0].split("@", 1)[0] != "/start":
+        return None
+    code = parts[1].strip()
+    valid_characters = all(
+        char.isascii() and (char.isalnum() or char in "_-") for char in code
+    )
+    if not (1 <= len(code) <= 64) or not valid_characters:
+        return None
+    return code
+
+
 async def _handle_command(
     sessions: async_sessionmaker[AsyncSession],
     account_id: str | None,
@@ -103,8 +162,22 @@ async def _handle_command(
         return await _breakers_reply(sessions)
     if command is TelegramCommand.PORTFOLIO:
         return await _portfolio_reply(sessions, account_id)
+    if command is TelegramCommand.HELP:
+        return _help_reply()
     action = TelegramAction.PAUSE if command is TelegramCommand.PAUSE else TelegramAction.RESUME
     return await _confirmation_reply(sessions, id_generator, now, action)
+
+
+def _help_reply() -> str:
+    return (
+        "Comandos disponibles:\n"
+        "/status -- entorno y estado (RUNNING/PAUSED)\n"
+        "/breakers -- circuit breakers activos\n"
+        "/portfolio -- último snapshot de equity\n"
+        "/pause -- solicita pausar (confirmás en la web con MFA)\n"
+        "/resume -- solicita reanudar (confirmás en la web con MFA)\n"
+        "/help -- este mensaje"
+    )
 
 
 async def _status_reply(sessions: async_sessionmaker[AsyncSession]) -> str:

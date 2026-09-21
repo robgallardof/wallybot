@@ -13,7 +13,7 @@ def _reset_telegram_config(db):
     # otherwise leak across tests in file-declaration order.
     db.execute(
         "UPDATE telegram_config SET encrypted_bot_token = NULL, chat_id = NULL, "
-        "enabled = false WHERE id = 1"
+        "enabled = false, pairing_code_hash = NULL WHERE id = 1"
     )
     db.execute("TRUNCATE telegram_confirmations CASCADE")
     yield
@@ -61,7 +61,13 @@ def test_default_telegram_config_has_no_bot_token(client, settings) -> None:
     response = client.get("/api/telegram")
 
     assert response.status_code == 200, response.text
-    assert response.json() == {"has_bot_token": False, "chat_id": None, "enabled": False}
+    assert response.json() == {
+        "has_bot_token": False,
+        "chat_id": None,
+        "enabled": False,
+        "pairing_status": "NEEDS_TOKEN",
+        "pairing_code": None,
+    }
 
 
 def test_admin_can_set_bot_token_which_is_never_returned(client, settings, db) -> None:
@@ -76,7 +82,13 @@ def test_admin_can_set_bot_token_which_is_never_returned(client, settings, db) -
 
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body == {"has_bot_token": True, "chat_id": 42, "enabled": True}
+    assert body == {
+        "has_bot_token": True,
+        "chat_id": 42,
+        "enabled": True,
+        "pairing_status": "LINKED",
+        "pairing_code": None,
+    }
     assert "bot_token" not in body
     row = db.execute(
         "SELECT encrypted_bot_token FROM telegram_config WHERE id = 1"
@@ -100,7 +112,33 @@ def test_updating_chat_id_without_a_new_token_keeps_the_existing_one(client, set
     )
 
     assert response.status_code == 200, response.text
-    assert response.json() == {"has_bot_token": True, "chat_id": 2, "enabled": True}
+    assert response.json() == {
+        "has_bot_token": True,
+        "chat_id": 2,
+        "enabled": True,
+        "pairing_status": "LINKED",
+        "pairing_code": None,
+    }
+
+
+def test_token_only_setup_returns_one_time_pairing_code(client, settings, db) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+
+    response = client.post(
+        "/api/telegram",
+        json={"bot_token": "123456:my-secret-token", "enabled": True},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["pairing_status"] == "WAITING_FOR_START"
+    assert body["pairing_code"]
+    assert body["chat_id"] is None
+    assert client.get("/api/telegram").json()["pairing_code"] is None
+    stored = db.execute("SELECT pairing_code_hash FROM telegram_config WHERE id = 1").fetchone()[0]
+    assert stored is not None and stored != body["pairing_code"]
 
 
 def test_viewer_can_read_but_cannot_change_telegram_config(client, settings, db) -> None:
@@ -197,6 +235,34 @@ def test_repeating_the_same_status_sends_no_notification(client, settings) -> No
 
     assert response.status_code == 200, response.text
     assert transport.calls == []
+
+
+def test_a_repeated_status_change_within_the_dedup_window_sends_no_second_notification(
+    client, settings
+) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    client.post(
+        "/api/telegram",
+        json={"bot_token": "123456:my-secret-token", "chat_id": 42, "enabled": True},
+        headers={"X-CSRF-Token": csrf},
+    )
+    transport = FakeTelegramTransport()
+    client.app.state.telegram_transport = transport
+
+    client.post("/api/control", json={"status": "PAUSED"}, headers={"X-CSRF-Token": csrf})
+    client.post("/api/control", json={"status": "RUNNING"}, headers={"X-CSRF-Token": csrf})
+    response = client.post(
+        "/api/control", json={"status": "PAUSED"}, headers={"X-CSRF-Token": csrf}
+    )
+
+    assert response.status_code == 200, response.text
+    # Three real state changes happened (paused, resumed, paused again), but the second "Bot
+    # paused" repeats the exact same severity+title as the first within the 5-minute dedup
+    # window, so only two of the three notifications actually reach the transport.
+    assert len(transport.calls) == 2
+    assert "Bot paused" in transport.calls[0][1]["text"]
+    assert "Bot resumed" in transport.calls[1][1]["text"]
 
 
 def test_confirmations_route_requires_auth(client) -> None:

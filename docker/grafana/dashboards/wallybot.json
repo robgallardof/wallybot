@@ -1,0 +1,174 @@
+{
+  "title": "WallyBot",
+  "uid": "wallybot-overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "timezone": "utc",
+  "time": {"from": "now-6h", "to": "now"},
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "HTTP requests by status class",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [
+        {
+          "expr": "sum by (status_class) (rate(wallybot_http_requests_total[5m]))",
+          "legendFormat": "{{status_class}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Decision loop ticks",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [
+        {
+          "expr": "sum by (result) (rate(wallybot_decision_tick_total[15m]))",
+          "legendFormat": "{{result}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Decision tick duration (p95)",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "fieldConfig": {"defaults": {"unit": "s"}},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wallybot_decision_tick_duration_seconds_bucket[15m])) by (le))",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Orders placed",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "targets": [
+        {"expr": "rate(wallybot_orders_placed_total[15m])", "legendFormat": "orders/s"}
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Active breakers",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 16},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]
+          }
+        }
+      },
+      "targets": [
+        {"expr": "sum(wallybot_active_breakers)", "legendFormat": "active breakers"}
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Reconciliation healthy",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 16},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]
+          }
+        }
+      },
+      "targets": [
+        {"expr": "wallybot_reconciliation_healthy", "legendFormat": "healthy"}
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Reconciliation UNKNOWN orders",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 16},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}]
+          }
+        }
+      },
+      "targets": [
+        {"expr": "wallybot_reconciliation_unknown_orders", "legendFormat": "UNKNOWN"}
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Research jobs active (of 5 quota)",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 16},
+      "fieldConfig": {
+        "defaults": {
+          "max": 5,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 5}]
+          }
+        }
+      },
+      "targets": [
+        {"expr": "wallybot_research_jobs_active", "legendFormat": "active"}
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Market ingestion ticks",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 22},
+      "targets": [
+        {
+          "expr": "sum by (result) (rate(wallybot_market_ingestion_tick_total[1h]))",
+          "legendFormat": "{{result}}"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Price consensus ticks",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 22},
+      "targets": [
+        {
+          "expr": "sum by (result) (rate(wallybot_price_consensus_tick_total[15m]))",
+          "legendFormat": "{{result}}"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Telegram command ticks",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 22},
+      "targets": [
+        {
+          "expr": "sum by (result) (rate(wallybot_telegram_command_tick_total[15m]))",
+          "legendFormat": "{{result}}"
+        }
+      ]
+    }
+  ]
+}

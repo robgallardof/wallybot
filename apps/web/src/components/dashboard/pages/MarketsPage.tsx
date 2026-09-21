@@ -5,6 +5,7 @@ import i18n from "../../../lib/i18n";
 import type { marketsSchema } from "../../../lib/dto";
 import type { UseQueryResult } from "@tanstack/react-query";
 import type { z } from "zod";
+import { PageSkeleton } from "../PageSkeleton";
 
 export function MarketsPage({
   markets,
@@ -17,11 +18,7 @@ export function MarketsPage({
   const [quality, setQuality] = useState("all");
 
   if (markets.isPending) {
-    return (
-      <p className="muted" role="status">
-        {i18n.t("Cargando mercados…")}
-      </p>
-    );
+    return <PageSkeleton rows={4} />;
   }
   if (markets.isError && !markets.data) {
     return (

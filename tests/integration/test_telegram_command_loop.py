@@ -13,7 +13,7 @@ from wallybot.domain.telegram_confirmation import TelegramAction
 from wallybot.infrastructure.equity_snapshot_repository import EquitySnapshotRepository
 from wallybot.infrastructure.telegram_config_repository import TelegramConfigRepository
 from wallybot.infrastructure.telegram_confirmation_repository import TelegramConfirmationRepository
-from wallybot.security.crypto import Crypto
+from wallybot.security.crypto import Crypto, digest
 
 pytestmark = pytest.mark.integration
 
@@ -74,7 +74,7 @@ def _reset(dependencies):
     with psycopg.connect(dependencies[0].replace("+psycopg", ""), autocommit=True) as connection:
         connection.execute(
             "UPDATE telegram_config SET encrypted_bot_token = NULL, chat_id = NULL, "
-            "enabled = false, last_update_id = NULL WHERE id = 1"
+            "enabled = false, last_update_id = NULL, pairing_code_hash = NULL WHERE id = 1"
         )
         connection.execute("TRUNCATE telegram_confirmations CASCADE")
         connection.execute("UPDATE control SET status = 'RUNNING'")
@@ -107,6 +107,51 @@ async def test_first_poll_only_establishes_a_baseline_without_executing_anything
     assert config.last_update_id == 100
 
 
+async def test_start_with_matching_one_time_code_binds_the_chat(sessions, crypto) -> None:
+    pairing_code = "link_9qK-2"
+    async with sessions.begin() as db:
+        await TelegramConfigRepository(db).upsert(
+            crypto.encrypt("bot-token"),
+            None,
+            True,
+            pairing_code_hash=digest(pairing_code),
+            begin_pairing=True,
+        )
+    transport = FakeCommandTransport([_message(100, ALLOWED_CHAT_ID, f"/start {pairing_code}")])
+
+    await run_telegram_command_tick(sessions, crypto, transport, SequentialIds(), None, NOW)
+
+    async with sessions() as db:
+        config = await TelegramConfigRepository(db).get()
+    assert config is not None
+    assert config.chat_id == ALLOWED_CHAT_ID
+    assert config.pairing_code_hash is None
+    assert config.last_update_id == 100
+    assert transport.sent[0][1]["chat_id"] == str(ALLOWED_CHAT_ID)
+
+
+async def test_start_with_wrong_code_never_allowlists_a_chat(sessions, crypto) -> None:
+    async with sessions.begin() as db:
+        await TelegramConfigRepository(db).upsert(
+            crypto.encrypt("bot-token"),
+            None,
+            True,
+            pairing_code_hash=digest("expected"),
+            begin_pairing=True,
+        )
+    transport = FakeCommandTransport([_message(100, 999, "/start wrong")])
+
+    await run_telegram_command_tick(sessions, crypto, transport, SequentialIds(), None, NOW)
+
+    async with sessions() as db:
+        config = await TelegramConfigRepository(db).get()
+    assert config is not None
+    assert config.chat_id is None
+    assert config.pairing_code_hash is not None
+    assert config.last_update_id == 100
+    assert transport.sent == []
+
+
 async def test_status_command_from_the_allowlisted_chat_gets_a_reply(sessions, crypto) -> None:
     await _configure(sessions, crypto)
     async with sessions.begin() as db:
@@ -120,6 +165,37 @@ async def test_status_command_from_the_allowlisted_chat_gets_a_reply(sessions, c
     assert url.endswith("/sendMessage")
     assert form["chat_id"] == str(ALLOWED_CHAT_ID)
     assert "RUNNING" in form["text"]
+
+
+async def test_help_command_lists_every_recognized_command(sessions, crypto) -> None:
+    await _configure(sessions, crypto)
+    async with sessions.begin() as db:
+        await TelegramConfigRepository(db).set_last_update_id(99)
+
+    transport = FakeCommandTransport([_message(100, ALLOWED_CHAT_ID, "/help")])
+    await run_telegram_command_tick(sessions, crypto, transport, SequentialIds(), None, NOW)
+
+    assert len(transport.sent) == 1
+    reply = transport.sent[0][1]["text"]
+    for command in ("/status", "/breakers", "/portfolio", "/pause", "/resume", "/help"):
+        assert command in reply
+
+
+async def test_commands_and_start_are_aliases_for_help_once_already_paired(
+    sessions, crypto
+) -> None:
+    await _configure(sessions, crypto)
+    async with sessions.begin() as db:
+        await TelegramConfigRepository(db).set_last_update_id(99)
+
+    transport = FakeCommandTransport(
+        [_message(100, ALLOWED_CHAT_ID, "/commands"), _message(101, ALLOWED_CHAT_ID, "/start")]
+    )
+    await run_telegram_command_tick(sessions, crypto, transport, SequentialIds(), None, NOW)
+
+    assert len(transport.sent) == 2
+    assert "/status" in transport.sent[0][1]["text"]
+    assert "/status" in transport.sent[1][1]["text"]
 
 
 async def test_a_message_from_an_unallowlisted_chat_is_ignored(sessions, crypto) -> None:

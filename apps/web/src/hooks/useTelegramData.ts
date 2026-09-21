@@ -10,7 +10,12 @@ export function useTelegramData(enabled: boolean) {
     queryFn: () => api("/telegram", telegramConfigSchema),
   });
   const save = useMutation({
-    mutationFn: (body: { bot_token?: string; chat_id?: number | null; enabled: boolean }) =>
+    mutationFn: (body: {
+      bot_token?: string;
+      chat_id?: number | null;
+      enabled: boolean;
+      start_pairing?: boolean;
+    }) =>
       api("/telegram", telegramConfigSchema, body),
     onSuccess: () => void client.invalidateQueries({ queryKey: ["telegram"] }),
   });

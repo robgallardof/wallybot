@@ -1,13 +1,22 @@
 import time
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, Request
-from sqlalchemy import select, text
+from fastapi import APIRouter, HTTPException, Query, Request
+from sqlalchemy import and_, or_, select, text
 
 from apps.api.dependencies import Admin, SignedIn
-from apps.api.dto import ControlView, DashboardView, EventView, ServiceStatusView, SystemView
+from apps.api.dto import (
+    ControlView,
+    DashboardView,
+    EventPageView,
+    EventView,
+    ServiceStatusView,
+    SystemView,
+)
 from apps.api.schemas import ControlChange
 from wallybot.application.notification_dispatch import dispatch_telegram_notification
 from wallybot.domain.control import Control, Environment, Role, Status
+from wallybot.infrastructure.metrics import SERVICE_HEARTBEAT_AGE
 from wallybot.infrastructure.models import ControlRow, EventRow, HeartbeatRow
 from wallybot.infrastructure.telegram_config_repository import TelegramConfigRepository
 from wallybot.notifications.telegram import Notification, NotificationSeverity
@@ -60,6 +69,9 @@ async def system(request: Request, user: SignedIn) -> SystemView:
     }
     for name in ("worker", "scheduler", "research"):
         services.setdefault(name, ServiceStatusView(age_seconds=None, status="UNAVAILABLE"))
+    for name, view in services.items():
+        if view.age_seconds is not None:
+            SERVICE_HEARTBEAT_AGE.labels(name).set(view.age_seconds)
     return SystemView(
         api="HEALTHY",
         database="HEALTHY",
@@ -72,18 +84,63 @@ async def system(request: Request, user: SignedIn) -> SystemView:
     )
 
 
-@router.get("/events", response_model=list[EventView])
-async def events(request: Request, user: SignedIn) -> list[EventView]:
-    async with request.app.state.sessions() as db:
-        rows = (
-            await db.scalars(
-                select(EventRow).order_by(EventRow.timestamp.desc(), EventRow.id.desc()).limit(100)
+def _parse_event_cursor(cursor: str) -> tuple[int, str]:
+    # Cursor is "<timestamp>:<id>", the same (timestamp, id) tuple the listing orders and
+    # tie-breaks by. EventRow.id is a uuid4 string, which never contains ":", so a simple
+    # partition is safe -- no need for base64/opaque encoding of what isn't secret anyway.
+    timestamp_part, separator, id_part = cursor.partition(":")
+    if not separator or not id_part:
+        raise HTTPException(status_code=400, detail="Invalid cursor")
+    try:
+        return int(timestamp_part), id_part
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid cursor") from None
+
+
+@router.get("/events", response_model=EventPageView)
+async def events(
+    request: Request,
+    user: SignedIn,
+    before: str | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    q: str | None = None,
+    event: str | None = None,
+) -> EventPageView:
+    # Cursor pagination over an append-only, monotonically growing table: unlike offset
+    # pagination, a page never drifts when new events are inserted concurrently. EventRow.id has
+    # no natural ordering (it's a uuid4), so (timestamp, id) is the tie-break for the rare case
+    # multiple events share the same integer `timestamp` second.
+    conditions = []
+    if before is not None:
+        cursor_timestamp, cursor_id = _parse_event_cursor(before)
+        conditions.append(
+            or_(
+                EventRow.timestamp < cursor_timestamp,
+                and_(EventRow.timestamp == cursor_timestamp, EventRow.id < cursor_id),
             )
-        ).all()
-    return [
-        EventView(id=row.id, timestamp=row.timestamp, event=row.event, message=row.message)
-        for row in rows
-    ]
+        )
+    if event:
+        conditions.append(EventRow.event == event)
+    if q:
+        pattern = f"%{q}%"
+        conditions.append(or_(EventRow.event.ilike(pattern), EventRow.message.ilike(pattern)))
+
+    stmt = select(EventRow).order_by(EventRow.timestamp.desc(), EventRow.id.desc()).limit(limit + 1)
+    if conditions:
+        stmt = stmt.where(and_(*conditions))
+    async with request.app.state.sessions() as db:
+        rows = (await db.scalars(stmt)).all()
+
+    has_more = len(rows) > limit
+    page = rows[:limit]
+    next_before = f"{page[-1].timestamp}:{page[-1].id}" if has_more and page else None
+    return EventPageView(
+        rows=[
+            EventView(id=row.id, timestamp=row.timestamp, event=row.event, message=row.message)
+            for row in page
+        ],
+        next_before=next_before,
+    )
 
 
 @router.post("/control", response_model=ControlView)
@@ -108,5 +165,7 @@ async def control(body: ControlChange, request: Request, user: Admin) -> Control
             request.app.state.auth.crypto,
             request.app.state.telegram_transport,
             Notification(severity, title, f"Environment: {changed.environment}."),
+            request.app.state.notification_throttle,
+            datetime.now(UTC),
         )
     return ControlView(status=changed.status, environment=changed.environment)

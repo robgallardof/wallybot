@@ -23,15 +23,25 @@ from wallybot.infrastructure.telegram_config_repository import TelegramConfigRep
 from wallybot.infrastructure.telegram_confirmation_repository import TelegramConfirmationRepository
 from wallybot.notifications.telegram import Notification, NotificationSeverity
 from wallybot.security.auth import AuthError, audit
+from wallybot.security.crypto import digest, token
 
 router = APIRouter(prefix="/api/telegram", tags=["telegram"])
 
 
-def _view(row) -> TelegramConfigView:
+def _view(row, pairing_code: str | None = None) -> TelegramConfigView:
+    pairing_status = (
+        "NEEDS_TOKEN"
+        if row is None or not row.encrypted_bot_token
+        else "LINKED"
+        if row.chat_id is not None
+        else "WAITING_FOR_START"
+    )
     return TelegramConfigView(
         has_bot_token=bool(row and row.encrypted_bot_token),
         chat_id=row.chat_id if row else None,
         enabled=bool(row and row.enabled),
+        pairing_status=pairing_status,
+        pairing_code=pairing_code,
     )
 
 
@@ -48,9 +58,24 @@ async def set_telegram_config(
 ) -> TelegramConfigView:
     crypto = request.app.state.auth.crypto
     encrypted = crypto.encrypt(body.bot_token) if body.bot_token else None
+    # A token has no safe destination until the owner proves control of the destination chat by
+    # sending the fresh, browser-only code to that bot. Never auto-allowlist the first sender.
+    begin_pairing = body.start_pairing or (bool(body.bot_token) and body.chat_id is None)
+    if begin_pairing and encrypted is None:
+        async with request.app.state.sessions() as db:
+            existing = await TelegramConfigRepository(db).get()
+        if existing is None or not existing.encrypted_bot_token:
+            raise HTTPException(status_code=409, detail="Save a bot token before starting pairing")
+    pairing_code = token() if begin_pairing else None
     async with request.app.state.sessions.begin() as db:
-        row = await TelegramConfigRepository(db).upsert(encrypted, body.chat_id, body.enabled)
-        result = _view(row)
+        row = await TelegramConfigRepository(db).upsert(
+            encrypted,
+            body.chat_id,
+            body.enabled,
+            pairing_code_hash=digest(pairing_code) if pairing_code else None,
+            begin_pairing=begin_pairing,
+        )
+        result = _view(row, pairing_code)
     return result
 
 
@@ -110,6 +135,8 @@ async def confirm_telegram_confirmation(
                 "Confirmado desde la web",
                 f"{pending.action.value} confirmado por {user.id}.",
             ),
+            request.app.state.notification_throttle,
+            now,
         )
 
     async with request.app.state.sessions() as db:

@@ -39,12 +39,12 @@ export function PortfolioPage({
       <article className="panel wide-panel portfolio-hero">
         <div className="portfolio-hero-copy">
           <span className="section-kicker">
-            <WalletCards size={16} /> {i18n.t("Libro propio · PAPER")}
+            <WalletCards size={16} /> {i18n.t("Instancia desplegada · Cuenta de simulación")}
           </span>
           <h2>{i18n.t("Tu portafolio")}</h2>
           <p className="muted">
             {i18n.t(
-              "Saldos y operaciones registrados por tu instancia. No se consultan ni mueven fondos externos desde esta pantalla.",
+              "Esta aplicación está desplegada. PAPER identifica solo la cuenta de pruebas: permite validar saldos y operaciones simuladas sin tocar fondos externos.",
             )}
           </p>
         </div>
@@ -78,7 +78,7 @@ export function PortfolioPage({
             <h2>{i18n.t("Aún no hay saldos registrados")}</h2>
             <p className="muted">
               {i18n.t(
-                "Conectar un proveedor conserva tus credenciales cifradas, pero no importa fondos automáticamente. Cuando una simulación PAPER registre actividad, aparecerá aquí.",
+                "Conectar un proveedor conserva tus credenciales cifradas, pero no importa fondos automáticamente. Fondeá esta cuenta de pruebas para validar el flujo; los fondos reales nunca se mueven desde WallyBot.",
               )}
             </p>
             <form className="settings-form" onSubmit={submitFunding}>
@@ -94,7 +94,7 @@ export function PortfolioPage({
                 />
               </label>
               <button className="button button-primary" disabled={fund.isPending}>
-                {i18n.t("Fondear cuenta PAPER")}
+                {i18n.t("Crear saldo inicial de prueba")}
               </button>
             </form>
             {fund.isError && (
@@ -113,7 +113,7 @@ export function PortfolioPage({
         <article className="panel wide-panel">
           <div className="panel-heading">
             <h2>{i18n.t("Saldos registrados")}</h2>
-            <span className="subtle-pill">{data.environment}</span>
+            <span className="subtle-pill">{i18n.t("SIMULACIÓN PAPER")}</span>
           </div>
           <div className="markets-table-wrap">
             <table className="markets-table">
@@ -134,6 +134,26 @@ export function PortfolioPage({
                 ))}
               </tbody>
             </table>
+          </div>
+        </article>
+      )}
+
+      {data && data.performance.length > 0 && (
+        <article className="panel wide-panel">
+          <div className="panel-heading">
+            <h2>{i18n.t("Resultados realizados")}</h2>
+          </div>
+          <p className="muted">
+            {i18n.t("El resultado realizado usa lotes FIFO. El valor no realizado solo aparece cuando exista una cotización verificable.")}
+          </p>
+          <div className="portfolio-stats portfolio-performance">
+            {data.performance.map((item) => (
+              <div key={item.quote}>
+                <small>{i18n.t("PnL realizado")} · {item.quote}</small>
+                <strong>{displayAmount(item.realized_pnl)} {item.quote}</strong>
+                <span>{i18n.t("Costo de posiciones abiertas")}: {displayAmount(item.open_cost_basis)} {item.quote}</span>
+              </div>
+            ))}
           </div>
         </article>
       )}

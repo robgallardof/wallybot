@@ -1,0 +1,110 @@
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'wallybot_active_breakers{breaker_type="DAILY_LOSS"}'
+        values: "1x20"
+      - series: 'wallybot_active_breakers{breaker_type="WEEKLY_LOSS"}'
+        values: "0x20"
+      - series: 'wallybot_active_breakers{breaker_type="DRAWDOWN"}'
+        values: "0x20"
+      - series: 'wallybot_active_breakers{breaker_type="RECONCILIATION"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: WallyBotBreakerActive
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: WallyBotBreakerActive
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "A WallyBot circuit breaker has been active for 5+ minutes"
+              description: >
+                At least one breaker (daily/weekly loss, drawdown, reconciliation) is tripped.
+                Confirm and clear it from the Risk page once the underlying condition is resolved.
+
+  - interval: 1m
+    input_series:
+      - series: "wallybot_reconciliation_healthy"
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: WallyBotReconciliationUnhealthy
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: WallyBotReconciliationUnhealthy
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "PAPER order reconciliation has been failing for 5+ minutes"
+              description: >
+                The last reconciliation sweep(s) reported errors -- financial state may be out of
+                sync between orders, fills, and the ledger.
+
+  - interval: 1m
+    input_series:
+      - series: 'wallybot_decision_tick_total{result="failure"}'
+        values: "0 0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: WallyBotDecisionTickFailing
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: WallyBotDecisionTickFailing
+        exp_alerts:
+          - exp_labels:
+              result: failure
+              severity: warning
+            exp_annotations:
+              summary: "The live PAPER decision loop failed at least one tick in the last 15 minutes"
+              description: "Check the api service logs for DECISION_TICK_FAILED."
+
+  - interval: 1m
+    input_series:
+      - series: 'wallybot_service_heartbeat_age_seconds{service="worker"}'
+        values: "5 65x20"
+      - series: 'wallybot_service_heartbeat_age_seconds{service="scheduler"}'
+        values: "5x21"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: WallyBotServiceHeartbeatStale
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: WallyBotServiceHeartbeatStale
+        exp_alerts:
+          - exp_labels:
+              service: worker
+              severity: warning
+            exp_annotations:
+              summary: "worker's heartbeat is more than 60s old"
+              description: >
+                worker/scheduler/research heartbeat roughly every 5s when healthy
+                (wallybot/infrastructure/process.py's tick loop) -- apps/api/system_routes.py
+                already calls anything past 30s STALE. A gap this large past that means the
+                service is stuck, crashed, or its container is unhealthy.
+
+  - interval: 1m
+    input_series:
+      - series: "wallybot_research_jobs_active"
+        values: "5x20"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: WallyBotResearchQueueSaturated
+        exp_alerts: []
+      - eval_time: 11m
+        alertname: WallyBotResearchQueueSaturated
+        exp_alerts:
+          - exp_labels:
+              severity: info
+            exp_annotations:
+              summary: "The research job queue has been at its quota (5) for 10+ minutes"
+              description: >
+                New research jobs are being rejected with 429. Cancel a stuck job or wait for one to
+                finish.

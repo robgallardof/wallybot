@@ -3,7 +3,7 @@ import { usePathname, useRouter } from "next/navigation";
 import type { z } from "zod";
 import type { meSchema } from "../lib/dto";
 import { useBacktestsData } from "../hooks/useBacktestsData";
-import { useDashboardData } from "../hooks/useDashboardData";
+import { useDashboardData, useEventsFeed } from "../hooks/useDashboardData";
 import { useMarketsData } from "../hooks/useMarketsData";
 import { useSmartMoneyData } from "../hooks/useSmartMoneyData";
 import { useWhaleFlowData } from "../hooks/useWhaleFlowData";
@@ -27,6 +27,7 @@ import { useTelegramConfirmationsData } from "../hooks/useTelegramConfirmationsD
 import { useResearchJobsData } from "../hooks/useResearchJobsData";
 import { SettingsPage } from "./dashboard/pages/SettingsPage";
 import { DocsPage } from "./dashboard/pages/DocsPage";
+import { MfaConfirmationModal } from "./MfaConfirmationModal";
 import { PortfolioPage } from "./dashboard/pages/PortfolioPage";
 import { usePortfolioData } from "../hooks/usePortfolioData";
 import { useBreakersData } from "../hooks/useBreakersData";
@@ -56,6 +57,7 @@ export function Dashboard({
     ? initial
     : "dashboard";
   const { dashboard, system, events, change, confirmMfa } = useDashboardData();
+  const eventsFeed = useEventsFeed(page === "events");
   const markets = useMarketsData(page === "markets");
   const smartMoney = useSmartMoneyData(page === "intelligence");
   const whaleFlow = useWhaleFlowData(page === "intelligence");
@@ -80,13 +82,16 @@ export function Dashboard({
   const { telegram, save: saveTelegram } = useTelegramData(page === "settings");
   const { confirmations: telegramConfirmations, confirm: confirmTelegramConfirmation } =
     useTelegramConfirmationsData(page === "settings");
-  const { portfolio, fund: fundPortfolio } = usePortfolioData(page === "portfolio");
+  const { portfolio, fund: fundPortfolio } = usePortfolioData(
+    page === "portfolio" || page === "dashboard",
+  );
   const { breakers, clear: clearBreaker } = useBreakersData(page === "risk");
   function navigate(next: string) {
     router.push(`/${next}`);
   }
 
   return (
+    <>
     <DashboardShell
       user={user}
       logout={logout}
@@ -97,10 +102,16 @@ export function Dashboard({
       environment={dashboard.data?.environment}
     >
       {page === "dashboard" && (
-        <Overview system={system} events={events} navigate={navigate} />
+        <Overview
+          system={system}
+          events={events}
+          portfolio={portfolio}
+          environment={dashboard.data?.environment}
+          navigate={navigate}
+        />
       )}
       {page === "system" && <SystemPage system={system} />}
-      {page === "events" && <EventsPage events={events} />}
+      {page === "events" && <EventsPage feed={eventsFeed} />}
       {page === "markets" && <MarketsPage markets={markets} />}
       {page === "intelligence" && (
         <IntelligencePage
@@ -152,5 +163,7 @@ export function Dashboard({
       )}
       {page === "docs" && <DocsPage />}
     </DashboardShell>
+    <MfaConfirmationModal />
+    </>
   );
 }

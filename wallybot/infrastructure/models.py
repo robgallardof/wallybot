@@ -143,6 +143,9 @@ class TelegramConfigRow(Base):
     # Telegram's own getUpdates cursor -- the next poll passes offset=last_update_id+1 so
     # already-seen updates are neither re-delivered by Telegram nor re-processed as commands.
     last_update_id: Mapped[int | None] = mapped_column(BigInteger)
+    # SHA-256 digest of a short-lived operator-provided /start code. The code itself is returned
+    # only to the authenticated administrator when pairing begins; never persist it in plaintext.
+    pairing_code_hash: Mapped[str | None] = mapped_column(String(64))
 
 
 class TelegramConfirmationRow(Base):
@@ -158,6 +161,21 @@ class TelegramConfirmationRow(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     confirmed_by: Mapped[str | None] = mapped_column(String(36))
+
+
+class TelegramReportRow(Base):
+    """Tracks whether the daily/weekly Telegram report (PENDING.md Fase 8) has already been sent
+    for the current period, so a restart or a faster loop tick never resends the same day's/
+    week's report. One row per `period` ('DAILY'/'WEEKLY'), like `ControlRow`/`TelegramConfigRow`'s
+    singleton shape but keyed by period instead of a fixed id=1. `last_sent_key` is the period's
+    own identity (`YYYY-MM-DD` for daily, ISO `YYYY-Www` for weekly), compared against the tick's
+    current key rather than relying on `last_sent_at` alone."""
+
+    __tablename__ = "telegram_reports"
+    __table_args__ = (CheckConstraint("period IN ('DAILY', 'WEEKLY')"),)
+    period: Mapped[str] = mapped_column(String(16), primary_key=True)
+    last_sent_key: Mapped[str] = mapped_column(String(16))
+    last_sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class OrderIntentRow(Base):

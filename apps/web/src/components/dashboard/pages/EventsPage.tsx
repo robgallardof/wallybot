@@ -1,21 +1,24 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { eventsSchema } from "../../../lib/dto";
-import type { UseQueryResult } from "@tanstack/react-query";
+import type { eventPageSchema } from "../../../lib/dto";
+import type { InfiniteData, UseInfiniteQueryResult } from "@tanstack/react-query";
 import type { z } from "zod";
 import { EventList } from "../EventList";
 import { eventLabel } from "../../../lib/event-label";
 
 export function EventsPage({
-  events,
+  feed,
 }: {
-  events: UseQueryResult<z.infer<typeof eventsSchema>>;
+  feed: UseInfiniteQueryResult<InfiniteData<z.infer<typeof eventPageSchema>>, Error>;
 }) {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [type, setType] = useState("all");
   const [order, setOrder] = useState("newest");
-  const rows = events.data ?? [];
+  // Flattened across every page fetched so far via "load more" (cursor pagination, oldest page
+  // last) -- search/filter/sort below still run client-side, but now over the whole loaded
+  // window instead of a fixed 100-row snapshot.
+  const rows = feed.data?.pages.flatMap((page) => page.rows) ?? [];
   const types = [
     ...new Set([
       ...rows.map((event) => event.event),
@@ -49,16 +52,16 @@ export function EventsPage({
           <h2>{t("Registro de actividad")}</h2>
           <p>
             {t(
-              "Busca y revisa los últimos 100 eventos recibidos. Los filtros se aplican solo a esta ventana.",
+              "Busca y revisa el historial de eventos. Los filtros se aplican a los eventos cargados; usa «Cargar más eventos» para traer eventos anteriores.",
             )}
           </p>
         </div>
         <button
           className="button button-outline"
-          onClick={() => void events.refetch()}
-          disabled={events.isFetching}
+          onClick={() => void feed.refetch()}
+          disabled={feed.isFetching}
         >
-          {events.isFetching ? t("Actualizando…") : t("Actualizar")}
+          {feed.isFetching ? t("Actualizando…") : t("Actualizar")}
         </button>
       </div>
       <div
@@ -100,21 +103,21 @@ export function EventsPage({
           </select>
         </label>
       </div>
-      {events.isError && (
+      {feed.isError && (
         <p className="error" role="alert">
-          {events.data
+          {feed.data
             ? t(
                 "No se pudo actualizar la actividad. Se conserva la última consulta; puede estar desactualizada.",
               )
             : t("No se pudo cargar la actividad. Intenta actualizar de nuevo.")}
         </p>
       )}
-      {events.isPending ? (
+      {feed.isPending ? (
         <p className="muted" role="status">
           {t("Cargando actividad…")}
         </p>
       ) : (
-        events.data && (
+        feed.data && (
           <>
             <p className="activity-count" role="status">
               {t("{{shown}} de {{total}} eventos", {
@@ -138,6 +141,19 @@ export function EventsPage({
               <p className="muted">
                 {t("Todavía no hay actividad registrada.")}
               </p>
+            )}
+            {feed.hasNextPage && (
+              <div className="activity-load-more">
+                <button
+                  className="button button-outline"
+                  onClick={() => void feed.fetchNextPage()}
+                  disabled={feed.isFetchingNextPage}
+                >
+                  {feed.isFetchingNextPage
+                    ? t("Cargando más…")
+                    : t("Cargar más eventos")}
+                </button>
+              </div>
             )}
           </>
         )

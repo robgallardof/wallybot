@@ -1,0 +1,56 @@
+groups:
+  - name: wallybot
+    rules:
+      - alert: WallyBotBreakerActive
+        expr: max(wallybot_active_breakers) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "A WallyBot circuit breaker has been active for 5+ minutes"
+          description: >
+            At least one breaker (daily/weekly loss, drawdown, reconciliation) is tripped.
+            Confirm and clear it from the Risk page once the underlying condition is resolved.
+
+      - alert: WallyBotReconciliationUnhealthy
+        expr: wallybot_reconciliation_healthy == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PAPER order reconciliation has been failing for 5+ minutes"
+          description: >
+            The last reconciliation sweep(s) reported errors -- financial state may be out of
+            sync between orders, fills, and the ledger.
+
+      - alert: WallyBotDecisionTickFailing
+        expr: increase(wallybot_decision_tick_total{result="failure"}[15m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "The live PAPER decision loop failed at least one tick in the last 15 minutes"
+          description: "Check the api service logs for DECISION_TICK_FAILED."
+
+      - alert: WallyBotServiceHeartbeatStale
+        expr: wallybot_service_heartbeat_age_seconds > 60
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.service }}'s heartbeat is more than 60s old"
+          description: >
+            worker/scheduler/research heartbeat roughly every 5s when healthy
+            (wallybot/infrastructure/process.py's tick loop) -- apps/api/system_routes.py already
+            calls anything past 30s STALE. A gap this large past that means the service is stuck,
+            crashed, or its container is unhealthy.
+
+      - alert: WallyBotResearchQueueSaturated
+        expr: wallybot_research_jobs_active >= 5
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "The research job queue has been at its quota (5) for 10+ minutes"
+          description: >
+            New research jobs are being rejected with 429. Cancel a stuck job or wait for one to
+            finish.

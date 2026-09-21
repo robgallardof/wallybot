@@ -42,9 +42,9 @@ export function SettingsPage({
   role: string;
   telegram: UseQueryResult<z.infer<typeof telegramConfigSchema>>;
   saveTelegram: UseMutationResult<
-    unknown,
+    z.infer<typeof telegramConfigSchema>,
     Error,
-    { bot_token?: string; chat_id?: number | null; enabled: boolean }
+    { bot_token?: string; chat_id?: number | null; enabled: boolean; start_pairing?: boolean }
   >;
   confirmMfa: UseMutationResult<unknown, Error, { code: string }>;
   telegramConfirmations: UseQueryResult<z.infer<typeof telegramConfirmationListSchema>>;
@@ -58,9 +58,6 @@ export function SettingsPage({
   const environment = dashboard.data?.environment;
   const isPaper = environment === "PAPER";
   const [botToken, setBotToken] = useState("");
-  const [chatId, setChatId] = useState(
-    telegram.data?.chat_id != null ? String(telegram.data.chat_id) : "",
-  );
   const [telegramEnabled, setTelegramEnabled] = useState(
     telegram.data?.enabled ?? false,
   );
@@ -68,9 +65,6 @@ export function SettingsPage({
 
   useEffect(() => {
     if (telegram.data) {
-      setChatId(
-        telegram.data.chat_id != null ? String(telegram.data.chat_id) : "",
-      );
       setTelegramEnabled(telegram.data.enabled);
     }
   }, [telegram.data]);
@@ -80,11 +74,14 @@ export function SettingsPage({
     saveTelegram.mutate(
       {
         bot_token: botToken.trim() || undefined,
-        chat_id: chatId.trim() ? Number(chatId.trim()) : null,
-        enabled: telegramEnabled,
+        enabled: botToken.trim() ? true : telegramEnabled,
       },
       { onSuccess: () => setBotToken("") },
     );
+  }
+
+  function restartTelegramPairing() {
+    saveTelegram.mutate({ enabled: telegramEnabled, start_pairing: true });
   }
 
   function submitMfaConfirm(event: React.FormEvent) {
@@ -183,9 +180,22 @@ export function SettingsPage({
         </div>
         <p className="muted settings-description">
           {i18n.t(
-            "Creá tu propio bot con @BotFather en Telegram, pegá el token acá y el chat_id al que querés recibir avisos. El token se cifra y no se vuelve a mostrar una vez guardado.",
+            "Creá tu bot con @BotFather y guardá primero su token. WallyBot te dará un código de un solo uso: enviáselo con /start y vinculamos el chat automáticamente. El token se cifra y no vuelve a mostrarse.",
           )}
         </p>
+        {telegram.data?.pairing_status === "WAITING_FOR_START" && (
+          <div className="telegram-pairing" role="status">
+            <strong>{i18n.t("Vinculá tu chat en Telegram")}</strong>
+            <p>{i18n.t("Abrí tu bot y enviá el comando que aparece abajo. El chat se detectará solo; no necesitás buscar un Chat ID.")}</p>
+            {saveTelegram.data?.pairing_code ? (
+              <code>/start {saveTelegram.data.pairing_code}</code>
+            ) : (
+              <Button type="button" variant="outline" onClick={restartTelegramPairing} disabled={saveTelegram.isPending}>
+                {i18n.t("Generar un nuevo código de vinculación")}
+              </Button>
+            )}
+          </div>
+        )}
         {role === "ADMIN" ? (
           <form className="settings-form" onSubmit={submitTelegram}>
             <label className="settings-token-field">
@@ -203,16 +213,6 @@ export function SettingsPage({
                 maxLength={4096}
               />
             </label>
-            <label>
-              Chat ID
-              <input
-                type="text"
-                inputMode="numeric"
-                value={chatId}
-                onChange={(event) => setChatId(event.target.value)}
-                placeholder="123456789"
-              />
-            </label>
             <label className="settings-toggle">
               <input
                 type="checkbox"
@@ -226,7 +226,7 @@ export function SettingsPage({
               className="button button-primary"
               disabled={saveTelegram.isPending}
             >
-              {i18n.t("Guardar")}
+              {telegram.data?.has_bot_token ? i18n.t("Actualizar bot") : i18n.t("Guardar y vincular bot")}
             </button>
           </form>
         ) : (

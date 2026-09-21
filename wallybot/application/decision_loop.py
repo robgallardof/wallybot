@@ -44,6 +44,7 @@ from wallybot.domain.clock import Clock
 from wallybot.domain.control import Status
 from wallybot.domain.id_generator import IdGenerator
 from wallybot.domain.market import MarketDataProvider
+from wallybot.domain.order import OrderStatus
 from wallybot.domain.portfolio import Bucket, PortfolioPolicy
 from wallybot.domain.risk import ExchangeStatus, RiskPolicy
 from wallybot.exchanges.fake import FakeExchange
@@ -88,6 +89,7 @@ RISK_POLICY = RiskPolicy(
 class DecisionTickResult:
     outcomes: tuple[DecisionOutcome, ...]
     reconciliation_healthy: bool
+    reconciliation_unknown_orders: int
     active_breakers: tuple[Breaker, ...]
 
 
@@ -113,6 +115,9 @@ async def run_decision_tick(
 
     reconciliation_outcomes = await reconciliation.sweep("PAPER")
     reconciliation_healthy = not any(outcome.error for outcome in reconciliation_outcomes)
+    reconciliation_unknown_orders = sum(
+        1 for outcome in reconciliation_outcomes if outcome.resolved_status is OrderStatus.UNKNOWN
+    )
 
     assessment = await assess_equity(
         sessions, provider, account_id, "PAPER", CASH_CURRENCY, BUCKET, now
@@ -177,5 +182,6 @@ async def run_decision_tick(
     return DecisionTickResult(
         outcomes=outcomes,
         reconciliation_healthy=reconciliation_healthy,
+        reconciliation_unknown_orders=reconciliation_unknown_orders,
         active_breakers=active_breakers,
     )

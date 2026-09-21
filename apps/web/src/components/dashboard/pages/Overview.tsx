@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { ArrowUpRight, CircleHelp, FlaskConical, Radio, Wallet } from "lucide-react";
 import i18n from "../../../lib/i18n";
-import type { eventsSchema, systemSchema } from "../../../lib/dto";
+import type { eventsSchema, portfolioSchema, systemSchema } from "../../../lib/dto";
 import type { UseQueryResult } from "@tanstack/react-query";
 import type { z } from "zod";
 import { Service } from "../Service";
@@ -10,10 +10,14 @@ import { EventList } from "../EventList";
 export function Overview({
   system,
   events,
+  portfolio,
+  environment,
   navigate,
 }: {
   system: UseQueryResult<z.infer<typeof systemSchema>>;
   events: UseQueryResult<z.infer<typeof eventsSchema>>;
+  portfolio: UseQueryResult<z.infer<typeof portfolioSchema>>;
+  environment?: "OBSERVE" | "PAPER";
   navigate: (next: string) => void;
 }) {
   useTranslation();
@@ -21,29 +25,44 @@ export function Overview({
     system.data &&
     system.data.redis === "HEALTHY" &&
     Object.values(system.data.services).every((s) => s.status === "HEALTHY");
+  const balances = portfolio.data?.balances ?? [];
+  const positions = balances.filter((balance) => balance.purpose === "POSITION");
+  const cashUsd = balances
+    .filter((balance) => balance.purpose === "CASH" && balance.currency === "USD")
+    .reduce((total, balance) => total + Number(balance.amount), 0);
+  const pnlUsd = portfolio.data?.performance.find((item) => item.quote === "USD");
+  const formatUsd = (value: number) =>
+    new Intl.NumberFormat(i18n.resolvedLanguage, {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 2,
+    }).format(value);
   return (
     <>
       <section className="metrics-grid">
         {[
           [
-            i18n.t("Patrimonio total"),
-            "—",
-            i18n.t("Esperando datos de portafolio"),
+            i18n.t("Efectivo PAPER"),
+            portfolio.data ? `${formatUsd(cashUsd)} USD` : "—",
+            portfolio.data
+              ? i18n.t("Saldo de simulación disponible")
+              : i18n.t("Cargando saldo de simulación"),
           ],
           [
-            i18n.t("Resultado neto"),
-            "—",
-            i18n.t("Sin operaciones registradas"),
+            i18n.t("Resultado realizado"),
+            pnlUsd ? `${formatUsd(Number(pnlUsd.realized_pnl))} USD` : "—",
+            pnlUsd ? i18n.t("Calculado con lotes FIFO") : i18n.t("Sin cierres registrados"),
           ],
           [
             i18n.t("Posiciones abiertas"),
-            "0",
-            i18n.t("La simulación llega en la fase 4"),
+            portfolio.data ? String(positions.length) : "—",
+            portfolio.data ? i18n.t("Posiciones registradas en PAPER") : i18n.t("Cargando actividad"),
           ],
           [
             i18n.t("Modo de operación"),
-            "OBSERVAR",
-            i18n.t("Datos reales; no se enviarán órdenes"),
+            environment ?? "OBSERVE",
+            environment === "PAPER"
+              ? i18n.t("Órdenes simuladas; sin dinero real")
+              : i18n.t("Datos reales; no se generan órdenes"),
           ],
         ].map(([label, value, note], i) => (
           <article className="metric" key={label}>

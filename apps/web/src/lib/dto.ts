@@ -26,14 +26,17 @@ export const systemSchema = z.object({
   telegram: z.string(),
   live_available: z.literal(false),
 });
-export const eventsSchema = z.array(
-  z.object({
-    id: z.string(),
-    timestamp: z.number(),
-    event: z.string(),
-    message: z.string(),
-  }),
-);
+export const eventSchema = z.object({
+  id: z.string(),
+  timestamp: z.number(),
+  event: z.string(),
+  message: z.string(),
+});
+export const eventsSchema = z.array(eventSchema);
+export const eventPageSchema = z.object({
+  rows: eventsSchema,
+  next_before: z.string().nullable(),
+});
 export const marketRowSchema = z.object({
   id: z.string(),
   venue: z.string(),
@@ -239,17 +242,25 @@ export const portfolioActivitySchema = z.object({
   fee_currency: z.string(),
   occurred_at: z.string(),
 });
+export const portfolioPerformanceSchema = z.object({
+  quote: z.string(),
+  realized_pnl: z.string(),
+  open_cost_basis: z.string(),
+});
 export const portfolioSchema = z.object({
   environment: z.literal("PAPER"),
   connection_count: z.number(),
   balances: z.array(portfolioBalanceSchema),
   activity: z.array(portfolioActivitySchema),
+  performance: z.array(portfolioPerformanceSchema),
 });
 
 export const telegramConfigSchema = z.object({
   has_bot_token: z.boolean(),
   chat_id: z.number().nullable(),
   enabled: z.boolean(),
+  pairing_status: z.enum(["NEEDS_TOKEN", "WAITING_FOR_START", "LINKED"]),
+  pairing_code: z.string().nullable(),
 });
 
 export const telegramConfirmationSchema = z.object({

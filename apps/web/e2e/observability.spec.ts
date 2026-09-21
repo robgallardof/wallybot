@@ -179,8 +179,15 @@ async function shell(page: Page, role: "ADMIN" | "VIEWER" = "VIEWER") {
         positions: [],
         phase: 1,
       },
+      "/api/portfolio": {
+        environment: "PAPER",
+        connection_count: 0,
+        balances: [],
+        activity: [],
+        performance: [],
+      },
       "/api/system": system,
-      "/api/events": [],
+      "/api/events": { rows: [], next_before: null },
       "/api/intelligence/smart-money": { rows: [] },
       "/api/intelligence/whale-flow": { rows: [] },
       "/api/intelligence/token-risk": { rows: [] },
@@ -190,7 +197,13 @@ async function shell(page: Page, role: "ADMIN" | "VIEWER" = "VIEWER") {
       "/api/intelligence/entity-graph": { rows: [] },
       "/api/backtests": { rows: [] },
       "/api/research/jobs": { rows: [] },
-      "/api/telegram": { has_bot_token: false, chat_id: null, enabled: false },
+      "/api/telegram": {
+        has_bot_token: false,
+        chat_id: null,
+        enabled: false,
+        pairing_status: "NEEDS_TOKEN",
+        pairing_code: null,
+      },
       "/api/telegram/confirmations": { rows: [] },
       "/api/auth/confirm-mfa": { ok: true },
     };
@@ -212,7 +225,7 @@ test("settings and first-steps pages keep actions aligned on desktop and mobile"
     page.getByRole("button", { name: "Desactivar simulación (volver a OBSERVE)" }),
   ).toBeVisible();
   await expect(page.getByLabel("Token del bot")).toBeVisible();
-  await expect(page.getByLabel("Chat ID")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Guardar y vincular bot" })).toBeVisible();
   await page.getByLabel("Código de autenticación").fill("123456");
   await page.getByRole("button", { name: "Confirmar", exact: true }).click();
   await expect(
@@ -227,9 +240,11 @@ test("settings and first-steps pages keep actions aligned on desktop and mobile"
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 
   await page.goto("/docs");
-  await expect(page.getByRole("heading", { name: "Todo tu espacio, explicado." })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Cómo funciona realmente WallyBot" }),
+  ).toBeVisible();
   await expect(page.getByRole("link", { name: /Mercados/ })).toBeVisible();
-  await expect(page.getByText("La información no mueve tu dinero.")).toBeVisible();
+  await expect(page.getByText("WallyBot no puede mover tu dinero.")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
@@ -251,7 +266,7 @@ test("markets direct route, loading, filters, keyboard details, locales and stal
     );
   });
   expect((await page.goto("/markets"))?.status()).toBe(200);
-  await expect(page.getByRole("status")).toContainText("Cargando mercados");
+  await expect(page.getByLabel("Cargando contenido")).toBeVisible();
   release();
   await expect(page.getByRole("table").getByRole("row")).toHaveCount(3);
   await page.getByLabel("Idioma").selectOption("en");
@@ -360,22 +375,25 @@ test("activity empty/error states and translated search preserve original event 
 }) => {
   await shell(page);
   let state: "empty" | "error" | "data" = "empty";
-  await page.route("**/api/events", (route) =>
+  await page.route("**/api/events**", (route) =>
     route.fulfill(
       state === "error"
         ? { status: 503, json: { detail: "fixture unavailable" } }
         : {
-            json:
-              state === "empty"
-                ? []
-                : [
-                    {
-                      id: "fixture-event-1",
-                      timestamp: 1789300800,
-                      event: "BOT_PAUSED",
-                      message: "Original audit message",
-                    },
-                  ],
+            json: {
+              rows:
+                state === "empty"
+                  ? []
+                  : [
+                      {
+                        id: "fixture-event-1",
+                        timestamp: 1789300800,
+                        event: "BOT_PAUSED",
+                        message: "Original audit message",
+                      },
+                    ],
+              next_before: null,
+            },
           },
     ),
   );

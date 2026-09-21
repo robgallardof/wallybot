@@ -3,6 +3,7 @@ import type { systemSchema } from "../../../lib/dto";
 import type { UseQueryResult } from "@tanstack/react-query";
 import type { z } from "zod";
 import { Service } from "../Service";
+import { PageSkeleton } from "../PageSkeleton";
 
 export function SystemPage({
   system,
@@ -21,6 +22,7 @@ export function SystemPage({
     : [];
   const healthy = monitored.filter((status) => status === "HEALTHY").length;
   const attention = monitored.length - healthy;
+  if (system.isPending && !data) return <PageSkeleton rows={3} />;
   return (
     <article className="panel wide-panel system-panel">
       <div className="panel-heading">
@@ -59,11 +61,6 @@ export function SystemPage({
             : t(
                 "No se pudo consultar el sistema. Intenta actualizar de nuevo.",
               )}
-        </p>
-      )}
-      {system.isPending && (
-        <p className="muted" role="status">
-          {t("Comprobando servicios…")}
         </p>
       )}
       {data && (
@@ -105,13 +102,13 @@ export function SystemPage({
             )}
           </section>
           <div className="system-groups">
-            <section aria-labelledby="system-connections">
+            <section className="system-group-card" aria-labelledby="system-connections">
               <h3 id="system-connections">{t("Conexiones esenciales")}</h3>
               <Service name="API" status={data.api} />
               <Service name="PostgreSQL" status={data.database} />
               <Service name="Redis" status={data.redis} />
             </section>
-            <section aria-labelledby="system-processes">
+            <section className="system-group-card" aria-labelledby="system-processes">
               <h3 id="system-processes">{t("Procesos en segundo plano")}</h3>
               <p className="muted">
                 {t(
@@ -138,7 +135,7 @@ export function SystemPage({
                 </p>
               )}
             </section>
-            <section aria-labelledby="system-integrations">
+            <section className="system-group-card" aria-labelledby="system-integrations">
               <h3 id="system-integrations">{t("Integraciones")}</h3>
               <Service name="Exchange" status={data.exchange} />
               <Service name={t("Analista IA")} status={data.ai} />

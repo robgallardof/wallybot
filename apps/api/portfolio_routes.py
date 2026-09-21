@@ -11,9 +11,16 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
 from apps.api.dependencies import Admin, SignedIn
-from apps.api.dto import OrderCancelView, PortfolioActivityView, PortfolioBalanceView, PortfolioView
+from apps.api.dto import (
+    OrderCancelView,
+    PortfolioActivityView,
+    PortfolioBalanceView,
+    PortfolioPerformanceView,
+    PortfolioView,
+)
 from apps.api.schemas import PortfolioFund
 from wallybot.application.ledger_postings import build_initial_funding_transaction
+from wallybot.application.portfolio_performance import compute_fifo_performance
 from wallybot.infrastructure.models import OrderIntentRow
 from wallybot.infrastructure.portfolio_repository import PortfolioRepository
 from wallybot.infrastructure.provider_connection_repository import ProviderConnectionRepository
@@ -58,7 +65,7 @@ async def get_portfolio(request: Request, user: SignedIn) -> PortfolioView:
     async with request.app.state.sessions() as db:
         repository = PortfolioRepository(db)
         balances = await repository.list_balances(account_id)
-        fills = await repository.list_recent_fills(account_id)
+        fills = await repository.list_recent_fills(account_id, limit=EXPORT_FILL_LIMIT)
         connections = await ProviderConnectionRepository(db).list_for_user(user.id)
 
     return PortfolioView(
@@ -88,6 +95,14 @@ async def get_portfolio(request: Request, user: SignedIn) -> PortfolioView:
                 occurred_at=fill.filled_at.isoformat(),
             )
             for fill in fills
+        ][:50],
+        performance=[
+            PortfolioPerformanceView(
+                quote=item.quote,
+                realized_pnl=str(item.realized_pnl),
+                open_cost_basis=str(item.open_cost_basis),
+            )
+            for item in compute_fifo_performance(reversed(fills))
         ],
     )
 
@@ -98,12 +113,11 @@ async def export_portfolio_activity(
 ) -> Response:
     """Export the signed-in user's own fill history as CSV or JSON.
 
-    Same fields `get_portfolio`'s `activity` already exposes (id, venue, instrument, side,
-    quantity, price, fee, fee_currency, occurred_at) -- no fabricated PnL column: this codebase
-    has no FIFO lot tracking for live PAPER fills yet (`docs/PENDING.md` Fase 4, still open), only
-    for on-chain "smart money" analysis (`wallybot.domain.smart_money`). Adding a PnL column here
-    before that exists would either silently reuse the wrong computation or invent one -- neither
-    acceptable per this codebase's "never fabricate a number" rule.
+    Same raw ledger fields `get_portfolio`'s `activity` exposes (id, venue, instrument, side,
+    quantity, price, fee, fee_currency, occurred_at).  Aggregate realised PnL and open cost basis
+    are deliberately presented separately in the portfolio summary, where FIFO matching can be
+    applied across the complete history.  A per-row PnL column would be ambiguous for a partial
+    FIFO close and must not be fabricated.
     """
     account_id = paper_account_id(user.id)
     async with request.app.state.sessions() as db:

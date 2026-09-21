@@ -5,6 +5,7 @@ surface inside the no-execution boundary and makes every displayed balance audit
 """
 
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -56,3 +57,15 @@ class PortfolioRepository:
             )
         ).all()
         return tuple(rows)
+
+    async def sum_fees_since(self, account_id: str, since: datetime) -> Decimal:
+        """Total fees paid on fills at or after `since` -- bounded by the date range (not the
+        full table), for the Telegram report's costs section (PENDING.md Fase 8)."""
+        total = await self.session.scalar(
+            select(func.coalesce(func.sum(FillRow.fee), 0)).where(
+                FillRow.account_id == account_id,
+                FillRow.environment == "PAPER",
+                FillRow.filled_at >= since,
+            )
+        )
+        return Decimal(total) if total is not None else Decimal(0)

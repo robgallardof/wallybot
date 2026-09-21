@@ -10,6 +10,7 @@ from apps.api.dependencies import Admin, SignedIn
 from apps.api.dto import ResearchJobListView, ResearchJobView
 from apps.api.schemas import ResearchJobCreate
 from wallybot.domain.research_job import ResearchJob, ResearchJobStatus
+from wallybot.infrastructure.metrics import RESEARCH_JOBS_ACTIVE
 from wallybot.infrastructure.research_job_repository import ResearchJobRepository
 
 router = APIRouter(prefix="/api/research/jobs", tags=["research"])
@@ -42,7 +43,8 @@ async def create_research_job(
     body: ResearchJobCreate, request: Request, user: Admin
 ) -> ResearchJobView:
     repository = ResearchJobRepository(request.app.state.sessions)
-    if await repository.count_active() >= MAX_ACTIVE_RESEARCH_JOBS:
+    active = await repository.count_active()
+    if active >= MAX_ACTIVE_RESEARCH_JOBS:
         raise HTTPException(
             status_code=429,
             detail="Too many active research jobs -- wait for one to finish or cancel one first",
@@ -59,12 +61,18 @@ async def create_research_job(
     row = await repository.get(job.job_id)
     if row is None:
         raise HTTPException(status_code=503, detail="Research job was not persisted")
+    RESEARCH_JOBS_ACTIVE.set(active + 1)
     return _view(row)
 
 
 @router.get("", response_model=ResearchJobListView)
 async def list_research_jobs(request: Request, user: SignedIn) -> ResearchJobListView:
-    rows = await ResearchJobRepository(request.app.state.sessions).list_recent()
+    repository = ResearchJobRepository(request.app.state.sessions)
+    rows = await repository.list_recent()
+    # Keeps the gauge correct even across a restart (a fresh process starts with no history of
+    # count_active()'s own prior value) -- listing is the most frequently polled route (the
+    # frontend refetches every 10s), so this is also the cheapest place to keep it fresh.
+    RESEARCH_JOBS_ACTIVE.set(await repository.count_active())
     return ResearchJobListView(rows=[_view(row) for row in rows])
 
 
@@ -79,4 +87,5 @@ async def cancel_research_job(job_id: str, request: Request, user: Admin) -> Res
     row = await repository.get(job_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Research job not found")
+    RESEARCH_JOBS_ACTIVE.set(await repository.count_active())
     return _view(row)

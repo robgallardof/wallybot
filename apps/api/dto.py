@@ -74,11 +74,18 @@ class PortfolioActivityView(BaseModel):
     occurred_at: str
 
 
+class PortfolioPerformanceView(BaseModel):
+    quote: str
+    realized_pnl: str
+    open_cost_basis: str
+
+
 class PortfolioView(BaseModel):
     environment: Literal["PAPER"]
     connection_count: int
     balances: list[PortfolioBalanceView]
     activity: list[PortfolioActivityView]
+    performance: list[PortfolioPerformanceView]
 
 
 class OrderCancelView(BaseModel):
@@ -119,6 +126,11 @@ class EventView(BaseModel):
     timestamp: int
     event: str
     message: str
+
+
+class EventPageView(BaseModel):
+    rows: list[EventView]
+    next_before: str | None
 
 
 class ControlView(BaseModel):
@@ -347,6 +359,9 @@ class TelegramConfigView(BaseModel):
     has_bot_token: bool
     chat_id: int | None
     enabled: bool
+    pairing_status: Literal["NEEDS_TOKEN", "WAITING_FOR_START", "LINKED"]
+    # Returned only by the authenticated POST that generated it, never by GET.
+    pairing_code: str | None = None
 
 
 class TelegramConfirmationView(BaseModel):

@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, Pause, Play, ShieldCheck } from "lucide-react";
+import { Pause, Play, ShieldCheck } from "lucide-react";
 import i18n from "../../../lib/i18n";
 import type { breakerListSchema, dashboardSchema } from "../../../lib/dto";
 import type { UseMutationResult, UseQueryResult } from "@tanstack/react-query";
@@ -33,52 +33,61 @@ export function RiskPage({
     <div className="portfolio-stack">
       <article className="panel wide-panel">
         <div className="panel-heading">
-          <h2>{i18n.t("Control de la instancia")}</h2>
+          <div>
+            <span className="eyebrow">{i18n.t("CONTROL OPERATIVO")}</span>
+            <h2>{i18n.t("Control de la instancia")}</h2>
+          </div>
           <ShieldCheck size={20} />
         </div>
-        <h3>
-          {dashboard.data?.status === "PAUSED"
-            ? i18n.t("Instancia pausada")
-            : i18n.t("Instancia en preparación")}
-        </h3>
-        <p className="muted">
-          {i18n.t(
-            "Pausar registra el estado de control. La monitorización y el mantenimiento siguen activos.",
-          )}
-        </p>
-        {role === "ADMIN" ? (
-          <Button
-            disabled={!dashboard.data || change.isPending}
-            onClick={() =>
-              change.mutate({
-                status: dashboard.data?.status === "PAUSED" ? "RUNNING" : "PAUSED",
-                environment: dashboard.data?.environment,
-              })
-            }
-          >
-            {dashboard.data?.status === "PAUSED" ? (
-              <Play size={16} />
+        <div className="risk-control-state">
+          <span className={dashboard.data?.status === "PAUSED" ? "status-light pending" : "status-light"} />
+          <div>
+            <h3>
+              {dashboard.data?.status === "PAUSED"
+                ? i18n.t("Instancia pausada")
+                : i18n.t("Instancia en preparación")}
+            </h3>
+            <p className="muted">
+              {i18n.t(
+                "Pausar detiene nuevas decisiones. La monitorización y el mantenimiento siguen activos.",
+              )}
+            </p>
+          </div>
+          <div className="risk-control-action">
+            {role === "ADMIN" ? (
+              <Button
+                disabled={!dashboard.data || change.isPending}
+                onClick={() =>
+                  change.mutate({
+                    status: dashboard.data?.status === "PAUSED" ? "RUNNING" : "PAUSED",
+                    environment: dashboard.data?.environment,
+                  })
+                }
+              >
+                {dashboard.data?.status === "PAUSED" ? <Play size={16} /> : <Pause size={16} />}
+                {dashboard.data?.status === "PAUSED"
+                  ? i18n.t("Reanudar instancia")
+                  : i18n.t("Pausar instancia")}
+              </Button>
             ) : (
-              <Pause size={16} />
+              <p className="settings-readonly">
+                {i18n.t("Tu rol VIEWER permite consultar, pero no cambiar controles.")}
+              </p>
             )}
-            {dashboard.data?.status === "PAUSED"
-              ? i18n.t("Reanudar instancia")
-              : i18n.t("Pausar instancia")}
-          </Button>
-        ) : (
-          <p>
-            {i18n.t("Tu rol VIEWER permite consultar, pero no cambiar controles.")}
-          </p>
-        )}
-        <p className="footnote">
-          {i18n.t("Requiere una sesión verificada con MFA en los últimos 5 minutos.")}
-        </p>
+            <small>{i18n.t("Requiere una sesión verificada con MFA en los últimos 5 minutos.")}</small>
+          </div>
+        </div>
       </article>
 
       <article className="panel wide-panel">
         <div className="panel-heading">
-          <h2>{i18n.t("Circuit breakers")}</h2>
-          <AlertTriangle size={20} />
+          <div>
+            <span className="eyebrow">{i18n.t("PROTECCIONES")}</span>
+            <h2>{i18n.t("Circuit breakers")}</h2>
+          </div>
+          <span className={activeBreakers.length ? "quality-pill quality-warning" : "quality-pill quality-pass"}>
+            {activeBreakers.length ? i18n.t("{{count}} activos", { count: activeBreakers.length }) : i18n.t("Sin alertas")}
+          </span>
         </div>
         <p className="muted">
           {i18n.t(
@@ -92,7 +101,13 @@ export function RiskPage({
           </p>
         )}
         {breakers.data && activeBreakers.length === 0 && (
-          <p className="muted">{i18n.t("Ningún breaker activo.")}</p>
+          <div className="breaker-empty">
+            <ShieldCheck size={20} />
+            <div>
+              <strong>{i18n.t("Ningún breaker activo.")}</strong>
+              <p>{i18n.t("Las protecciones están listas y no hay una condición pendiente de revisión.")}</p>
+            </div>
+          </div>
         )}
         {activeBreakers.length > 0 && (
           <div className="markets-table-wrap">

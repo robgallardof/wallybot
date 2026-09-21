@@ -72,67 +72,91 @@ export function ConnectionsPage({
   return (
     <article className="panel wide-panel connections-panel">
       <div className="panel-heading">
-        <h2>{i18n.t("Conexiones")}</h2>
+        <div>
+          <h2>{i18n.t("Conexiones")}</h2>
+          <p>{i18n.t("Agrega fuentes de consulta y conserva una vista clara de lo configurado.")}</p>
+        </div>
+        <span className="subtle-pill">
+          {i18n.t("{{count}} registradas", { count: connections.data?.rows.length ?? 0 })}
+        </span>
       </div>
       <p className="muted">
         {i18n.t(
           "Agrega un proveedor en modo lectura o PAPER. Las credenciales se cifran y nunca se vuelven a mostrar. No se habilitan claves de trading ni retiros aquí.",
         )}
       </p>
-      <form className="connection-form" onSubmit={submit}>
-        <label>
-          {i18n.t("Proveedor")}
-          <select
-            value={provider}
-            onChange={(event) =>
-              setProvider(event.target.value as (typeof PROVIDERS)[number])
-            }
-          >
-            {PROVIDERS.map((value) => (
-              <option key={value}>{value}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          {i18n.t("Nombre")}
-          <input
-            value={label}
-            onChange={(event) => setLabel(event.target.value)}
-            required
-            maxLength={100}
-          />
-        </label>
-        <label>
-          {isWallet ? i18n.t("Dirección pública") : i18n.t("Clave API")}
-          <input
-            type={isWallet ? "text" : "password"}
-            value={apiKey}
-            onChange={(event) => setApiKey(event.target.value)}
-            autoComplete="off"
-            maxLength={4096}
-          />
-        </label>
-        {!singleCredential && (
+      <section className="connection-setup" aria-labelledby="new-connection-title">
+        <div className="section-intro">
+          <div>
+            <span className="eyebrow">{i18n.t("NUEVA CONEXIÓN")}</span>
+            <h3 id="new-connection-title">{i18n.t("Elegí un proveedor")}</h3>
+          </div>
+          <p>{isWallet ? i18n.t("Solo se guarda una dirección pública; nunca una clave privada.") : i18n.t("Usá credenciales de lectura. No habilites trading ni retiros.")}</p>
+        </div>
+        <form className="connection-form" onSubmit={submit}>
           <label>
-            {i18n.t("Secreto API")}
+            {i18n.t("Proveedor")}
+            <select
+              value={provider}
+              onChange={(event) =>
+                setProvider(event.target.value as (typeof PROVIDERS)[number])
+              }
+            >
+              {PROVIDERS.map((value) => (
+                <option key={value}>{value}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {i18n.t("Nombre")}
             <input
-              type="password"
-              value={apiSecret}
-              onChange={(event) => setApiSecret(event.target.value)}
+              value={label}
+              onChange={(event) => setLabel(event.target.value)}
+              required
+              maxLength={100}
+              placeholder={i18n.t("Ej.: Cuenta de análisis")}
+            />
+          </label>
+          <label>
+            {isWallet ? i18n.t("Dirección pública") : i18n.t("Clave API")}
+            <input
+              type={isWallet ? "text" : "password"}
+              value={apiKey}
+              onChange={(event) => setApiKey(event.target.value)}
               autoComplete="off"
               maxLength={4096}
             />
           </label>
-        )}
-        <button className="button button-primary" disabled={add.isPending}>
-          {i18n.t("Agregar conexión")}
-        </button>
-      </form>
+          {!singleCredential && (
+            <label>
+              {i18n.t("Secreto API")}
+              <input
+                type="password"
+                value={apiSecret}
+                onChange={(event) => setApiSecret(event.target.value)}
+                autoComplete="off"
+                maxLength={4096}
+              />
+            </label>
+          )}
+          <button className="button button-primary" disabled={add.isPending}>
+            {i18n.t(add.isPending ? "Guardando conexión…" : "Agregar conexión")}
+          </button>
+        </form>
+      </section>
       {add.isError && (
         <p className="error" role="alert">
           {i18n.t(add.error.message)}
         </p>
       )}
+      <section className="connection-registry" aria-labelledby="registered-connections-title">
+        <div className="section-intro">
+          <div>
+            <span className="eyebrow">{i18n.t("REGISTRO")}</span>
+            <h3 id="registered-connections-title">{i18n.t("Conexiones registradas")}</h3>
+          </div>
+          <p>{i18n.t("Las credenciales nunca se muestran después de guardarlas.")}</p>
+        </div>
       <div className="markets-table-wrap">
         <table className="markets-table">
           <thead>
@@ -162,8 +186,9 @@ export function ConnectionsPage({
         </table>
       </div>
       {!connections.isPending && (connections.data?.rows.length ?? 0) === 0 && (
-        <p className="muted">{i18n.t("Aún no hay conexiones.")}</p>
+        <p className="connection-empty">{i18n.t("Aún no hay conexiones. Agregá una fuente de lectura para empezar.")}</p>
       )}
+      </section>
     </article>
   );
 }

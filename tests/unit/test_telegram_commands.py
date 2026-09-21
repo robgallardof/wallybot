@@ -15,6 +15,10 @@ from wallybot.application.telegram_commands import TelegramCommand, parse_comman
         ("  /status  ", TelegramCommand.STATUS),
         ("/status@wallybot_bot", TelegramCommand.STATUS),
         ("/pause now please", TelegramCommand.PAUSE),
+        ("/help", TelegramCommand.HELP),
+        ("/commands", TelegramCommand.HELP),
+        ("/start", TelegramCommand.HELP),
+        ("/HELP", TelegramCommand.HELP),
     ],
 )
 def test_recognized_commands_parse(text: str, expected: TelegramCommand):

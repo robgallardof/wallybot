@@ -96,6 +96,8 @@ class TelegramConfigUpdate(Input):
     bot_token: str | None = Field(default=None, max_length=4096)
     chat_id: int | None = None
     enabled: bool = False
+    # Generates a new one-time /start code without accepting a chat id from the browser.
+    start_pairing: bool = False
 
 
 class PortfolioFund(Input):
