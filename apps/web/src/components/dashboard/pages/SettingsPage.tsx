@@ -1,11 +1,21 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FlaskConical, KeyRound, Send, ShieldCheck } from "lucide-react";
+import { FlaskConical, KeyRound, MessageCircle, Send, ShieldCheck } from "lucide-react";
 import i18n from "../../../lib/i18n";
-import type { dashboardSchema, telegramConfigSchema } from "../../../lib/dto";
+import type {
+  dashboardSchema,
+  telegramConfigSchema,
+  telegramConfirmationListSchema,
+  telegramConfirmationSchema,
+} from "../../../lib/dto";
 import type { UseMutationResult, UseQueryResult } from "@tanstack/react-query";
 import type { z } from "zod";
 import { Button } from "../../ui/button";
+
+const TELEGRAM_ACTION_LABELS: Record<string, string> = {
+  PAUSE: "Pausar instancia",
+  RESUME: "Reanudar instancia",
+};
 
 /**
  * Lets an ADMIN switch the instance between OBSERVE (default: real market data only, no
@@ -20,6 +30,8 @@ export function SettingsPage({
   telegram,
   saveTelegram,
   confirmMfa,
+  telegramConfirmations,
+  confirmTelegramConfirmation,
 }: {
   dashboard: UseQueryResult<z.infer<typeof dashboardSchema>>;
   change: UseMutationResult<
@@ -35,6 +47,12 @@ export function SettingsPage({
     { bot_token?: string; chat_id?: number | null; enabled: boolean }
   >;
   confirmMfa: UseMutationResult<unknown, Error, { code: string }>;
+  telegramConfirmations: UseQueryResult<z.infer<typeof telegramConfirmationListSchema>>;
+  confirmTelegramConfirmation: UseMutationResult<
+    z.infer<typeof telegramConfirmationSchema>,
+    Error,
+    string
+  >;
 }) {
   useTranslation();
   const environment = dashboard.data?.environment;
@@ -224,6 +242,63 @@ export function SettingsPage({
           </p>
         )}
       </article>
+
+      {(telegramConfirmations.data?.rows.length ?? 0) > 0 && (
+        <article className="panel wide-panel settings-panel">
+          <div className="settings-heading">
+            <span className="settings-heading-icon">
+              <MessageCircle size={19} />
+            </span>
+            <div>
+              <p className="eyebrow">{i18n.t("Solicitudes desde Telegram")}</p>
+              <h2>{i18n.t("Solicitudes pendientes de confirmación")}</h2>
+            </div>
+          </div>
+          <p className="muted settings-description">
+            {i18n.t(
+              "Un comando /pause o /resume enviado por Telegram nunca se ejecuta solo -- confirmalo acá con tu sesión de administrador para que tenga efecto. Vence a los 5 minutos.",
+            )}
+          </p>
+          <div className="markets-table-wrap">
+            <table className="markets-table">
+              <thead>
+                <tr>
+                  <th>{i18n.t("Acción")}</th>
+                  <th>{i18n.t("Solicitada")}</th>
+                  <th>{i18n.t("Vence")}</th>
+                  {role === "ADMIN" && <th>{i18n.t("Confirmar")}</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {telegramConfirmations.data?.rows.map((row) => (
+                  <tr key={row.confirmation_id}>
+                    <td>{i18n.t(TELEGRAM_ACTION_LABELS[row.action] ?? row.action)}</td>
+                    <td>{new Date(row.requested_at).toLocaleString(i18n.resolvedLanguage)}</td>
+                    <td>{new Date(row.expires_at).toLocaleString(i18n.resolvedLanguage)}</td>
+                    {role === "ADMIN" && (
+                      <td>
+                        <Button
+                          disabled={confirmTelegramConfirmation.isPending}
+                          onClick={() =>
+                            confirmTelegramConfirmation.mutate(row.confirmation_id)
+                          }
+                        >
+                          {i18n.t("Confirmar")}
+                        </Button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {confirmTelegramConfirmation.isError && (
+            <p className="error" role="alert">
+              {i18n.t(confirmTelegramConfirmation.error.message)}
+            </p>
+          )}
+        </article>
+      )}
 
       {role === "ADMIN" && (
         <article className="panel wide-panel settings-panel">

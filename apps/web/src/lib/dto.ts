@@ -235,6 +235,18 @@ export const telegramConfigSchema = z.object({
   enabled: z.boolean(),
 });
 
+export const telegramConfirmationSchema = z.object({
+  confirmation_id: z.string(),
+  action: z.enum(["PAUSE", "RESUME"]),
+  requested_at: z.string(),
+  expires_at: z.string(),
+  confirmed_at: z.string().nullable(),
+  confirmed_by: z.string().nullable(),
+});
+export const telegramConfirmationListSchema = z.object({
+  rows: z.array(telegramConfirmationSchema),
+});
+
 export const breakerSchema = z.object({
   breaker_type: z.enum(["DAILY_LOSS", "WEEKLY_LOSS", "DRAWDOWN", "RECONCILIATION"]),
   reason: z.string(),

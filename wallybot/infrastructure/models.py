@@ -140,6 +140,24 @@ class TelegramConfigRow(Base):
     encrypted_bot_token: Mapped[str | None] = mapped_column(Text)
     chat_id: Mapped[int | None] = mapped_column(BigInteger)
     enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Telegram's own getUpdates cursor -- the next poll passes offset=last_update_id+1 so
+    # already-seen updates are neither re-delivered by Telegram nor re-processed as commands.
+    last_update_id: Mapped[int | None] = mapped_column(BigInteger)
+
+
+class TelegramConfirmationRow(Base):
+    """Persists `wallybot.domain.telegram_confirmation.TelegramConfirmation`. One row per
+    Telegram-originated sensitive command request; never executes anything by itself -- only
+    `POST /api/telegram/confirmations/{id}/confirm` (Admin, fresh MFA) does."""
+
+    __tablename__ = "telegram_confirmations"
+    __table_args__ = (CheckConstraint("action IN ('PAUSE', 'RESUME')"),)
+    confirmation_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    action: Mapped[str] = mapped_column(String(16))
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    confirmed_by: Mapped[str | None] = mapped_column(String(36))
 
 
 class OrderIntentRow(Base):

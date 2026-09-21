@@ -37,6 +37,7 @@ from wallybot.application.market_ingestion import ingest_market_data
 from wallybot.application.market_overview import build_market_overview
 from wallybot.application.price_consensus_job import ProviderSource, run_price_consensus_tick
 from wallybot.application.reconciliation_service import ReconciliationService
+from wallybot.application.telegram_command_loop import run_telegram_command_tick
 from wallybot.data.historical import HistoricalStore
 from wallybot.data.historical_query import DEFAULT_QUERY_LIMITS
 from wallybot.data.quality import QualityPolicy
@@ -222,6 +223,37 @@ async def _decision_loop(
         await asyncio.sleep(DECISION_INTERVAL_SECONDS)
 
 
+# The tick itself (`run_telegram_command_tick`) lives in
+# `wallybot.application.telegram_command_loop`, same split as `ingest_market_data`/
+# `run_price_consensus_tick`/`run_decision_tick` -- this wrapper
+# only resolves "which account" from real admin/user state each tick, the one lookup that stays out
+# of the application layer. Telegram's own `getUpdates` long-poll (8s, see that module's docstring)
+# already paces this loop; no extra sleep on the success path, only on a failed tick.
+async def _telegram_command_loop(
+    sessions,
+    crypto: Crypto,
+    transport,
+    clock: SystemClock,
+    id_generator: UuidIdGenerator,
+    logger,
+) -> None:
+    while True:
+        try:
+            async with sessions() as db:
+                admin_id = await db.scalar(
+                    select(UserRow.id).where(UserRow.role == "ADMIN").order_by(UserRow.created_at)
+                )
+            account_id = paper_account_id(admin_id) if admin_id is not None else None
+            await run_telegram_command_tick(
+                sessions, crypto, transport, id_generator, account_id, clock.now()
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.warning("TELEGRAM_COMMAND_TICK_FAILED")
+            await asyncio.sleep(5)
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     config = settings or load_settings()
     logger = configure_logging("api")
@@ -334,8 +366,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 )
             )
         )
+        # Same test-suite exclusion as price_consensus_task/decision_task above: a real long-poll
+        # against the live Telegram API has nothing to do with any test in this suite and would
+        # just hang/error against a fake token.
+        telegram_command_task = (
+            None
+            if config.environment == "test"
+            else asyncio.create_task(
+                _telegram_command_loop(
+                    sessions,
+                    app.state.auth.crypto,
+                    app.state.telegram_transport,
+                    clock,
+                    UuidIdGenerator(),
+                    logger,
+                )
+            )
+        )
         logger.info("API_STARTED")
         yield
+        if telegram_command_task is not None:
+            telegram_command_task.cancel()
+            try:
+                await telegram_command_task
+            except asyncio.CancelledError:
+                pass
         if decision_task is not None:
             decision_task.cancel()
             try:

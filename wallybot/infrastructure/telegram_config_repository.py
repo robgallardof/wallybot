@@ -25,3 +25,8 @@ class TelegramConfigRepository:
         row.chat_id = chat_id
         row.enabled = enabled
         return row
+
+    async def set_last_update_id(self, last_update_id: int) -> None:
+        row = await self.session.get(TelegramConfigRow, 1, with_for_update=True)
+        if row is not None:
+            row.last_update_id = last_update_id

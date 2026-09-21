@@ -23,6 +23,7 @@ import { BacktestsPage } from "./dashboard/pages/BacktestsPage";
 import { ConnectionsPage } from "./dashboard/pages/ConnectionsPage";
 import { useConnectionsData } from "../hooks/useConnectionsData";
 import { useTelegramData } from "../hooks/useTelegramData";
+import { useTelegramConfirmationsData } from "../hooks/useTelegramConfirmationsData";
 import { SettingsPage } from "./dashboard/pages/SettingsPage";
 import { DocsPage } from "./dashboard/pages/DocsPage";
 import { PortfolioPage } from "./dashboard/pages/PortfolioPage";
@@ -71,6 +72,8 @@ export function Dashboard({
     page === "connections",
   );
   const { telegram, save: saveTelegram } = useTelegramData(page === "settings");
+  const { confirmations: telegramConfirmations, confirm: confirmTelegramConfirmation } =
+    useTelegramConfirmationsData(page === "settings");
   const { portfolio, fund: fundPortfolio } = usePortfolioData(page === "portfolio");
   const { breakers, clear: clearBreaker } = useBreakersData(page === "risk");
   function navigate(next: string) {
@@ -130,6 +133,8 @@ export function Dashboard({
           telegram={telegram}
           saveTelegram={saveTelegram}
           confirmMfa={confirmMfa}
+          telegramConfirmations={telegramConfirmations}
+          confirmTelegramConfirmation={confirmTelegramConfirmation}
         />
       )}
       {page === "docs" && <DocsPage />}

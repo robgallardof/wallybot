@@ -190,6 +190,7 @@ async function shell(page: Page, role: "ADMIN" | "VIEWER" = "VIEWER") {
       "/api/intelligence/entity-graph": { rows: [] },
       "/api/backtests": { rows: [] },
       "/api/telegram": { has_bot_token: false, chat_id: null, enabled: false },
+      "/api/telegram/confirmations": { rows: [] },
       "/api/auth/confirm-mfa": { ok: true },
     };
     if (!(path in responses))

@@ -1,0 +1,160 @@
+"""Long-polls Telegram's `getUpdates` for inbound commands from the operator's single allowlisted
+chat (SECURITY.md: "allowlisted numeric user/chat IDs"). Query commands (`/status`, `/breakers`,
+`/portfolio`) reply immediately with a snapshot; sensitive commands (`/pause`, `/resume`) never
+execute directly -- they create a `wallybot.domain.telegram_confirmation.TelegramConfirmation` the
+operator must confirm through the existing Admin+fresh-MFA web flow, and reply saying so.
+
+Only `apps/api` calls this: same "sole process with internet egress" constraint as
+`price_consensus_job`/`notification_dispatch`. `apps/api/main.py`'s `_telegram_command_loop`
+wrapper resolves the current admin/account each tick and passes it in here, matching
+`decision_loop.run_decision_tick`'s own split (DB-admin-lookup stays in the apps/api wrapper,
+never imported down into this application-layer module).
+
+`GET_UPDATES_TIMEOUT_SECONDS` (8s) is deliberately well under the shared `HttpxTelegramTransport`
+client's own 10s request timeout (`apps/api/main.py`'s lifespan) -- Telegram's long-poll `timeout`
+param holds the HTTP response open until either an update arrives or that many seconds pass, and a
+value at or above the client's own timeout would make httpx raise a read timeout before Telegram
+ever replies.
+"""
+
+from datetime import datetime, timedelta
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from wallybot.application.telegram_commands import TelegramCommand, parse_command
+from wallybot.domain.control import Status
+from wallybot.domain.id_generator import IdGenerator
+from wallybot.domain.telegram_confirmation import CONFIRMATION_TTL, TelegramAction
+from wallybot.infrastructure.breaker_repository import BreakerRepository
+from wallybot.infrastructure.equity_snapshot_repository import EquitySnapshotRepository
+from wallybot.infrastructure.models import ControlRow
+from wallybot.infrastructure.telegram_config_repository import TelegramConfigRepository
+from wallybot.infrastructure.telegram_confirmation_repository import TelegramConfirmationRepository
+from wallybot.notifications.telegram import TelegramCommandTransport
+from wallybot.security.crypto import Crypto
+
+GET_UPDATES_TIMEOUT_SECONDS = 8
+
+
+async def run_telegram_command_tick(
+    sessions: async_sessionmaker[AsyncSession],
+    crypto: Crypto,
+    transport: TelegramCommandTransport,
+    id_generator: IdGenerator,
+    account_id: str | None,
+    now: datetime,
+) -> None:
+    async with sessions() as db:
+        config = await TelegramConfigRepository(db).get()
+    if (
+        config is None
+        or not config.enabled
+        or not config.encrypted_bot_token
+        or config.chat_id is None
+    ):
+        return
+
+    token = crypto.decrypt(config.encrypted_bot_token)
+    base_url = f"https://api.telegram.org/bot{token}"
+    params = {"timeout": str(GET_UPDATES_TIMEOUT_SECONDS)}
+    if config.last_update_id is not None:
+        params["offset"] = str(config.last_update_id + 1)
+    payload = await transport.get_json(f"{base_url}/getUpdates", params)
+    updates = payload.get("result", [])
+    if not updates:
+        return
+
+    max_update_id = max(update["update_id"] for update in updates)
+
+    # First-ever poll after enabling: only establish the cursor, never execute a backlog of
+    # messages that predate this integration (e.g. an old "/pause" sent before Telegram commands
+    # existed) as if it were just issued.
+    if config.last_update_id is not None:
+        for update in updates:
+            message = update.get("message")
+            if not message or "text" not in message or "chat" not in message:
+                continue
+            chat_id = message["chat"]["id"]
+            if chat_id != config.chat_id:
+                continue  # not the allowlisted chat -- ignored, never replied to
+            reply = await _handle_command(sessions, account_id, id_generator, now, message["text"])
+            if reply is not None:
+                await transport.post_form(
+                    f"{base_url}/sendMessage", {"chat_id": str(chat_id), "text": reply}
+                )
+
+    async with sessions.begin() as db:
+        await TelegramConfigRepository(db).set_last_update_id(max_update_id)
+
+
+async def _handle_command(
+    sessions: async_sessionmaker[AsyncSession],
+    account_id: str | None,
+    id_generator: IdGenerator,
+    now: datetime,
+    text: str,
+) -> str | None:
+    command = parse_command(text)
+    if command is None:
+        return None
+    if command is TelegramCommand.STATUS:
+        return await _status_reply(sessions)
+    if command is TelegramCommand.BREAKERS:
+        return await _breakers_reply(sessions)
+    if command is TelegramCommand.PORTFOLIO:
+        return await _portfolio_reply(sessions, account_id)
+    action = TelegramAction.PAUSE if command is TelegramCommand.PAUSE else TelegramAction.RESUME
+    return await _confirmation_reply(sessions, id_generator, now, action)
+
+
+async def _status_reply(sessions: async_sessionmaker[AsyncSession]) -> str:
+    async with sessions() as db:
+        row = await db.get(ControlRow, 1)
+    if row is None:
+        return "Sistema no inicializado."
+    return f"Entorno: {row.environment}\nEstado: {row.status}"
+
+
+async def _breakers_reply(sessions: async_sessionmaker[AsyncSession]) -> str:
+    async with sessions() as db:
+        active = await BreakerRepository(db).list_active()
+    if not active:
+        return "Sin breakers activos."
+    lines = [f"{breaker.breaker_type.value}: {breaker.reason}" for breaker in active]
+    return "Breakers activos:\n" + "\n".join(lines)
+
+
+async def _portfolio_reply(
+    sessions: async_sessionmaker[AsyncSession], account_id: str | None
+) -> str:
+    if account_id is None:
+        return "Portafolio no disponible: no hay administrador configurado."
+    async with sessions() as db:
+        snapshot = await EquitySnapshotRepository(db).latest(account_id, "PAPER")
+    if snapshot is None:
+        return "Todavía no hay un snapshot de equity."
+    return (
+        f"Equity: {snapshot.equity} (al {snapshot.recorded_at.isoformat()})\n"
+        f"High-water mark: {snapshot.high_water_mark}"
+    )
+
+
+async def _confirmation_reply(
+    sessions: async_sessionmaker[AsyncSession],
+    id_generator: IdGenerator,
+    now: datetime,
+    action: TelegramAction,
+) -> str:
+    target_status = Status.PAUSED if action is TelegramAction.PAUSE else Status.RUNNING
+    async with sessions() as db:
+        control_row = await db.get(ControlRow, 1)
+    if control_row is not None and Status(control_row.status) == target_status:
+        return f"Ya está en estado {target_status.value}."
+    async with sessions.begin() as db:
+        await TelegramConfirmationRepository(db).create(action, now, id_generator)
+    minutes = int(CONFIRMATION_TTL / timedelta(minutes=1))
+    return (
+        f"Solicitud de {action.value} registrada. Confírmala en la web (Configuración) "
+        f"dentro de {minutes} minutos con tu sesión MFA -- "
+        "Telegram no puede ejecutarla por sí solo."
+    )

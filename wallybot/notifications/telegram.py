@@ -59,9 +59,25 @@ class TelegramTransport(Protocol):
         ...
 
 
+class TelegramCommandTransport(Protocol):
+    """Separate from :class:`TelegramTransport` so `FakeTransport` in existing
+    `TelegramNotifier` tests (only `post_form`) doesn't need a `get_json` it never uses."""
+
+    async def get_json(self, url: str, params: dict[str, str]) -> dict:
+        """GET ``url`` with query ``params`` and return the decoded JSON body.
+
+        :param url: Full destination URL.
+        :param params: Query parameters.
+        """
+        ...
+
+    async def post_form(self, url: str, form: dict[str, str]) -> None: ...
+
+
 class HttpxTelegramTransport:
-    """Production :class:`TelegramTransport` -- one shared client for the process lifetime,
-    matching ``HttpxKrakenTransport``'s shape in ``wallybot/exchanges/kraken.py``."""
+    """Production :class:`TelegramTransport`/:class:`TelegramCommandTransport` -- one shared
+    client for the process lifetime, matching ``HttpxKrakenTransport``'s shape in
+    ``wallybot/exchanges/kraken.py``."""
 
     def __init__(self, client: httpx.AsyncClient | None = None) -> None:
         self._client = client or httpx.AsyncClient(timeout=10.0)
@@ -69,6 +85,11 @@ class HttpxTelegramTransport:
     async def post_form(self, url: str, form: dict[str, str]) -> None:
         response = await self._client.post(url, data=form)
         response.raise_for_status()
+
+    async def get_json(self, url: str, params: dict[str, str]) -> dict:
+        response = await self._client.get(url, params=params)
+        response.raise_for_status()
+        return response.json()
 
 
 class TelegramNotifier:

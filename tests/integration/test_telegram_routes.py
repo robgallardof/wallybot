@@ -1,3 +1,5 @@
+from datetime import UTC, datetime, timedelta
+
 import pyotp
 import pytest
 
@@ -13,6 +15,7 @@ def _reset_telegram_config(db):
         "UPDATE telegram_config SET encrypted_bot_token = NULL, chat_id = NULL, "
         "enabled = false WHERE id = 1"
     )
+    db.execute("TRUNCATE telegram_confirmations CASCADE")
     yield
 
 
@@ -35,6 +38,16 @@ def enroll(client, settings) -> dict[str, object]:
     )
     assert finished.status_code == 200, finished.text
     return finished.json()
+
+
+def _insert_confirmation(
+    db, confirmation_id: str, action: str, requested_at: datetime, expires_at: datetime
+) -> None:
+    db.execute(
+        "INSERT INTO telegram_confirmations "
+        "(confirmation_id, action, requested_at, expires_at) VALUES (%s, %s, %s, %s)",
+        (confirmation_id, action, requested_at, expires_at),
+    )
 
 
 def test_telegram_routes_require_auth(client) -> None:
@@ -184,3 +197,163 @@ def test_repeating_the_same_status_sends_no_notification(client, settings) -> No
 
     assert response.status_code == 200, response.text
     assert transport.calls == []
+
+
+def test_confirmations_route_requires_auth(client) -> None:
+    assert client.get("/api/telegram/confirmations").status_code == 401
+
+
+def test_pending_confirmations_are_listed(client, settings, db) -> None:
+    enroll(client, settings)
+    now = datetime.now(UTC)
+    _insert_confirmation(db, "conf1", "PAUSE", now, now + timedelta(minutes=5))
+
+    response = client.get("/api/telegram/confirmations")
+
+    assert response.status_code == 200, response.text
+    rows = response.json()["rows"]
+    assert len(rows) == 1
+    assert rows[0]["confirmation_id"] == "conf1"
+    assert rows[0]["action"] == "PAUSE"
+    assert rows[0]["confirmed_at"] is None
+
+
+def test_expired_confirmations_are_not_listed_as_pending(client, settings, db) -> None:
+    enroll(client, settings)
+    now = datetime.now(UTC)
+    _insert_confirmation(
+        db, "conf1", "PAUSE", now - timedelta(minutes=10), now - timedelta(minutes=5)
+    )
+
+    response = client.get("/api/telegram/confirmations")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["rows"] == []
+
+
+def test_confirming_a_pause_request_pauses_the_bot_and_requires_admin(
+    client, settings, db
+) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    now = datetime.now(UTC)
+    _insert_confirmation(db, "conf1", "PAUSE", now, now + timedelta(minutes=5))
+
+    response = client.post(
+        "/api/telegram/confirmations/conf1/confirm", json={}, headers={"X-CSRF-Token": csrf}
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["confirmed_at"] is not None
+    assert body["confirmed_by"]
+
+    dashboard = client.get("/api/dashboard")
+    assert dashboard.json()["status"] == "PAUSED"
+
+
+def test_confirming_notifies_over_telegram_when_the_status_actually_changes(
+    client, settings, db
+) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    client.post(
+        "/api/telegram",
+        json={"bot_token": "123456:my-secret-token", "chat_id": 42, "enabled": True},
+        headers={"X-CSRF-Token": csrf},
+    )
+    transport = FakeTelegramTransport()
+    client.app.state.telegram_transport = transport
+    now = datetime.now(UTC)
+    _insert_confirmation(db, "conf1", "PAUSE", now, now + timedelta(minutes=5))
+
+    response = client.post(
+        "/api/telegram/confirmations/conf1/confirm", json={}, headers={"X-CSRF-Token": csrf}
+    )
+
+    assert response.status_code == 200, response.text
+    assert len(transport.calls) == 1
+    assert "Confirmado desde la web" in transport.calls[0][1]["text"]
+
+
+def test_confirming_a_resume_that_is_already_the_current_status_sends_no_notification(
+    client, settings, db
+) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    client.post(
+        "/api/telegram",
+        json={"bot_token": "123456:my-secret-token", "chat_id": 42, "enabled": True},
+        headers={"X-CSRF-Token": csrf},
+    )
+    transport = FakeTelegramTransport()
+    client.app.state.telegram_transport = transport
+    now = datetime.now(UTC)
+    # Default control status is RUNNING -- confirming a RESUME is a no-op state change.
+    _insert_confirmation(db, "conf1", "RESUME", now, now + timedelta(minutes=5))
+
+    response = client.post(
+        "/api/telegram/confirmations/conf1/confirm", json={}, headers={"X-CSRF-Token": csrf}
+    )
+
+    assert response.status_code == 200, response.text
+    assert transport.calls == []
+
+
+def test_confirming_an_unknown_confirmation_is_a_404(client, settings) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+
+    response = client.post(
+        "/api/telegram/confirmations/does-not-exist/confirm",
+        json={},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 404
+
+
+def test_confirming_an_expired_confirmation_is_rejected(client, settings, db) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    now = datetime.now(UTC)
+    _insert_confirmation(
+        db, "conf1", "PAUSE", now - timedelta(minutes=10), now - timedelta(minutes=5)
+    )
+
+    response = client.post(
+        "/api/telegram/confirmations/conf1/confirm", json={}, headers={"X-CSRF-Token": csrf}
+    )
+
+    assert response.status_code == 409
+
+
+def test_confirming_twice_only_succeeds_once(client, settings, db) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    now = datetime.now(UTC)
+    _insert_confirmation(db, "conf1", "PAUSE", now, now + timedelta(minutes=5))
+
+    first = client.post(
+        "/api/telegram/confirmations/conf1/confirm", json={}, headers={"X-CSRF-Token": csrf}
+    )
+    second = client.post(
+        "/api/telegram/confirmations/conf1/confirm", json={}, headers={"X-CSRF-Token": csrf}
+    )
+
+    assert first.status_code == 200, first.text
+    assert second.status_code == 409
+
+
+def test_viewer_cannot_confirm_a_telegram_confirmation(client, settings, db) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    db.execute("UPDATE users SET role = 'VIEWER'")
+    now = datetime.now(UTC)
+    _insert_confirmation(db, "conf1", "PAUSE", now, now + timedelta(minutes=5))
+
+    response = client.post(
+        "/api/telegram/confirmations/conf1/confirm", json={}, headers={"X-CSRF-Token": csrf}
+    )
+
+    assert response.status_code == 403

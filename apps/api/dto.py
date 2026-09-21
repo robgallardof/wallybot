@@ -347,3 +347,16 @@ class TelegramConfigView(BaseModel):
     has_bot_token: bool
     chat_id: int | None
     enabled: bool
+
+
+class TelegramConfirmationView(BaseModel):
+    confirmation_id: str
+    action: str
+    requested_at: str
+    expires_at: str
+    confirmed_at: str | None
+    confirmed_by: str | None
+
+
+class TelegramConfirmationListView(BaseModel):
+    rows: list[TelegramConfirmationView]

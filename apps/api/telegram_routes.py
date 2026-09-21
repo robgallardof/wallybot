@@ -8,12 +8,21 @@ with internet egress (``worker``/``scheduler``/``research`` are network-isolated
 PENDING.md's Fase 7).
 """
 
-from fastapi import APIRouter, Request
+from datetime import UTC, datetime
+
+from fastapi import APIRouter, HTTPException, Request
 
 from apps.api.dependencies import Admin, SignedIn
-from apps.api.dto import TelegramConfigView
+from apps.api.dto import TelegramConfigView, TelegramConfirmationListView, TelegramConfirmationView
 from apps.api.schemas import TelegramConfigUpdate
+from wallybot.application.notification_dispatch import dispatch_telegram_notification
+from wallybot.domain.control import Control, Environment, Role, Status
+from wallybot.domain.telegram_confirmation import TelegramAction
+from wallybot.infrastructure.models import ControlRow
 from wallybot.infrastructure.telegram_config_repository import TelegramConfigRepository
+from wallybot.infrastructure.telegram_confirmation_repository import TelegramConfirmationRepository
+from wallybot.notifications.telegram import Notification, NotificationSeverity
+from wallybot.security.auth import AuthError, audit
 
 router = APIRouter(prefix="/api/telegram", tags=["telegram"])
 
@@ -43,3 +52,68 @@ async def set_telegram_config(
         row = await TelegramConfigRepository(db).upsert(encrypted, body.chat_id, body.enabled)
         result = _view(row)
     return result
+
+
+def _confirmation_view(confirmation) -> TelegramConfirmationView:
+    return TelegramConfirmationView(
+        confirmation_id=confirmation.confirmation_id,
+        action=confirmation.action.value,
+        requested_at=confirmation.requested_at.isoformat(),
+        expires_at=confirmation.expires_at.isoformat(),
+        confirmed_at=confirmation.confirmed_at.isoformat() if confirmation.confirmed_at else None,
+        confirmed_by=confirmation.confirmed_by,
+    )
+
+
+@router.get("/confirmations", response_model=TelegramConfirmationListView)
+async def list_confirmations(request: Request, user: SignedIn) -> TelegramConfirmationListView:
+    async with request.app.state.sessions() as db:
+        rows = await TelegramConfirmationRepository(db).list_pending(datetime.now(UTC))
+    return TelegramConfirmationListView(rows=[_confirmation_view(row) for row in rows])
+
+
+@router.post("/confirmations/{confirmation_id}/confirm", response_model=TelegramConfirmationView)
+async def confirm_telegram_confirmation(
+    confirmation_id: str, request: Request, user: Admin
+) -> TelegramConfirmationView:
+    now = datetime.now(UTC)
+    async with request.app.state.sessions.begin() as db:
+        repo = TelegramConfirmationRepository(db)
+        pending = await repo.get(confirmation_id)
+        if pending is None:
+            raise HTTPException(status_code=404, detail="Unknown confirmation")
+        confirmed = await repo.confirm(confirmation_id, user.id, now)
+        if not confirmed:
+            raise HTTPException(status_code=409, detail="Confirmation is no longer pending")
+
+        control_row = await db.get(ControlRow, 1, with_for_update=True)
+        if control_row is None:
+            raise AuthError("System not initialized", 503)
+        current = Control(Environment(control_row.environment), Status(control_row.status))
+        target_status = (
+            Status.PAUSED if pending.action == TelegramAction.PAUSE else Status.RUNNING
+        )
+        changed = current.change(target_status, Role(user.role))
+        changed_state = control_row.status != changed.status
+        if changed_state:
+            control_row.status = changed.status
+            audit(db, "BOT_PAUSED" if changed.status == Status.PAUSED else "BOT_RESUMED", user.id)
+        audit(db, "TELEGRAM_CONFIRMATION_CONFIRMED", user.id)
+
+    if changed_state:
+        await dispatch_telegram_notification(
+            request.app.state.sessions,
+            request.app.state.auth.crypto,
+            request.app.state.telegram_transport,
+            Notification(
+                NotificationSeverity.INFO,
+                "Confirmado desde la web",
+                f"{pending.action.value} confirmado por {user.id}.",
+            ),
+        )
+
+    async with request.app.state.sessions() as db:
+        result = await TelegramConfirmationRepository(db).get(confirmation_id)
+    if result is None:
+        raise HTTPException(status_code=500, detail="Confirmation vanished after confirming")
+    return _confirmation_view(result)
