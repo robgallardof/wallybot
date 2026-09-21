@@ -14,7 +14,7 @@ WallyBot: a self-hosted, AI-assisted quantitative trading/portfolio research pla
 monolith — independently launched `apps/{api,worker,scheduler,research_worker,web}` processes
 sharing typed `wallybot/` domain and application packages (domain, application, infrastructure,
 security, and more as phases land — see `wallybot/`). Stack: Python 3.12+, uv, FastAPI, Pydantic
-v2, SQLAlchemy 2 (async), Alembic, PostgreSQL, Redis; frontend React/TypeScript/Vite in
+v2, SQLAlchemy 2 (async), Alembic, PostgreSQL, Redis; frontend React/TypeScript/Next.js in
 `apps/web`. **This is explicitly a financial/trading system with real security stakes** (Argon2id
 + TOTP auth, deterministic risk controls, no-withdrawal-capability guarantee) — read `SECURITY.md`
 and `RISK.md` before touching auth, risk, or execution code, not just this file.
@@ -59,7 +59,7 @@ Before making changes, every agent must:
 | Architecture, "how does X connect to Y?", dependencies, call paths | **Graphify** (`graphify query "..."`, `graphify path "A" "B"`) |
 | A specific class/method/symbol, its references, implementations, or a semantic edit | **Serena** (find_symbol, find_referencing_symbols, find_implementations, symbol-aware edit tools) |
 | "Has this been touched/indexed before / persistent cross-session code-graph lookups" | **Codebase Memory** (`codebase-memory-mcp`) — complementary to Serena/Graphify, not a replacement for either |
-| External library/framework/SDK behavior (FastAPI, SQLAlchemy 2, Pydantic v2, Alembic, React, Vite, TanStack Query, CCXT, etc.), version-sensitive APIs | **Context7** |
+| External library/framework/SDK behavior (FastAPI, SQLAlchemy 2, Pydantic v2, Alembic, React, Next.js, TanStack Query, CCXT, etc.), version-sensitive APIs | **Context7** |
 | Browser/e2e behavior (Playwright specs in `apps/web/e2e`) | **Playwright MCP** |
 | Exact string, generated file, config value, log line | Native file/search tools (grep/read/glob) |
 | Current uncommitted implementation state | `git status` + `git diff` (once `.git` exists) |

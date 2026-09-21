@@ -60,7 +60,7 @@ Hybrid development needs a deliberate exception: host processes cannot reach unp
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis
 ```
 
-Planned `make dev` / `scripts/dev.sh` / `scripts/dev.ps1` starts infrastructure with this override, then API on loopback 8000, worker, scheduler and Vite on loopback 3333. Vite proxies `/api` and `/health` to the API. It must not also start the Docker gateway on 3333. `uv` runs Python processes; `pnpm` runs the web app. Scripts terminate their child processes cleanly on exit. Do not auto-load the dev override in production.
+`make dev` / `scripts/dev.sh` / `scripts/dev.ps1` (all invoke `scripts/dev.py`) start infrastructure with this override, then API on loopback 8000, worker, scheduler, research worker and the Next.js dev server (`next dev`) on loopback 3333. Next's own `rewrites()` (`apps/web/next.config.ts`) proxies `/api/:path*` and `/health/:path*` to the API (`WALLY_DEV_API`, default `http://127.0.0.1:8000`). It must not also start the Docker gateway on 3333. `uv` runs Python processes; `pnpm` runs the web app. Scripts terminate their child processes cleanly on exit. Do not auto-load the dev override in production.
 
 This improves the original bare `docker compose up postgres redis` hybrid example: its private ports are unreachable from host processes without an override. Production still publishes only 3333. See [ADR-009](docs/adr/009-port-3333-gateway.md).
 

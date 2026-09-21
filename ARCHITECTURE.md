@@ -106,7 +106,7 @@ Independently of the account-level environment above, every strategy and every t
 
 ## Technology decisions
 
-Adopt Python 3.12+, uv, FastAPI, Pydantic v2/Settings, SQLAlchemy 2, Alembic, asyncio and httpx. Frontend uses React, TypeScript, Vite, Tailwind, shadcn/ui, TanStack Query/Table, Zod and React Hook Form. Plan Lightweight Charts for candles and Recharts for portfolio charts. Pin exact dependency versions and lockfiles during Phase 1 after compatibility tests; this document does not assert current latest versions.
+Adopt Python 3.12+, uv, FastAPI, Pydantic v2/Settings, SQLAlchemy 2, Alembic, asyncio and httpx. Frontend uses Next.js, React, TypeScript, Tailwind, shadcn/ui, TanStack Query/Table, Zod and React Hook Form (migrated from an initial Vite setup -- see `docs/adr/009-port-3333-gateway.md` and `.ai/DECISIONS.md`'s 2026-09-12 entry). Plan Lightweight Charts for candles and Recharts for portfolio charts. Pin exact dependency versions and lockfiles during Phase 1 after compatibility tests; this document does not assert current latest versions.
 
 Quantitative dependencies enter the research extra: NumPy, Pandas, Polars, SciPy, scikit-learn and statsmodels. Begin with transparent vectorized indicators, compare them with reference fixtures, and evaluate TA-Lib/pandas-ta for correctness, supported Python versions, licensing and installation cost before adoption. ML, optimization and sentiment remain later experiments.
 

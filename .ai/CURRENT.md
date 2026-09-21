@@ -1,5 +1,25 @@
 # Current task
 
+## Stale Vite references fixed (2026-09-21, continued further still, docs-only)
+
+Small, low-risk pick from the Fase 1/2 audit: `ARCHITECTURE.md:109`, `DEPLOYMENT.md:63`,
+`AGENTS.md` (both the stack line and the Context7 routing-table row) and
+`docs/AI-DEVELOPMENT.md` (two mentions) all still described the frontend as Vite -- stale since
+the real Vite→Next.js migration (`.ai/DECISIONS.md`'s 2026-09-12 entry, `docs/adr/009-port-3333-
+gateway.md`). Verified the real current mechanism first rather than guessing: `apps/web/package.
+json`'s `dev` script is `next dev --hostname 127.0.0.1 --port 3333`, and `apps/web/next.config.ts`'s
+`rewrites()` (not a Vite proxy) forwards `/api/:path*` and `/health/:path*` to `WALLY_DEV_API`
+(default `http://127.0.0.1:8000`). Also caught `DEPLOYMENT.md` calling `scripts/dev.sh`/`dev.ps1`
+"Planned" when they're real and already invoked by `make dev` -- fixed that too, same sentence.
+Docs-only, no Dockerfile bakes these files in, so no rebuild/redeploy needed for this one.
+
+**Not yet committed this slice.**
+
+**Immediate next actions:** commit, then keep going per "continua...hasta acabar tokens." Remaining
+audit-surfaced candidates: wiring `MarketCache` into a real call path, an instrument-detail route.
+Do NOT touch OBSERVE/PAPER/LIVE architecture. Still unaddressed: user's "three js es par ael login
+y eso" comment.
+
 ## Quality gate closed on the Markets view (2026-09-21, continued further still)
 
 Picked from the Fase 1/2 audit's own findings: Fase 2's "Pasar siempre por calidad antes de

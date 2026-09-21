@@ -24,7 +24,7 @@ flowchart TD
 | --- | --- | --- |
 | **Archify** | Comprender componentes, rutas, dependencias y flujos entre archivos. | Buscar un texto exacto o modificar un símbolo puntual. |
 | **Serena** | Localizar una clase, función o tipo; ver referencias e implementar un cambio semántico pequeño. | Sustituir el mapa arquitectónico completo. |
-| **Context7** | Confirmar comportamiento actual de FastAPI, SQLAlchemy, Pydantic, React, Vite, CCXT u otra dependencia. | Adivinar cómo está implementado WallyBot. |
+| **Context7** | Confirmar comportamiento actual de FastAPI, SQLAlchemy, Pydantic, React, Next.js, CCXT u otra dependencia. | Adivinar cómo está implementado WallyBot. |
 | **Codebase Memory** | Recuperar hallazgos persistentes, decisiones o zonas ya indexadas. | Reemplazar el análisis del código actual. |
 | **Búsqueda local** | Encontrar cadenas, archivos generados, configuración y registros concretos. | Inferir relaciones complejas entre componentes. |
 
@@ -63,7 +63,7 @@ estado de trabajo y conserva las modificaciones ajenas.
 
 Consulta Context7 antes de tomar decisiones que dependan de versiones o contratos externos. Por
 ejemplo: dependencias de FastAPI, sesiones async de SQLAlchemy, validación de Pydantic, contratos
-de React Query, APIs de Vite o adaptadores de mercado.
+de React Query, APIs de Next.js o adaptadores de mercado.
 
 La documentación externa confirma el contrato de una dependencia; la arquitectura y las reglas de
 WallyBot se verifican primero en `ARCHITECTURE.md`, `SECURITY.md`, `RISK.md`, `DATA.md` y

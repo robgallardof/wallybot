@@ -1,5 +1,12 @@
 # Claude handoff — 2026-09-16 (new session)
 
+## Stale Vite references fixed — 2026-09-21 (continued further still, docs-only)
+
+Small pick from the Fase 1/2 audit: `ARCHITECTURE.md`, `DEPLOYMENT.md`, `AGENTS.md` and
+`docs/AI-DEVELOPMENT.md` all still described the frontend as Vite -- fixed to Next.js, verified
+against the real `apps/web/package.json`/`next.config.ts` mechanism rather than guessed. Docs-only,
+no rebuild needed.
+
 ## Quality gate closed on the Markets view — 2026-09-21 (continued further still)
 
 Full detail in `.ai/CURRENT.md`. Fixed a real gap the Fase 1/2 audit surfaced: the live trading
