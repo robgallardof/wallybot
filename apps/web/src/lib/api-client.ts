@@ -18,9 +18,10 @@ export async function api<T>(
   path: string,
   schema: z.ZodType<T>,
   body?: unknown,
+  method?: "GET" | "POST" | "DELETE",
 ): Promise<T> {
   const response = await fetch(`/api${path}`, {
-    method: body === undefined ? "GET" : "POST",
+    method: method ?? (body === undefined ? "GET" : "POST"),
     credentials: "same-origin",
     headers:
       body === undefined

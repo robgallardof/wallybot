@@ -6,9 +6,13 @@ import i18n from "../../../lib/i18n";
 import type {
   backtestHistorySchema,
   backtestRunSchema,
+  researchJobListSchema,
+  researchJobSchema,
 } from "../../../lib/dto";
 import type { RunBacktestInput } from "../../../hooks/useBacktestsData";
+import type { CreateResearchJobInput } from "../../../hooks/useResearchJobsData";
 import { BacktestHistory } from "../BacktestHistory";
+import { ResearchJobsPanel } from "../ResearchJobsPanel";
 import { ApiError } from "../../../lib/api-client";
 
 function toIsoOrEmpty(localValue: string): string {
@@ -33,6 +37,10 @@ function suggestedWindow(): { start: string; end: string } {
 export function BacktestsPage({
   history,
   run,
+  researchJobs,
+  createResearchJob,
+  cancelResearchJob,
+  role,
 }: {
   history: UseQueryResult<z.infer<typeof backtestHistorySchema>>;
   run: UseMutationResult<
@@ -40,6 +48,14 @@ export function BacktestsPage({
     Error,
     RunBacktestInput
   >;
+  researchJobs: UseQueryResult<z.infer<typeof researchJobListSchema>>;
+  createResearchJob: UseMutationResult<
+    z.infer<typeof researchJobSchema>,
+    Error,
+    CreateResearchJobInput
+  >;
+  cancelResearchJob: UseMutationResult<z.infer<typeof researchJobSchema>, Error, string>;
+  role: string;
 }) {
   useTranslation();
   const [base, setBase] = useState("XBT");
@@ -382,6 +398,13 @@ export function BacktestsPage({
       </article>
 
       <BacktestHistory history={history} />
+
+      <ResearchJobsPanel
+        jobs={researchJobs}
+        create={createResearchJob}
+        cancel={cancelResearchJob}
+        role={role}
+      />
     </div>
   );
 }

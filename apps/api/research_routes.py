@@ -14,6 +14,12 @@ from wallybot.infrastructure.research_job_repository import ResearchJobRepositor
 
 router = APIRouter(prefix="/api/research/jobs", tags=["research"])
 
+# A simple system-wide quota (PENDING.md Fase 7's "cuotas") -- this system has one admin account,
+# not per-user tenancy, so the queue depth is the only quota that makes sense here. Bounds runaway
+# enqueueing, not a claim about how much load research_worker can actually handle concurrently
+# (it claims and runs one job at a time, per `run_pending_research_job`).
+MAX_ACTIVE_RESEARCH_JOBS = 5
+
 
 def _view(row) -> ResearchJobView:
     return ResearchJobView(
@@ -35,6 +41,13 @@ def _view(row) -> ResearchJobView:
 async def create_research_job(
     body: ResearchJobCreate, request: Request, user: Admin
 ) -> ResearchJobView:
+    repository = ResearchJobRepository(request.app.state.sessions)
+    if await repository.count_active() >= MAX_ACTIVE_RESEARCH_JOBS:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many active research jobs -- wait for one to finish or cancel one first",
+        )
+
     now = int(time.time())
     job = ResearchJob(
         job_id=str(uuid4()),
@@ -42,7 +55,6 @@ async def create_research_job(
         status=ResearchJobStatus.PENDING,
         created_at=datetime.fromtimestamp(now, UTC),
     )
-    repository = ResearchJobRepository(request.app.state.sessions)
     await repository.enqueue(job, {"purpose": body.purpose})
     row = await repository.get(job.job_id)
     if row is None:

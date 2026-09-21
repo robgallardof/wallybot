@@ -1,17 +1,29 @@
 """PostgreSQL queue for isolated research work; deliberately unrelated to execution jobs."""
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from wallybot.domain.research_job import ResearchJob, ResearchJobStatus
 from wallybot.infrastructure.models import JobRow
 
 _KIND = "RESEARCH"
+_ACTIVE_STATUSES = (ResearchJobStatus.PENDING.value, ResearchJobStatus.RUNNING.value)
 
 
 class ResearchJobRepository:
     def __init__(self, sessions: async_sessionmaker[AsyncSession]) -> None:
         self.sessions = sessions
+
+    async def count_active(self) -> int:
+        """Number of PENDING/RUNNING research jobs right now -- the queue-depth quota
+        (`create_research_job`'s own check) reads this before enqueuing another one."""
+        async with self.sessions() as db:
+            count = await db.scalar(
+                select(func.count())
+                .select_from(JobRow)
+                .where(JobRow.kind == _KIND, JobRow.status.in_(_ACTIVE_STATUSES))
+            )
+            return count or 0
 
     async def enqueue(self, job: ResearchJob, payload: dict[str, str]) -> None:
         async with self.sessions.begin() as db:

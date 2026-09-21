@@ -199,6 +199,23 @@ export const backtestHistorySchema = z.object({
   rows: z.array(backtestHistoryRowSchema),
 });
 
+export const researchJobSchema = z.object({
+  id: z.string(),
+  experiment_id: z.string(),
+  purpose: z.string(),
+  status: z.enum(["PENDING", "RUNNING", "CANCELLED", "COMPLETED", "FAILED"]),
+  attempts: z.number(),
+  cancel_requested: z.boolean(),
+  artifact_uri: z.string().nullable(),
+  error: z.string().nullable(),
+  created_at: z.number(),
+  claimed_at: z.number().nullable(),
+  completed_at: z.number().nullable(),
+});
+export const researchJobListSchema = z.object({
+  rows: z.array(researchJobSchema),
+});
+
 export const providerConnectionSchema = z.object({
   id: z.string(), provider: z.string(), label: z.string(), mode: z.string(),
   status: z.string(), has_credentials: z.boolean(), created_at: z.number(),

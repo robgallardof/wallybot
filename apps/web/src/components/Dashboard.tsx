@@ -24,6 +24,7 @@ import { ConnectionsPage } from "./dashboard/pages/ConnectionsPage";
 import { useConnectionsData } from "../hooks/useConnectionsData";
 import { useTelegramData } from "../hooks/useTelegramData";
 import { useTelegramConfirmationsData } from "../hooks/useTelegramConfirmationsData";
+import { useResearchJobsData } from "../hooks/useResearchJobsData";
 import { SettingsPage } from "./dashboard/pages/SettingsPage";
 import { DocsPage } from "./dashboard/pages/DocsPage";
 import { PortfolioPage } from "./dashboard/pages/PortfolioPage";
@@ -68,6 +69,11 @@ export function Dashboard({
   const { history: backtestHistory, run: runBacktest } = useBacktestsData(
     page === "research",
   );
+  const {
+    jobs: researchJobs,
+    create: createResearchJob,
+    cancel: cancelResearchJob,
+  } = useResearchJobsData(page === "research");
   const { connections, add: addConnection } = useConnectionsData(
     page === "connections",
   );
@@ -117,7 +123,14 @@ export function Dashboard({
         />
       )}
       {page === "research" && (
-        <BacktestsPage history={backtestHistory} run={runBacktest} />
+        <BacktestsPage
+          history={backtestHistory}
+          run={runBacktest}
+          researchJobs={researchJobs}
+          createResearchJob={createResearchJob}
+          cancelResearchJob={cancelResearchJob}
+          role={user.role}
+        />
       )}
       {page === "portfolio" && (
         <PortfolioPage portfolio={portfolio} fund={fundPortfolio} navigate={navigate} />

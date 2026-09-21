@@ -189,6 +189,7 @@ async function shell(page: Page, role: "ADMIN" | "VIEWER" = "VIEWER") {
       "/api/intelligence/wallet-activity": { rows: [] },
       "/api/intelligence/entity-graph": { rows: [] },
       "/api/backtests": { rows: [] },
+      "/api/research/jobs": { rows: [] },
       "/api/telegram": { has_bot_token: false, chat_id: null, enabled: false },
       "/api/telegram/confirmations": { rows: [] },
       "/api/auth/confirm-mfa": { ok: true },
@@ -713,4 +714,72 @@ test("backtests page runs a backtest, refreshes history and surfaces a 422 as an
   await expect(runPanel.getByRole("alert")).toContainText(
     "need at least 5 candles",
   );
+});
+
+test("research jobs panel creates, lists and cancels a job", async ({ page }) => {
+  await shell(page, "ADMIN");
+  let jobs: Array<Record<string, unknown>> = [];
+  await page.route("**/api/research/jobs", async (route) => {
+    const method = route.request().method();
+    if (method === "GET") {
+      await route.fulfill({ json: { rows: jobs } });
+      return;
+    }
+    if (method === "POST") {
+      const job = {
+        id: "job-1",
+        experiment_id: "exp-42",
+        purpose: "check drift",
+        status: "PENDING",
+        attempts: 0,
+        cancel_requested: false,
+        artifact_uri: null,
+        error: null,
+        created_at: 1758400000,
+        claimed_at: null,
+        completed_at: null,
+      };
+      jobs = [job];
+      await route.fulfill({ json: job });
+      return;
+    }
+    throw new Error(`Unexpected method for /api/research/jobs: ${method}`);
+  });
+  await page.route("**/api/research/jobs/job-1", async (route) => {
+    const cancelled = {
+      id: "job-1",
+      experiment_id: "exp-42",
+      purpose: "check drift",
+      status: "CANCELLED",
+      attempts: 0,
+      cancel_requested: true,
+      artifact_uri: null,
+      error: null,
+      created_at: 1758400000,
+      claimed_at: null,
+      completed_at: 1758400100,
+    };
+    jobs = [cancelled];
+    await route.fulfill({ json: cancelled });
+  });
+
+  await page.goto("/research");
+  const panel = page.locator("article.panel", {
+    hasText: "Trabajos de investigación",
+  });
+  await expect(
+    panel.getByText("Todavía no se envió ningún trabajo de investigación."),
+  ).toBeVisible();
+
+  await panel.getByLabel("Identificador del experimento").fill("exp-42");
+  await panel.getByLabel("Propósito").fill("check drift");
+  await panel
+    .getByRole("button", { name: "Enviar a investigación" })
+    .click();
+
+  const row = panel.getByRole("row", { name: /exp-42/ });
+  await expect(row).toContainText("Pendiente");
+  await row.getByRole("button", { name: "Cancelar" }).click();
+  await expect(row).toContainText("Cancelado");
+  await expect(row.getByRole("button", { name: "Cancelar" })).toHaveCount(0);
 });
