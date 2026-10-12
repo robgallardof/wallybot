@@ -55,6 +55,7 @@ async def assess_equity(
     cash_currency: str,
     bucket: Bucket,
     now: datetime,
+    persist: bool = True,
 ) -> EquityAssessment:
     async with sessions() as db:
         balances = await PortfolioRepository(db).list_balances(account_id)
@@ -103,16 +104,17 @@ async def assess_equity(
     weekly_loss = compute_weekly_loss(history, equity, now)
     drawdown = compute_drawdown(equity, high_water_mark)
 
-    async with sessions.begin() as db:
-        await EquitySnapshotRepository(db).save(
-            EquitySnapshot(
-                account_id=account_id,
-                environment=environment,
-                equity=equity,
-                high_water_mark=high_water_mark,
-                recorded_at=now,
+    if persist:
+        async with sessions.begin() as db:
+            await EquitySnapshotRepository(db).save(
+                EquitySnapshot(
+                    account_id=account_id,
+                    environment=environment,
+                    equity=equity,
+                    high_water_mark=high_water_mark,
+                    recorded_at=now,
+                )
             )
-        )
 
     return EquityAssessment(
         portfolio_state=portfolio_state,

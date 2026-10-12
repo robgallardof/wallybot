@@ -19,3 +19,6 @@ Accepted for the design baseline; runtime evidence remains pending. Supersede a 
 | [013](013-managed-investment-scope.md) | Managed investment scope and no-withdrawal boundary |
 | [014](014-multi-provider-investment-platform.md) | Multi-provider connectivity, token management and copy-signal controls |
 | [015](015-tenant-isolation.md) | Per-user investment workspaces and secret isolation |
+| [016](016-ai-autonomous-account.md) | Superseded by ADR-017 |
+| [017](017-approved-ai-proposals.md) | AI proposals, per-operation human approval and no-withdrawal boundary |
+| [018](018-real-spot-objective.md) | Operator-configured, MFA-approved real Kraken spot trading |

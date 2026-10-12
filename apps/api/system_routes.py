@@ -21,8 +21,9 @@ from apps.api.dto import (
 from apps.api.schemas import ControlChange
 from wallybot.application.notification_dispatch import dispatch_telegram_notification
 from wallybot.domain.control import Control, Environment, Role, Status
+from wallybot.infrastructure.live_models import LiveControlRow
 from wallybot.infrastructure.metrics import SERVICE_HEARTBEAT_AGE
-from wallybot.infrastructure.models import ControlRow, EventRow, HeartbeatRow
+from wallybot.infrastructure.models import AiAutonomyControlRow, ControlRow, EventRow, HeartbeatRow
 from wallybot.infrastructure.telegram_config_repository import TelegramConfigRepository
 from wallybot.notifications.telegram import Notification, NotificationSeverity
 from wallybot.security.auth import AuthError, audit
@@ -36,11 +37,21 @@ async def dashboard(request: Request, user: SignedIn) -> DashboardView:
         state = await db.get(ControlRow, 1)
         if state is None:
             raise AuthError("System not initialized", 503)
+        live = await db.get(LiveControlRow, 1)
+        ready = bool(
+            request.app.state.settings.live_capable
+            and live
+            and live.owner_id == user.id
+            and live.enabled
+            and live.state == "READY"
+            and state.environment == "LIVE"
+            and state.status == "RUNNING"
+        )
         return DashboardView(
-            environment=state.environment,
+            environment=Environment(state.environment),
             status=Status(state.status),
-            trading_available=False,
-            exchange="NOT_CONFIGURED",
+            trading_available=ready,
+            exchange="KRAKEN_SPOT_REAL" if ready else "KRAKEN_PUBLIC_DATA",
             equity=None,
             positions=[],
             phase=1,
@@ -53,6 +64,7 @@ async def system(request: Request, user: SignedIn) -> SystemView:
         await db.execute(text("SELECT 1"))
         beats = (await db.scalars(select(HeartbeatRow))).all()
         telegram_config = await TelegramConfigRepository(db).get()
+        ai_autonomy = await db.get(AiAutonomyControlRow, 1)
     telegram_ready = bool(
         telegram_config
         and telegram_config.enabled
@@ -72,7 +84,7 @@ async def system(request: Request, user: SignedIn) -> SystemView:
         )
         for beat in beats
     }
-    for name in ("worker", "scheduler", "research"):
+    for name in ("worker", "scheduler", "research", "ai_worker"):
         services.setdefault(name, ServiceStatusView(age_seconds=None, status="UNAVAILABLE"))
     for name, view in services.items():
         if view.age_seconds is not None:
@@ -82,10 +94,16 @@ async def system(request: Request, user: SignedIn) -> SystemView:
         database="HEALTHY",
         redis=redis_status,
         services=services,
-        exchange="NOT_CONFIGURED",
-        ai="DISABLED",
+        exchange="KRAKEN_PUBLIC_DATA",
+        ai=(
+            "DISABLED"
+            if not ai_autonomy or ai_autonomy.status != "ENABLED"
+            else "ANALYZING"
+            if services["ai_worker"].status == "HEALTHY"
+            else "UNAVAILABLE"
+        ),
         telegram="ENABLED" if telegram_ready else "DISABLED",
-        live_available=False,
+        live_available=request.app.state.settings.live_capable,
     )
 
 
@@ -221,6 +239,10 @@ async def export_events(
 
 @router.post("/control", response_model=ControlView)
 async def control(body: ControlChange, request: Request, user: Admin) -> ControlView:
+    if body.environment == Environment.LIVE:
+        raise HTTPException(
+            409, "Configure and activate the real account with explicit limits first"
+        )
     async with request.app.state.sessions.begin() as db:
         row = await db.get(ControlRow, 1, with_for_update=True)
         if row is None:
@@ -228,6 +250,11 @@ async def control(body: ControlChange, request: Request, user: Admin) -> Control
         current = Control(Environment(row.environment), Status(row.status))
         changed = current.change(body.status, Role(user.role), body.environment)
         changed_state = row.status != changed.status or row.environment != changed.environment
+        if body.environment is not None and body.environment != Environment.LIVE:
+            live = await db.get(LiveControlRow, 1, with_for_update=True)
+            if live is not None and live.enabled:
+                live.enabled, live.state = False, "DISABLED"
+                audit(db, "LIVE_DISABLED", user.id)
         if changed_state:
             row.environment = changed.environment
             row.status = changed.status

@@ -3,8 +3,9 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from wallybot.domain.ai_autonomy import AiAutonomyStatus
 from wallybot.domain.control import Environment, Status
 
 
@@ -43,9 +44,25 @@ class MfaConfirm(Input):
     code: str = Field(min_length=6, max_length=6)
 
 
+class PasswordChange(Input):
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=12, max_length=256)
+
+
 class ControlChange(Input):
     status: Status
     environment: Environment | None = None
+
+
+class AiAutonomyChange(Input):
+    status: AiAutonomyStatus
+    target_core_pct: Decimal | None = Field(default=None, ge=0, le=1)
+    target_growth_pct: Decimal | None = Field(default=None, ge=0, le=1)
+    target_speculative_pct: Decimal | None = Field(default=None, ge=0, le=1)
+    digest_interval_hours: int | None = Field(default=None, ge=1)
+    codex_enabled: bool | None = None
+    claude_enabled: bool | None = None
+    require_consensus: bool | None = None
 
 
 class BacktestRun(Input):
@@ -85,11 +102,19 @@ class ResearchJobCreate(Input):
 class ProviderConnectionCreate(Input):
     provider: Literal["BINANCE", "BITSO", "KRAKEN", "COINBASE", "WALLET", "TIINGO"]
     label: str = Field(min_length=1, max_length=100)
-    mode: Literal["READ_ONLY", "PAPER"] = "READ_ONLY"
+    mode: Literal["READ_ONLY", "PAPER", "TRADE_ONLY"] = "READ_ONLY"
     # For an exchange: API key + secret (read-only/PAPER scope only -- never trade-only here).
     # For a wallet: only api_key is used, holding the public address.
     api_key: str | None = Field(default=None, max_length=4096)
     api_secret: str | None = Field(default=None, max_length=4096)
+
+    @model_validator(mode="after")
+    def supported_trading_connection(self) -> "ProviderConnectionCreate":
+        if self.mode == "TRADE_ONLY" and (
+            self.provider != "KRAKEN" or not self.api_key or not self.api_secret
+        ):
+            raise ValueError("Spot trading connections require Kraken API key and secret")
+        return self
 
 
 class TelegramConfigUpdate(Input):

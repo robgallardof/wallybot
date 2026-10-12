@@ -29,11 +29,28 @@ services:
       POSTGRES_DB: wallybot
       POSTGRES_USER: wally_owner
       POSTGRES_PASSWORD_FILE: /run/secrets/owner_password
-    secrets: [owner_password, api_password, worker_password, scheduler_password, research_password]
+    secrets:
+      [owner_password, api_password, worker_password, scheduler_password, research_password,
+       ai_password]
     volumes:
       - postgres:/var/lib/postgresql/data
       - ./docker/init-db.sh:/docker-entrypoint-initdb.d/01-roles.sh:ro
-    networks: [operational, research]
+    # `edge` added solely so Docker Desktop's port-forwarding proxy has a non-internal path to
+    # this container -- confirmed by direct testing that an `internal: true`-only network
+    # (operational/research) cannot be reached by the host's published-port proxy on this
+    # Docker Desktop/WSL2 setup at all (also silently true, pre-existing, of the equally
+    # loopback-only Prometheus/Grafana ports). Being on `edge` does not, by itself, expose
+    # Postgres to the internet -- only an explicit `ports:` entry does that, and this one is
+    # loopback-only; every real access boundary here is still the DB role/password grants, per
+    # SECURITY.md's own "network membership alone is not an authorization boundary" stance.
+    networks: [operational, research, edge]
+    # Loopback-only, unlike every other network path to Postgres: apps/ai_worker runs natively
+    # on the host (not a container -- it needs the user's own locally-installed, already-
+    # authenticated claude/codex CLI), so it can't reach the operational/research Docker
+    # networks and needs a real port. No override var here, unlike gateway's WALLY_BIND_IP --
+    # this must never be reachable from outside the host. Host port 5433, not 5432: this
+    # machine already has a separate, unrelated native Postgres service bound to 5432.
+    ports: ["127.0.0.1:5433:5432"]
     healthcheck:
       test: [CMD-SHELL, "pg_isready -U wally_owner -d wallybot"]
       interval: 5s
@@ -72,6 +89,9 @@ services:
 
   api:
     <<: *app
+    environment:
+      <<: *environment
+      WALLY_LIVE_CAPABLE: ${WALLY_LIVE_CAPABLE:-true}
     # glibc runtime so duckdb (Phase 5 backtesting) installs from a wheel instead of compiling
     # from musl source -- see docker/api.Dockerfile's "research variant" comment and ADR-012.
     build:
@@ -262,6 +282,7 @@ secrets:
   worker_password: {file: .secrets/worker_password}
   scheduler_password: {file: .secrets/scheduler_password}
   research_password: {file: .secrets/research_password}
+  ai_password: {file: .secrets/ai_password}
   redis_password: {file: .secrets/redis_password}
   owner_database_url: {file: .secrets/owner_database_url}
   api_database_url: {file: .secrets/api_database_url}

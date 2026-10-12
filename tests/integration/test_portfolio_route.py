@@ -86,6 +86,25 @@ def add_fill_for(db, account_id: str, fill_id: str, client_order_id: str) -> Non
     )
 
 
+def add_executed_proposal(db, owner_id: str, proposal_id: str, client_order_id: str) -> None:
+    """Create the minimum immutable proposal evidence for a fill-provenance API test."""
+    db.execute(
+        """INSERT INTO trade_proposals (
+             proposal_id, venue, base, quote, direction, strategy_id, confidence,
+             suggested_allocation_pct, entry_price, stop_price, take_profit_price,
+             time_horizon_seconds, signal_ttl_seconds, reasons, risks, supporting_signal_ids,
+             invalidating_conditions, source_event_ids, model_id, prompt_version, as_of, owner_id,
+             decision_status, decided_at, execution_status, execution_order_id, execution_reasons
+           ) VALUES (
+             %s, 'kraken', 'BTC', 'USD', 'LONG', 'ai-consensus', 0.8,
+             0.05, 50000, NULL, NULL, 86400, 3600, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb,
+             '[]'::jsonb, '[]'::jsonb, 'consensus:codex+claude', 'consensus/v1', NOW(), %s,
+             'APPROVED', NOW(), 'FILLED', %s, '[]'::jsonb
+           )""",
+        (proposal_id, owner_id, client_order_id),
+    )
+
+
 def test_portfolio_requires_auth(client) -> None:
     assert client.get("/api/portfolio").status_code == 401
 
@@ -181,6 +200,7 @@ def test_portfolio_reads_only_the_signed_in_users_paper_ledger(client, settings,
     add_balanced_posting_pair(db, own_account_id, "USD", "CASH", "-250.25", "cash-fill")
     add_balanced_posting_pair(db, own_account_id, "BTC", "POSITION", "0.005", "btc-fill")
     add_fill(db, own_account_id)
+    add_executed_proposal(db, user_id, "proposal-portfolio-history", "portfolio-order")
     add_balanced_posting_pair(db, "paper:another-user", "USD", "CASH", "99999", "other-fill")
 
     response = client.get("/api/portfolio")
@@ -205,8 +225,33 @@ def test_portfolio_reads_only_the_signed_in_users_paper_ledger(client, settings,
             "fee": "0.25",
             "fee_currency": "USD",
             "occurred_at": body["activity"][0]["occurred_at"],
+            "proposal_id": "proposal-portfolio-history",
         }
     ]
+    assert body["proposal_history"] == [
+        {
+            "proposal_id": "proposal-portfolio-history",
+            "base": "BTC",
+            "quote": "USD",
+            "direction": "BUY",
+            "filled_quantity": "0.005",
+            "filled_price": "50000",
+            "filled_at": body["proposal_history"][0]["filled_at"],
+            "held_for_seconds": body["proposal_history"][0]["held_for_seconds"],
+            "stop_price": None,
+            "take_profit_price": None,
+            "execution_status": "FILLED",
+            "remaining_quantity": "0.005",
+            "realized_pnl": "0",
+            "current_price": None,
+            "quote_at": None,
+            "quote_source": None,
+            "unrealized_pnl": None,
+            "closed_at": None,
+            "monitoring_status": "QUOTE_UNAVAILABLE",
+        }
+    ]
+    assert body["proposal_history"][0]["held_for_seconds"] >= 0
 
 
 def test_export_requires_auth(client) -> None:

@@ -1,11 +1,33 @@
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
-import { AlertTriangle, TrendingUp } from "lucide-react";
+import { FaTriangleExclamation, FaArrowTrendUp } from "react-icons/fa6";
 import i18n from "../../../lib/i18n";
 import type { marketsSchema } from "../../../lib/dto";
 import type { UseQueryResult } from "@tanstack/react-query";
 import type { z } from "zod";
 import { PageSkeleton } from "../PageSkeleton";
+import { useMarketDetail } from "../../../hooks/useMarketDetail";
+
+function CandleChart({ candles }: { candles: Array<{ open: string; high: string; low: string; close: string }> }) {
+  const visible = candles.slice(-48);
+  const values = visible.flatMap((candle) => [Number(candle.low), Number(candle.high)]);
+  const low = Math.min(...values);
+  const high = Math.max(...values);
+  const range = high - low || 1;
+  const y = (value: string) => 176 - ((Number(value) - low) / range) * 160;
+  const width = 680 / Math.max(visible.length, 1);
+  return (
+    <svg className="candle-chart" viewBox="0 0 720 200" role="img" aria-label={i18n.t("Velas recientes") }>
+      {visible.map((candle, index) => {
+        const x = 20 + index * width + width / 2;
+        const rising = Number(candle.close) >= Number(candle.open);
+        const top = Math.min(y(candle.open), y(candle.close));
+        const body = Math.max(Math.abs(y(candle.open) - y(candle.close)), 2);
+        return <g className={rising ? "candle-up" : "candle-down"} key={index}><line x1={x} x2={x} y1={y(candle.high)} y2={y(candle.low)} /><rect x={x - Math.max(width * .27, 1)} y={top} width={Math.max(width * .54, 2)} height={body} rx="1" /></g>;
+      })}
+    </svg>
+  );
+}
 
 export function MarketsPage({
   markets,
@@ -16,9 +38,11 @@ export function MarketsPage({
   const [search, setSearch] = useState("");
   const [eligibility, setEligibility] = useState("all");
   const [quality, setQuality] = useState("all");
+  const [selectedInstrument, setSelectedInstrument] = useState<string | null>(null);
+  const detail = useMarketDetail(selectedInstrument);
 
   if (markets.isPending) {
-    return <PageSkeleton rows={4} />;
+    return <PageSkeleton rows={4} label={i18n.t("Cargando mercados…")} />;
   }
   if (markets.isError && !markets.data) {
     return (
@@ -205,50 +229,33 @@ export function MarketsPage({
                   <td>
                     {row.eligible ? (
                       <span className="service-status good">
-                        <TrendingUp size={14} /> {i18n.t("Elegible")}
+                        <FaArrowTrendUp size={13} /> {i18n.t("Elegible")}
                       </span>
                     ) : (
                       <span
                         className="service-status"
                         title={row.rejection_reasons.join("; ")}
                       >
-                        <AlertTriangle size={14} /> {i18n.t("Excluido")}
+                        <FaTriangleExclamation size={13} /> {i18n.t("Excluido")}
                       </span>
                     )}
                   </td>
                   <td className="market-details">
-                    <details>
-                      <summary>{i18n.t("Ver motivos")}</summary>
-                      <strong>
-                        {row.base}/{row.quote}
-                      </strong>
-                      <p>
-                        {i18n.t("Precios expresados en {{currency}}", {
-                          currency: row.quote,
-                        })}
-                      </p>
-                      {[...row.quality_reasons, ...row.rejection_reasons]
-                        .length ? (
-                        <ul>
-                          {[
-                            ...new Set([
-                              ...row.quality_reasons,
-                              ...row.rejection_reasons,
-                            ]),
-                          ].map((reason) => (
-                            <li key={reason}>{reason}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p>{i18n.t("Sin motivos de exclusión informados.")}</p>
-                      )}
-                    </details>
+                    <button className="button button-outline" onClick={() => setSelectedInstrument(row.id)}>
+                      {i18n.t("Ver detalle")}
+                    </button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+      {selectedInstrument && (
+        <section className="market-detail-panel" aria-live="polite">
+          <div className="panel-heading"><div><p className="eyebrow">{i18n.t("DETALLE DE MERCADO")}</p><h2>{detail.data ? `${detail.data.base}/${detail.data.quote}` : i18n.t("Cargando detalle…")}</h2></div><button className="button button-outline" onClick={() => setSelectedInstrument(null)}>{i18n.t("Cerrar")}</button></div>
+          {detail.isError ? <p className="error" role="alert">{i18n.t("No se pudo cargar el detalle de este mercado.")}</p> : detail.isPending ? <PageSkeleton rows={2} label={i18n.t("Cargando detalle…")} /> : detail.data && <><CandleChart candles={detail.data.candles} /><div className="market-detail-stats"><span><small>{i18n.t("Compra")}</small><strong>{detail.data.bid}</strong></span><span><small>{i18n.t("Venta")}</small><strong>{detail.data.ask}</strong></span><span><small>{i18n.t("Volumen reciente")}</small><strong>{detail.data.candles.at(-1)?.volume ?? "—"}</strong></span><span><small>{i18n.t("Calidad")}</small><strong>{detail.data.quality_status}</strong></span></div></>}
+        </section>
       )}
       <p className="footnote">
         {i18n.t("Última actualización")}:{" "}

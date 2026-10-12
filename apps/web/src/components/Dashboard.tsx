@@ -30,7 +30,11 @@ import { DocsPage } from "./dashboard/pages/DocsPage";
 import { MfaConfirmationModal } from "./MfaConfirmationModal";
 import { PortfolioPage } from "./dashboard/pages/PortfolioPage";
 import { usePortfolioData } from "../hooks/usePortfolioData";
+import { useAiPortfolioData } from "../hooks/useAiPortfolioData";
+import { useAiAutonomyData } from "../hooks/useAiAutonomyData";
 import { useBreakersData, useRiskLimitsData } from "../hooks/useBreakersData";
+import { useSecurityData } from "../hooks/useSecurityData";
+import { useProposalsData } from "../hooks/useProposalsData";
 
 export function Dashboard({
   user,
@@ -68,6 +72,7 @@ export function Dashboard({
   const priceConsensus = usePriceConsensusData(page === "intelligence");
   const walletActivity = useWalletActivityData(page === "intelligence");
   const entityGraph = useEntityGraphData(page === "intelligence");
+  const proposals = useProposalsData(page === "intelligence");
   const { history: backtestHistory, run: runBacktest } = useBacktestsData(
     page === "research",
   );
@@ -82,11 +87,18 @@ export function Dashboard({
   const { telegram, save: saveTelegram } = useTelegramData(page === "settings");
   const { confirmations: telegramConfirmations, confirm: confirmTelegramConfirmation } =
     useTelegramConfirmationsData(page === "settings");
-  const { portfolio, fund: fundPortfolio } = usePortfolioData(
+  const { portfolio, fund: fundPortfolio, cancelOrder } = usePortfolioData(
     page === "portfolio" || page === "dashboard",
+  );
+  const { portfolio: aiPortfolio, fund: fundAiPortfolio } = useAiPortfolioData(
+    page === "portfolio",
+  );
+  const { control: aiAutonomy, change: changeAiAutonomy } = useAiAutonomyData(
+    page === "settings",
   );
   const { breakers, clear: clearBreaker } = useBreakersData(page === "risk");
   const riskLimits = useRiskLimitsData(page === "risk");
+  const security = useSecurityData(page === "settings");
   function navigate(next: string) {
     router.push(`/${next}`);
   }
@@ -123,6 +135,9 @@ export function Dashboard({
           priceConsensus={priceConsensus}
           walletActivity={walletActivity}
           entityGraph={entityGraph}
+          proposals={proposals}
+          canSimulate={dashboard.data?.environment === "PAPER"}
+          environment={dashboard.data?.environment}
         />
       )}
       {page === "risk" && (
@@ -146,7 +161,14 @@ export function Dashboard({
         />
       )}
       {page === "portfolio" && (
-        <PortfolioPage portfolio={portfolio} fund={fundPortfolio} navigate={navigate} />
+        <PortfolioPage
+          portfolio={portfolio}
+          fund={fundPortfolio}
+          cancelOrder={cancelOrder}
+          navigate={navigate}
+          aiPortfolio={aiPortfolio}
+          fundAi={fundAiPortfolio}
+        />
       )}
       {page === "connections" && (
         <ConnectionsPage connections={connections} add={addConnection} />
@@ -161,6 +183,9 @@ export function Dashboard({
           confirmMfa={confirmMfa}
           telegramConfirmations={telegramConfirmations}
           confirmTelegramConfirmation={confirmTelegramConfirmation}
+          security={security}
+          aiAutonomy={aiAutonomy}
+          changeAiAutonomy={changeAiAutonomy}
         />
       )}
       {page === "docs" && <DocsPage />}

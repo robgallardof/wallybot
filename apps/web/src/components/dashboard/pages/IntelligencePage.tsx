@@ -10,6 +10,8 @@ import type {
   walletActivitySchema,
   whaleFlowSchema,
 } from "../../../lib/dto";
+import type { useProposalsData } from "../../../hooks/useProposalsData";
+import { ProposalsSection } from "./ProposalsSection";
 import { SmartMoneyPage } from "./SmartMoneyPage";
 import { WhaleFlowSection } from "./WhaleFlowSection";
 import { TokenRiskSection } from "./TokenRiskSection";
@@ -26,6 +28,9 @@ export function IntelligencePage({
   priceConsensus,
   walletActivity,
   entityGraph,
+  proposals,
+  canSimulate,
+  environment,
 }: {
   smartMoney: UseQueryResult<z.infer<typeof smartMoneySchema>>;
   whaleFlow: UseQueryResult<z.infer<typeof whaleFlowSchema>>;
@@ -36,9 +41,13 @@ export function IntelligencePage({
   priceConsensus: UseQueryResult<z.infer<typeof priceConsensusSchema>>;
   walletActivity: UseQueryResult<z.infer<typeof walletActivitySchema>>;
   entityGraph: UseQueryResult<z.infer<typeof entityGraphSchema>>;
+  proposals: ReturnType<typeof useProposalsData>;
+  canSimulate: boolean;
+  environment?: string;
 }) {
   const { t } = useTranslation();
   const sections = [
+    { id: "proposals", label: "Propuestas de WallyBot", query: proposals.proposals, content: <ProposalsSection proposals={proposals} canSimulate={canSimulate} environment={environment} /> },
     {
       id: "smart-money",
       label: "Wallets Smart Money",

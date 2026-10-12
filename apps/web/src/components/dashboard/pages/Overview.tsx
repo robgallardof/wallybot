@@ -1,11 +1,18 @@
 import { useTranslation } from "react-i18next";
-import { ArrowUpRight, CircleHelp, FlaskConical, Radio, Wallet } from "lucide-react";
+import {
+  FaArrowUpRightFromSquare,
+  FaCircleQuestion,
+  FaFlask,
+  FaRadio,
+  FaWallet,
+} from "react-icons/fa6";
 import i18n from "../../../lib/i18n";
 import type { eventsSchema, portfolioSchema, systemSchema } from "../../../lib/dto";
 import type { UseQueryResult } from "@tanstack/react-query";
 import type { z } from "zod";
 import { Service } from "../Service";
 import { EventList } from "../EventList";
+import { useLiveTrading } from "../../../hooks/useLiveTrading";
 
 export function Overview({
   system,
@@ -17,10 +24,11 @@ export function Overview({
   system: UseQueryResult<z.infer<typeof systemSchema>>;
   events: UseQueryResult<z.infer<typeof eventsSchema>>;
   portfolio: UseQueryResult<z.infer<typeof portfolioSchema>>;
-  environment?: "OBSERVE" | "PAPER";
+  environment?: "OBSERVE" | "PAPER" | "LIVE";
   navigate: (next: string) => void;
 }) {
   useTranslation();
+  const { live } = useLiveTrading(environment === "LIVE");
   const operational =
     system.data &&
     system.data.redis === "HEALTHY" &&
@@ -41,26 +49,26 @@ export function Overview({
       <section className="metrics-grid">
         {[
           [
-            i18n.t("Efectivo PAPER"),
-            portfolio.data ? `${formatUsd(cashUsd)} USD` : "—",
-            portfolio.data
+            i18n.t(environment === "LIVE" ? "Efectivo real" : "Efectivo PAPER"),
+            environment === "LIVE" ? `${live.data?.balances.find(row => row.asset === "USD")?.amount ?? "—"} USD` : portfolio.data ? `${formatUsd(cashUsd)} USD` : "—",
+            environment === "LIVE" ? i18n.t("Saldo reconciliado con Kraken") : portfolio.data
               ? i18n.t("Saldo de simulación disponible")
               : i18n.t("Cargando saldo de simulación"),
           ],
           [
-            i18n.t("Resultado realizado"),
-            pnlUsd ? `${formatUsd(Number(pnlUsd.realized_pnl))} USD` : "—",
-            pnlUsd ? i18n.t("Calculado con lotes FIFO") : i18n.t("Sin cierres registrados"),
+            i18n.t(environment === "LIVE" ? "Valor de la cuenta real" : "Resultado realizado"),
+            environment === "LIVE" ? `${live.data?.equity_usd ?? "—"} USD` : pnlUsd ? `${formatUsd(Number(pnlUsd.realized_pnl))} USD` : "—",
+            environment === "LIVE" ? live.data?.as_of ?? i18n.t("Sin valoración verificada") : pnlUsd ? i18n.t("Calculado con lotes FIFO") : i18n.t("Sin cierres registrados"),
           ],
           [
             i18n.t("Posiciones abiertas"),
-            portfolio.data ? String(positions.length) : "—",
-            portfolio.data ? i18n.t("Posiciones registradas en PAPER") : i18n.t("Cargando actividad"),
+            environment === "LIVE" ? String(live.data?.balances.filter(row => row.asset !== "USD" && Number(row.amount) > 0).length ?? 0) : portfolio.data ? String(positions.length) : "—",
+            environment === "LIVE" ? i18n.t("Posiciones reales reconciliadas") : portfolio.data ? i18n.t("Posiciones registradas en PAPER") : i18n.t("Cargando actividad"),
           ],
           [
             i18n.t("Modo de operación"),
             environment ?? "OBSERVE",
-            environment === "PAPER"
+            environment === "LIVE" ? i18n.t("Dinero real; aprobación y límites obligatorios") : environment === "PAPER"
               ? i18n.t("Órdenes simuladas; sin dinero real")
               : i18n.t("Datos reales; no se generan órdenes"),
           ],
@@ -68,7 +76,7 @@ export function Overview({
           <article className="metric" key={label}>
             <div>
               {label}
-              <CircleHelp size={14} />
+              <FaCircleQuestion size={13} />
             </div>
             <strong className={i === 3 ? "green-value" : ""}>{value}</strong>
             <small>{note}</small>
@@ -87,7 +95,7 @@ export function Overview({
           <div className="empty-chart">
             <div className="chart-grid" />
             <div className="empty-chart-label">
-              <Wallet size={26} />
+              <FaWallet size={24} />
               <h3>{i18n.t("Todo empieza con una base sólida")}</h3>
               <p>
                 {i18n.t(
@@ -116,7 +124,7 @@ export function Overview({
         <article className="panel system-summary">
           <div className="panel-heading">
             <h2>{i18n.t("Estado del sistema")}</h2>
-            <Radio size={17} />
+            <FaRadio size={15} />
           </div>
           <div className="system-state">
             <span
@@ -148,7 +156,7 @@ export function Overview({
           />
           <button className="text-button" onClick={() => navigate("system")}>
             {i18n.t("Ver todos los servicios")}
-            <ArrowUpRight size={16} />
+            <FaArrowUpRightFromSquare size={14} />
           </button>
         </article>
       </section>
@@ -158,14 +166,14 @@ export function Overview({
             <h2>{i18n.t("Actividad reciente")}</h2>
             <button className="text-button" onClick={() => navigate("events")}>
               {i18n.t("Ver todo")}
-              <ArrowUpRight size={15} />
+              <FaArrowUpRightFromSquare size={13} />
             </button>
           </div>
           <EventList events={events.data?.slice(0, 4)} />
         </article>
         <article className="next-step">
           <span className="eyebrow">{i18n.t("EL SIGUIENTE PASO")}</span>
-          <FlaskConical size={26} />
+          <FaFlask size={24} />
           <h2>{i18n.t("Observar antes de actuar.")}</h2>
           <p>
             {i18n.t(

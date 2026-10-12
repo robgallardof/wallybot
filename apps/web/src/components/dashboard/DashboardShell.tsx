@@ -1,20 +1,20 @@
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Activity,
-  BookOpen,
-  Brain,
-  Cable,
-  FlaskConical,
-  LayoutDashboard,
-  LineChart,
-  LogOut,
-  Menu,
-  Settings,
-  Settings2,
-  ShieldCheck,
-  Wallet,
-} from "lucide-react";
+  FaArrowRightFromBracket,
+  FaBars,
+  FaBookOpen,
+  FaBrain,
+  FaChartLine,
+  FaFlask,
+  FaGaugeHigh,
+  FaGear,
+  FaPlug,
+  FaShieldHalved,
+  FaSliders,
+  FaTimeline,
+  FaWallet,
+} from "react-icons/fa6";
 import i18n from "../../lib/i18n";
 import type { meSchema } from "../../lib/dto";
 import type { z } from "zod";
@@ -23,17 +23,17 @@ import { ThemeToggle } from "../ThemeToggle";
 import { Button } from "../ui/button";
 
 const navigation = [
-  ["docs", "Documentación", BookOpen],
-  ["dashboard", "Resumen", LayoutDashboard],
-  ["portfolio", "Portafolio", Wallet],
-  ["connections", "Conexiones", Cable],
-  ["markets", "Mercados", LineChart],
-  ["intelligence", "Inteligencia", Brain],
-  ["research", "Investigación", FlaskConical],
-  ["risk", "Riesgo", ShieldCheck],
-  ["events", "Actividad", Activity],
-  ["system", "Sistema", Settings2],
-  ["settings", "Configuración", Settings],
+  ["docs", "Documentación", FaBookOpen],
+  ["dashboard", "Resumen", FaGaugeHigh],
+  ["portfolio", "Portafolio", FaWallet],
+  ["connections", "Conexiones", FaPlug],
+  ["markets", "Mercados", FaChartLine],
+  ["intelligence", "Inteligencia", FaBrain],
+  ["research", "Investigación", FaFlask],
+  ["risk", "Riesgo", FaShieldHalved],
+  ["events", "Actividad", FaTimeline],
+  ["system", "Sistema", FaSliders],
+  ["settings", "Configuración", FaGear],
 ] as const;
 
 const PAGE_META: Record<string, { eyebrow: string; description: string }> = {
@@ -99,7 +99,7 @@ export function DashboardShell({
   navigate: (next: string) => void;
   hasError: boolean;
   mutationError?: string;
-  environment?: "OBSERVE" | "PAPER";
+  environment?: "OBSERVE" | "PAPER" | "LIVE";
   children: ReactNode;
 }) {
   useTranslation();
@@ -132,7 +132,7 @@ export function DashboardShell({
             onClick={() => setMobileNavOpen((open) => !open)}
             variant="outline"
           >
-            <Menu size={20} />
+            <FaBars size={18} />
           </Button>
         </div>
         <div className="workspace">
@@ -163,10 +163,10 @@ export function DashboardShell({
         </nav>
         <div className="sidebar-bottom">
           <div className="safety-note">
-            <ShieldCheck size={20} />
+            <FaShieldHalved size={18} />
             <strong>{i18n.t("Primero, preservar.")}</strong>
             <p>
-              {i18n.t("La ejecución real no está disponible en esta fase.")}
+              {i18n.t(environment === "LIVE" ? "Las propuestas aprobadas pueden operar con tu dinero real." : "Configura la cuenta y sus límites antes de activar operaciones reales.")}
             </p>
           </div>
           <button
@@ -181,7 +181,7 @@ export function DashboardShell({
               {user.username}
               <small>{user.role}</small>
             </span>
-            <LogOut size={16} />
+            <FaArrowRightFromBracket size={15} />
           </button>
         </div>
       </aside>
@@ -197,7 +197,7 @@ export function DashboardShell({
           </span>
           <div>
             <span className="paper-pill">
-              <i /> {environment ?? "OBSERVE"}
+              <i /> {environment === "LIVE" ? i18n.t("LIVE · Dinero real") : environment ?? "OBSERVE"}
             </span>
             <span className="top-date">
               {new Intl.DateTimeFormat(i18n.resolvedLanguage, {
@@ -211,7 +211,7 @@ export function DashboardShell({
               aria-label={i18n.t("Cerrar sesión")}
               onClick={logout}
             >
-              <LogOut size={17} />
+              <FaArrowRightFromBracket size={16} />
             </button>
           </div>
         </header>
@@ -237,12 +237,14 @@ export function DashboardShell({
           )}
           {showSafetyNotice && (
             <div className="notice">
-              <ShieldCheck size={19} />
+              <FaShieldHalved size={18} />
               <div>
-                <strong>{i18n.t("Entorno seguro")}</strong>
+                <strong>{i18n.t(environment === "LIVE" ? "DINERO REAL ACTIVADO" : "Entorno seguro")}</strong>
                 <span>
                   {" "}
-                  {environment === "PAPER"
+                  {environment === "LIVE"
+                    ? i18n.t("Las propuestas aprobadas pueden enviar órdenes reales al exchange.")
+                    : environment === "PAPER"
                     ? i18n.t("Simulando órdenes con datos de mercado; no se mueven fondos externos.")
                     : i18n.t("Observando mercados reales; todavía no se generan órdenes.")}
                 </span>
@@ -255,7 +257,7 @@ export function DashboardShell({
               WALLYBOT <span>v0.1 · Foundation</span>
             </span>
             <span>
-              <ShieldCheck size={13} />{" "}
+              <FaShieldHalved size={12} />{" "}
               {i18n.t("La preservación del capital guía cada decisión.")}
             </span>
           </footer>

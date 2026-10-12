@@ -19,23 +19,29 @@ from redis.exceptions import RedisError
 from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 
+from apps.api.ai_autonomy_routes import router as ai_autonomy_router
 from apps.api.auth_routes import router as auth_router
 from apps.api.backtest_routes import router as backtest_router
 from apps.api.connection_routes import router as connection_router
 from apps.api.intelligence_routes import router as intelligence_router
+from apps.api.live_routes import router as live_router
 from apps.api.market_routes import router as market_router
 from apps.api.portfolio_routes import paper_account_id
 from apps.api.portfolio_routes import router as portfolio_router
+from apps.api.proposal_routes import router as proposal_router
 from apps.api.research_routes import router as research_router
 from apps.api.risk_routes import router as risk_router
 from apps.api.system_routes import router as system_router
 from apps.api.telegram_routes import router as telegram_router
+from wallybot.application.ai_proposal_digest_job import run_ai_proposal_digest_tick
 from wallybot.application.backtest_orchestrator import BacktestOrchestrator
 from wallybot.application.decision_loop import run_decision_tick
 from wallybot.application.execution_service import ExecutionService
+from wallybot.application.live_trading import LiveTradingService
 from wallybot.application.market_ingestion import ingest_market_data
 from wallybot.application.market_overview import build_market_overview
 from wallybot.application.price_consensus_job import ProviderSource, run_price_consensus_tick
+from wallybot.application.proposal_execution import PaperAiExecution
 from wallybot.application.reconciliation_service import ReconciliationService
 from wallybot.application.telegram_command_loop import run_telegram_command_tick
 from wallybot.application.telegram_report_job import run_telegram_report_tick
@@ -158,9 +164,30 @@ PRICE_CONSENSUS_INTERVAL_SECONDS = 300
 # (symbols verified against Kraken's real `altname` field, not guessed -- Kraken uses its own
 # codes for some assets, e.g. Bitcoin is "XBT" and Dogecoin is "XDG", not "BTC"/"DOGE").
 MARKET_OVERVIEW_PAIRS = (
-    "XBTUSD", "ETHUSD", "SOLUSD", "XRPUSD", "ADAUSD", "XDGUSD", "LTCUSD", "DOTUSD",
-    "LINKUSD", "POLUSD", "AVAXUSD", "BCHUSD", "XLMUSD", "UNIUSD", "ATOMUSD", "ETCUSD",
-    "FILUSD", "NEARUSD", "APTUSD", "ARBUSD", "TRXUSD", "SHIBUSD", "SUIUSD", "OPUSD",
+    "XBTUSD",
+    "ETHUSD",
+    "SOLUSD",
+    "XRPUSD",
+    "ADAUSD",
+    "XDGUSD",
+    "LTCUSD",
+    "DOTUSD",
+    "LINKUSD",
+    "POLUSD",
+    "AVAXUSD",
+    "BCHUSD",
+    "XLMUSD",
+    "UNIUSD",
+    "ATOMUSD",
+    "ETCUSD",
+    "FILUSD",
+    "NEARUSD",
+    "APTUSD",
+    "ARBUSD",
+    "TRXUSD",
+    "SHIBUSD",
+    "SUIUSD",
+    "OPUSD",
 )
 
 
@@ -290,6 +317,7 @@ async def _telegram_command_loop(
     clock: SystemClock,
     id_generator: UuidIdGenerator,
     logger,
+    web_origin: str,
 ) -> None:
     while True:
         try:
@@ -299,7 +327,14 @@ async def _telegram_command_loop(
                 )
             account_id = paper_account_id(admin_id) if admin_id is not None else None
             await run_telegram_command_tick(
-                sessions, crypto, transport, id_generator, account_id, clock.now()
+                sessions,
+                crypto,
+                transport,
+                id_generator,
+                account_id,
+                clock.now(),
+                owner_id=admin_id,
+                web_origin=web_origin,
             )
             TELEGRAM_COMMAND_TICKS.labels("success").inc()
         except asyncio.CancelledError:
@@ -334,6 +369,7 @@ async def _telegram_report_loop(
                     select(UserRow.id).where(UserRow.role == "ADMIN").order_by(UserRow.created_at)
                 )
             if admin_id is not None:
+                now = clock.now()
                 await run_telegram_report_tick(
                     sessions,
                     crypto,
@@ -341,7 +377,10 @@ async def _telegram_report_loop(
                     throttle,
                     paper_account_id(admin_id),
                     "PAPER",
-                    clock.now(),
+                    now,
+                )
+                await run_ai_proposal_digest_tick(
+                    sessions, crypto, transport, throttle, admin_id, now
                 )
         except asyncio.CancelledError:
             raise
@@ -368,11 +407,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.auth = AuthService(sessions, config)
         app.state.throttle = Throttle(redis, config.auth_limit, config.auth_window_seconds)
         telegram_client = httpx.AsyncClient(timeout=10.0)
+        from wallybot.infrastructure.kraken_private_session import DatabaseKrakenTransport
+
+        app.state.kraken_private_factory = lambda key, secret: DatabaseKrakenTransport(
+            engine, key, secret, telegram_client
+        )
         app.state.telegram_transport = HttpxTelegramTransport(telegram_client)
         app.state.notification_throttle = NotificationThrottle()
 
         clock = SystemClock()
         provider = KrakenExchange(clock=clock)
+        app.state.portfolio_market_provider = provider
+        app.state.live_trading = LiveTradingService(
+            engine,
+            sessions,
+            app.state.auth.crypto,
+            app.state.kraken_private_factory,
+            provider,
+            clock,
+            capable=lambda: config.live_capable,
+        )
         quality_policy = QualityPolicy(
             version=1,
             timeframe=MARKET_INGESTION_TIMEFRAME,
@@ -413,15 +467,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         execution = ExecutionService(gateway=paper_gateway, sessions=sessions, clock=clock)
         reconciliation = ReconciliationService(execution=execution, sessions=sessions)
         app.state.execution = execution
+        # Approved AI proposals (ADR-017) settle on `paper-ai:` accounts through their own
+        # simulated venue, so neither account's balance book can leak into the other's checks.
+        ai_paper_gateway = FakeExchange(clock=clock, market_data=provider)
+        ai_execution = ExecutionService(gateway=ai_paper_gateway, sessions=sessions, clock=clock)
+        app.state.paper_ai = PaperAiExecution(
+            gateway=ai_paper_gateway,
+            execution=ai_execution,
+            reconciliation=ReconciliationService(execution=ai_execution, sessions=sessions),
+        )
+        app.state.id_generator = UuidIdGenerator()
         heartbeat_metrics_task = asyncio.create_task(_heartbeat_metrics_loop(sessions, logger))
-        ingestion_task = asyncio.create_task(
-            _market_ingestion_loop(
-                provider=provider,
-                store=HistoricalStore(config.historical_data_root, clock, UuidIdGenerator()),
-                clock=clock,
-                quality_policy=quality_policy,
-                cursor_store=HistoricalIngestionCursorRepository(sessions),
-                logger=logger,
+        # Integration tests invoke ingestion explicitly; startup must not contact markets.
+        ingestion_task = (
+            None
+            if config.environment == "test"
+            else asyncio.create_task(
+                _market_ingestion_loop(
+                    provider=provider,
+                    store=HistoricalStore(config.historical_data_root, clock, UuidIdGenerator()),
+                    clock=clock,
+                    quality_policy=quality_policy,
+                    cursor_store=HistoricalIngestionCursorRepository(sessions),
+                    logger=logger,
+                )
             )
         )
         # Skipped under the integration test suite: `client`-based tests share one Postgres
@@ -479,6 +548,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     clock,
                     UuidIdGenerator(),
                     logger,
+                    config.origin,
                 )
             )
         )
@@ -502,7 +572,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         )
         logger.info("API_STARTED")
+
+        async def monitor_live():
+            while True:
+                try:
+                    await app.state.live_trading.refresh()
+                except Exception:
+                    logger.warning("LIVE_MONITOR_UNAVAILABLE")
+                await asyncio.sleep(30)
+
+        live_task = None if config.environment == "test" else asyncio.create_task(monitor_live())
         yield
+        if live_task is not None:
+            live_task.cancel()
+            try:
+                await live_task
+            except asyncio.CancelledError:
+                pass
         if telegram_report_task is not None:
             telegram_report_task.cancel()
             try:
@@ -527,11 +613,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 await price_consensus_task
             except asyncio.CancelledError:
                 pass
-        ingestion_task.cancel()
-        try:
-            await ingestion_task
-        except asyncio.CancelledError:
-            pass
+        if ingestion_task is not None:
+            ingestion_task.cancel()
+            try:
+                await ingestion_task
+            except asyncio.CancelledError:
+                pass
         heartbeat_metrics_task.cancel()
         try:
             await heartbeat_metrics_task
@@ -635,8 +722,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return Response(generate_latest(), media_type="text/plain; version=0.0.4")
 
     app.include_router(auth_router)
+    app.include_router(ai_autonomy_router)
     app.include_router(connection_router)
+    app.include_router(live_router)
     app.include_router(portfolio_router)
+    app.include_router(proposal_router)
     app.include_router(system_router)
     app.include_router(market_router)
     app.include_router(research_router)

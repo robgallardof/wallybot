@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FlaskConical, KeyRound, MessageCircle, Send, ShieldCheck } from "lucide-react";
+import { Bot, FlaskConical, KeyRound, Lock, MessageCircle, Send, ShieldCheck } from "lucide-react";
 import i18n from "../../../lib/i18n";
 import type {
+  aiAutonomyControlSchema,
   dashboardSchema,
+  enrollmentSchema,
+  sessionListSchema,
   telegramConfigSchema,
   telegramConfirmationListSchema,
   telegramConfirmationSchema,
@@ -11,6 +14,8 @@ import type {
 import type { UseMutationResult, UseQueryResult } from "@tanstack/react-query";
 import type { z } from "zod";
 import { Button } from "../../ui/button";
+import { MfaForm } from "../../auth/MfaForm";
+import { LiveTradingPanel } from "./LiveTradingPanel";
 
 const TELEGRAM_ACTION_LABELS: Record<string, string> = {
   PAUSE: "Pausar instancia",
@@ -32,6 +37,9 @@ export function SettingsPage({
   confirmMfa,
   telegramConfirmations,
   confirmTelegramConfirmation,
+  security,
+  aiAutonomy,
+  changeAiAutonomy,
 }: {
   dashboard: UseQueryResult<z.infer<typeof dashboardSchema>>;
   change: UseMutationResult<
@@ -53,6 +61,36 @@ export function SettingsPage({
     Error,
     string
   >;
+  security: {
+    sessions: UseQueryResult<z.infer<typeof sessionListSchema>>;
+    changePassword: UseMutationResult<
+      { ok: boolean },
+      Error,
+      { current_password: string; new_password: string }
+    >;
+    startTotpReplace: UseMutationResult<z.infer<typeof enrollmentSchema>, Error, void>;
+    finishTotpReplace: UseMutationResult<
+      { ok: boolean },
+      Error,
+      { challenge: string; code: string }
+    >;
+    revokeSession: UseMutationResult<{ ok: boolean }, Error, string>;
+  };
+  aiAutonomy: UseQueryResult<z.infer<typeof aiAutonomyControlSchema>>;
+  changeAiAutonomy: UseMutationResult<
+    z.infer<typeof aiAutonomyControlSchema>,
+    Error,
+    {
+      status: "DISABLED" | "ENABLED";
+      target_core_pct?: string;
+      target_growth_pct?: string;
+      target_speculative_pct?: string;
+      digest_interval_hours?: number;
+      codex_enabled?: boolean;
+      claude_enabled?: boolean;
+      require_consensus?: boolean;
+    }
+  >;
 }) {
   useTranslation();
   const environment = dashboard.data?.environment;
@@ -62,12 +100,37 @@ export function SettingsPage({
     telegram.data?.enabled ?? false,
   );
   const [mfaCode, setMfaCode] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [totpEnrollment, setTotpEnrollment] = useState<z.infer<typeof enrollmentSchema> | null>(
+    null,
+  );
+  const [totpCode, setTotpCode] = useState("");
+  const [corePct, setCorePct] = useState("0.70");
+  const [growthPct, setGrowthPct] = useState("0.20");
+  const [speculativePct, setSpeculativePct] = useState("0.10");
+  const [digestHours, setDigestHours] = useState("6");
+  const [codexEnabled, setCodexEnabled] = useState(true);
+  const [claudeEnabled, setClaudeEnabled] = useState(true);
+  const [requireConsensus, setRequireConsensus] = useState(true);
 
   useEffect(() => {
     if (telegram.data) {
       setTelegramEnabled(telegram.data.enabled);
     }
   }, [telegram.data]);
+
+  useEffect(() => {
+    if (aiAutonomy.data) {
+      setCorePct(aiAutonomy.data.target_core_pct);
+      setGrowthPct(aiAutonomy.data.target_growth_pct);
+      setSpeculativePct(aiAutonomy.data.target_speculative_pct);
+      setDigestHours(String(aiAutonomy.data.digest_interval_hours));
+      setCodexEnabled(aiAutonomy.data.codex_enabled);
+      setClaudeEnabled(aiAutonomy.data.claude_enabled);
+      setRequireConsensus(aiAutonomy.data.require_consensus);
+    }
+  }, [aiAutonomy.data]);
 
   function submitTelegram(event: React.FormEvent) {
     event.preventDefault();
@@ -78,6 +141,26 @@ export function SettingsPage({
       },
       { onSuccess: () => setBotToken("") },
     );
+  }
+
+  function submitAiAutonomyToggle() {
+    changeAiAutonomy.mutate({
+      status: aiAutonomy.data?.status === "ENABLED" ? "DISABLED" : "ENABLED",
+    });
+  }
+
+  function submitAiAutonomyTargets(event: React.FormEvent) {
+    event.preventDefault();
+    changeAiAutonomy.mutate({
+      status: aiAutonomy.data?.status ?? "DISABLED",
+      target_core_pct: corePct,
+      target_growth_pct: growthPct,
+      target_speculative_pct: speculativePct,
+      digest_interval_hours: Number(digestHours),
+      codex_enabled: codexEnabled,
+      claude_enabled: claudeEnabled,
+      require_consensus: requireConsensus,
+    });
   }
 
   function restartTelegramPairing() {
@@ -92,9 +175,38 @@ export function SettingsPage({
     );
   }
 
+  function submitPasswordChange(event: React.FormEvent) {
+    event.preventDefault();
+    security.changePassword.mutate(
+      { current_password: currentPassword, new_password: newPassword },
+      { onSuccess: () => { setCurrentPassword(""); setNewPassword(""); } },
+    );
+  }
+
+  function startTotpReplace() {
+    security.startTotpReplace.mutate(undefined, {
+      onSuccess: (result) => setTotpEnrollment(result),
+    });
+  }
+
+  function submitTotpReplace(event: React.FormEvent) {
+    event.preventDefault();
+    if (!totpEnrollment) return;
+    security.finishTotpReplace.mutate(
+      { challenge: totpEnrollment.challenge, code: totpCode.trim() },
+      {
+        onSuccess: () => {
+          setTotpEnrollment(null);
+          setTotpCode("");
+        },
+      },
+    );
+  }
+
   return (
     <section className="settings-stack" aria-label={i18n.t("Configuración")}>
-      <article className="panel wide-panel settings-panel">
+      <LiveTradingPanel role={role} />
+      {environment !== "LIVE" && <article className="panel wide-panel settings-panel">
         <div className="settings-heading">
           <span className="settings-heading-icon">
             <FlaskConical size={19} />
@@ -118,12 +230,17 @@ export function SettingsPage({
             "Por defecto tu instancia solo observa datos reales de mercado: no genera ni simula operaciones. Activa PAPER si querés que el sistema simule órdenes sobre esos mismos datos, sin dinero real ni conexión de ejecución.",
           )}
         </p>
+        <p className="settings-command-help">
+          {i18n.t(
+            "Cuando tu chat esté vinculado, enviá /help o /commands al bot para conocer sus comandos seguros.",
+          )}
+        </p>
         <div className="settings-action-row">
           <div className="settings-safety">
             <ShieldCheck size={18} />
             <span>
               {i18n.t(
-                "PAPER nunca envía órdenes reales ni requiere claves de ejecución. La ejecución real (LIVE) no está disponible en esta fase.",
+                "PAPER es una prueba opcional sin dinero real. Para operar con tu cuenta usa la configuración LIVE de arriba.",
               )}
             </span>
           </div>
@@ -152,6 +269,119 @@ export function SettingsPage({
         {change.isError && (
           <p className="error" role="alert">
             {i18n.t(change.error.message)}
+          </p>
+        )}
+      </article>}
+
+      <article className="panel wide-panel settings-panel">
+        <div className="settings-heading">
+          <span className="settings-heading-icon">
+            <Bot size={19} />
+          </span>
+          <div>
+            <p className="eyebrow">{i18n.t("Permisos IA")}</p>
+            <h2>
+              {aiAutonomy.data?.status === "ENABLED"
+                ? i18n.t("Análisis de IA activado")
+                : i18n.t("Análisis de IA desactivado")}
+            </h2>
+          </div>
+          <span
+            className={
+              aiAutonomy.data?.status === "ENABLED"
+                ? "settings-status paper"
+                : "settings-status"
+            }
+          >
+            <i /> {aiAutonomy.data?.status === "ENABLED" ? "ENABLED" : "DISABLED"}
+          </span>
+        </div>
+        <p className="muted settings-description">
+          {i18n.t(
+            "Codex y Claude revisan el mismo contexto y crean propuestas sólo cuando coinciden. No compran, venden, transfieren ni retiran fondos. La simulación permanece desactivada hasta que la habilites explícitamente arriba.",
+          )}
+        </p>
+        <div className="settings-action-row">
+          {role === "ADMIN" ? (
+            <Button disabled={!aiAutonomy.data || changeAiAutonomy.isPending} onClick={submitAiAutonomyToggle}>
+              {aiAutonomy.data?.status === "ENABLED"
+                ? i18n.t("Pausar análisis de IA")
+                : i18n.t("Activar análisis de IA")}
+            </Button>
+          ) : (
+            <p className="settings-readonly">
+              {i18n.t("Tu rol VIEWER permite consultar, pero no cambiar la configuración.")}
+            </p>
+          )}
+        </div>
+        {role === "ADMIN" && (
+          <form className="settings-form" onSubmit={submitAiAutonomyTargets}>
+            <label>
+              {i18n.t("Objetivo tier seguro (CORE)")}
+              <input
+                type="number" min="0" max="1" step="0.01"
+                value={corePct} onChange={(event) => setCorePct(event.target.value)}
+              />
+            </label>
+            <label>
+              {i18n.t("Objetivo tier medio (GROWTH)")}
+              <input
+                type="number" min="0" max="1" step="0.01"
+                value={growthPct} onChange={(event) => setGrowthPct(event.target.value)}
+              />
+            </label>
+            <label>
+              {i18n.t("Objetivo tier riesgo (SPECULATIVE)")}
+              <input
+                type="number" min="0" max="1" step="0.01"
+                value={speculativePct} onChange={(event) => setSpeculativePct(event.target.value)}
+              />
+            </label>
+            <label>
+              {i18n.t("Notificarme cada (horas)")}
+              <input
+                type="number" min="1" step="1"
+                value={digestHours} onChange={(event) => setDigestHours(event.target.value)}
+              />
+            </label>
+            <label className="settings-toggle">
+              <input
+                type="checkbox"
+                checked={codexEnabled}
+                onChange={(event) => setCodexEnabled(event.target.checked)}
+              />
+              <span aria-hidden="true" />
+              {i18n.t("Usar Codex como analista")}
+            </label>
+            <label className="settings-toggle">
+              <input
+                type="checkbox"
+                checked={claudeEnabled}
+                onChange={(event) => setClaudeEnabled(event.target.checked)}
+              />
+              <span aria-hidden="true" />
+              {i18n.t("Usar Claude como analista")}
+            </label>
+            <label className="settings-toggle">
+              <input
+                type="checkbox"
+                checked={requireConsensus}
+                onChange={(event) => setRequireConsensus(event.target.checked)}
+              />
+              <span aria-hidden="true" />
+              {i18n.t("Exigir coincidencia entre ambos")}
+            </label>
+            <p className="muted settings-description">
+              {i18n.t("Si exigís coincidencia, una recomendación sólo se guarda cuando ambos analistas responden y sus precios propuestos no difieren de forma material.")}
+            </p>
+            <button className="button button-secondary" disabled={changeAiAutonomy.isPending}>
+              {i18n.t("Guardar preferencias")}
+            </button>
+          </form>
+        )}
+        {changeAiAutonomy.isError && (
+          <p className="error" role="alert">
+            {i18n.t(changeAiAutonomy.error.message)}
           </p>
         )}
       </article>
@@ -350,6 +580,173 @@ export function SettingsPage({
           )}
         </article>
       )}
+
+      <article className="panel wide-panel settings-panel">
+        <div className="settings-heading">
+          <span className="settings-heading-icon">
+            <Lock size={19} />
+          </span>
+          <div>
+            <p className="eyebrow">{i18n.t("Seguridad de la cuenta")}</p>
+            <h2>{i18n.t("Contraseña")}</h2>
+          </div>
+        </div>
+        <p className="muted settings-description">
+          {i18n.t(
+            "Cambiar tu contraseña cierra todas tus demás sesiones activas -- esta sesión sigue abierta. Si tu sesión no confirmó tu autenticador en los últimos 5 minutos, te lo va a pedir antes de continuar.",
+          )}
+        </p>
+        <form className="settings-form" onSubmit={submitPasswordChange}>
+          <label>
+            {i18n.t("Contraseña actual")}
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              autoComplete="current-password"
+              required
+              maxLength={256}
+            />
+          </label>
+          <label>
+            {i18n.t("Contraseña nueva")}
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              autoComplete="new-password"
+              required
+              minLength={12}
+              maxLength={256}
+            />
+          </label>
+          <button
+            className="button button-primary"
+            disabled={security.changePassword.isPending || newPassword.length < 12}
+          >
+            {i18n.t("Cambiar contraseña")}
+          </button>
+        </form>
+        {security.changePassword.isError && (
+          <p className="error" role="alert">
+            {i18n.t(security.changePassword.error.message)}
+          </p>
+        )}
+        {security.changePassword.isSuccess && (
+          <p className="settings-readonly" role="status">
+            {i18n.t("Contraseña actualizada.")}
+          </p>
+        )}
+      </article>
+
+      <article className="panel wide-panel settings-panel">
+        <div className="settings-heading">
+          <span className="settings-heading-icon">
+            <KeyRound size={19} />
+          </span>
+          <div>
+            <p className="eyebrow">{i18n.t("Seguridad de la cuenta")}</p>
+            <h2>{i18n.t("Autenticador (TOTP)")}</h2>
+          </div>
+        </div>
+        <p className="muted settings-description">
+          {i18n.t(
+            "Reemplazar tu autenticador no desactiva el actual hasta confirmar el nuevo código -- así nunca te quedás sin acceso por un QR mal escaneado. Al confirmar, se cierran todas tus demás sesiones activas.",
+          )}
+        </p>
+        {totpEnrollment ? (
+          <MfaForm
+            setup
+            secret={totpEnrollment.secret}
+            enrollmentUri={totpEnrollment.uri}
+            code={totpCode}
+            setCode={setTotpCode}
+            busy={security.finishTotpReplace.isPending}
+            onSubmit={submitTotpReplace}
+          />
+        ) : (
+          <Button onClick={startTotpReplace} disabled={security.startTotpReplace.isPending}>
+            {i18n.t("Reemplazar autenticador")}
+          </Button>
+        )}
+        {(security.startTotpReplace.isError || security.finishTotpReplace.isError) && (
+          <p className="error" role="alert">
+            {i18n.t(
+              (security.startTotpReplace.error ?? security.finishTotpReplace.error)?.message ??
+                "",
+            )}
+          </p>
+        )}
+      </article>
+
+      <article className="panel wide-panel settings-panel">
+        <div className="settings-heading">
+          <span className="settings-heading-icon">
+            <ShieldCheck size={19} />
+          </span>
+          <div>
+            <p className="eyebrow">{i18n.t("Seguridad de la cuenta")}</p>
+            <h2>{i18n.t("Sesiones activas")}</h2>
+          </div>
+        </div>
+        <p className="muted settings-description">
+          {i18n.t(
+            "Cada fila es un inicio de sesión distinto (navegador o dispositivo). Cerrar una sesión la invalida de inmediato.",
+          )}
+        </p>
+        {security.sessions.isPending && <p className="muted">{i18n.t("Cargando…")}</p>}
+        {security.sessions.isError && (
+          <p className="error" role="alert">
+            {i18n.t("No se pudieron cargar las sesiones.")}
+          </p>
+        )}
+        {security.sessions.data && (
+          <div className="markets-table-wrap">
+            <table className="markets-table">
+              <thead>
+                <tr>
+                  <th>{i18n.t("Iniciada")}</th>
+                  <th>{i18n.t("Última actividad")}</th>
+                  <th>{i18n.t("Vence")}</th>
+                  <th>{i18n.t("Estado")}</th>
+                  <th>{i18n.t("Acción")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {security.sessions.data.rows.map((row) => (
+                  <tr key={row.session_id}>
+                    <td>{new Date(row.created_at).toLocaleString(i18n.resolvedLanguage)}</td>
+                    <td>{new Date(row.last_seen).toLocaleString(i18n.resolvedLanguage)}</td>
+                    <td>{new Date(row.expires_at).toLocaleString(i18n.resolvedLanguage)}</td>
+                    <td>
+                      {row.is_current ? (
+                        <span className="quality-pill quality-pass">
+                          {i18n.t("Esta sesión")}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td>
+                      <Button
+                        disabled={security.revokeSession.isPending}
+                        onClick={() => security.revokeSession.mutate(row.session_id)}
+                      >
+                        {i18n.t("Cerrar sesión")}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {security.revokeSession.isError && (
+          <p className="error" role="alert">
+            {i18n.t(security.revokeSession.error.message)}
+          </p>
+        )}
+      </article>
     </section>
   );
 }

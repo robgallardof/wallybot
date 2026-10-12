@@ -38,9 +38,11 @@ class ReconciliationService:
         self.execution = execution
         self.sessions = sessions
 
-    async def sweep(self, environment: str) -> tuple[ReconciliationOutcome, ...]:
+    async def sweep(
+        self, environment: str, account_id: str | None = None
+    ) -> tuple[ReconciliationOutcome, ...]:
         async with unit_of_work(self.sessions) as uow:
-            open_orders = await uow.list_open_order_intents(environment)
+            open_orders = await uow.list_open_order_intents(environment, account_id)
 
         outcomes = []
         for client_order_id, venue, account_id, order_environment in open_orders:

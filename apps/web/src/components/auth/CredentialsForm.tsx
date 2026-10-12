@@ -1,5 +1,5 @@
 import type { UseFormReturn } from "react-hook-form";
-import { ArrowUpRight } from "lucide-react";
+import { FaArrowUpRightFromSquare } from "react-icons/fa6";
 import i18n from "../../lib/i18n";
 import type { AuthFields } from "../../hooks/useAuthFlow";
 import { Button } from "../ui/button";
@@ -92,7 +92,7 @@ export function CredentialsForm({
           : setup
             ? i18n.t("Configurar autenticación")
             : i18n.t("Continuar")}{" "}
-        <ArrowUpRight size={16} />
+        <FaArrowUpRightFromSquare size={14} />
       </Button>
     </form>
   );

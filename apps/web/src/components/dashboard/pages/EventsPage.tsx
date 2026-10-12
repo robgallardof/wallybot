@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { eventPageSchema } from "../../../lib/dto";
-import type { InfiniteData, UseInfiniteQueryResult } from "@tanstack/react-query";
+import type {
+  InfiniteData,
+  UseInfiniteQueryResult,
+} from "@tanstack/react-query";
 import type { z } from "zod";
 import { EventList } from "../EventList";
 import { eventLabel } from "../../../lib/event-label";
@@ -9,7 +12,10 @@ import { eventLabel } from "../../../lib/event-label";
 export function EventsPage({
   feed,
 }: {
-  feed: UseInfiniteQueryResult<InfiniteData<z.infer<typeof eventPageSchema>>, Error>;
+  feed: UseInfiniteQueryResult<
+    InfiniteData<z.infer<typeof eventPageSchema>>,
+    Error
+  >;
 }) {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
@@ -63,6 +69,17 @@ export function EventsPage({
         >
           {feed.isFetching ? t("Actualizando…") : t("Actualizar")}
         </button>
+        <div
+          className="portfolio-export-links"
+          aria-label={t("Exportar actividad")}
+        >
+          <a href="/api/events/export?format=csv" download>
+            {t("Exportar CSV")}
+          </a>
+          <a href="/api/events/export?format=json" download>
+            {t("Exportar JSON")}
+          </a>
+        </div>
       </div>
       <div
         className="activity-filters"

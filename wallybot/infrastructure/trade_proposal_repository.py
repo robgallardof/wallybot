@@ -28,7 +28,7 @@ class TradeProposalRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def save(self, proposal: TradeProposal) -> None:
+    async def save(self, proposal: TradeProposal, owner_id: str | None = None) -> None:
         self.session.add(
             TradeProposalRow(
                 proposal_id=proposal.proposal_id,
@@ -52,5 +52,6 @@ class TradeProposalRepository:
                 model_id=proposal.model_id,
                 prompt_version=proposal.prompt_version,
                 as_of=proposal.as_of,
+                owner_id=owner_id,
             )
         )

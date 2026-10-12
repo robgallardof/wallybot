@@ -11,8 +11,9 @@ identical, already-tested allocation and risk code. `contributing_signals` is em
 underlying `StrategySignal` for an AI-sourced proposal); the proposal's own `reasons` fill the
 `reason` field instead.
 
-SHORT proposals are refused before allocation, same reasoning `DecisionPipeline` already applies
-to SELL: `SimplePortfolioAllocator` has no position data to size a reduction against.
+The persistence representation uses `TradeDirection.SHORT` for an AI recommendation to reduce an
+existing spot position. It is translated into `Action.SELL`, which the allocator and risk engine
+cap by the position actually held. It is never a request to open a leveraged or borrowed short.
 
 Deliberately out of scope: persistence (a separate insert-only repository), any caller-side
 decision about running this automatically, and anything resembling promotion from SHADOW to LIVE
@@ -59,20 +60,9 @@ class ShadowDecisionService:
         risk_context: RiskContext,
         risk_policy: RiskPolicy,
     ) -> ShadowDecisionOutcome:
-        if proposal.direction is TradeDirection.SHORT:
-            return ShadowDecisionOutcome(
-                proposal=proposal,
-                allocation_approved=False,
-                allocation_reasons=(
-                    "SHORT is not yet supported: no position data exists to size a reduction",
-                ),
-                risk_assessment=None,
-                as_of=proposal.as_of,
-            )
-
         signal = AggregatedSignal(
             instrument=proposal.instrument,
-            action=Action.BUY,
+            action=(Action.BUY if proposal.direction is TradeDirection.LONG else Action.SELL),
             confidence=proposal.confidence,
             version=SHADOW_SIGNAL_VERSION,
             as_of=proposal.as_of,

@@ -1,3 +1,14 @@
+## Entrega PAPER de seguimiento y operación local — 2026-10-08
+
+Implementado: valoración por cotización reciente con procedencia; P&L y cierres parciales FIFO
+por entrada; seguimiento de stop/objetivo para revisión; enlaces de propuestas desde Telegram
+con confirmación web/MFA; arranque conjunto Docker + analista nativo en Windows; heartbeat
+visible y eliminación de permisos de ejecución del rol de analista. Ver
+[mandato](PRODUCT-MANDATE.md), [ADR-017](adr/017-approved-ai-proposals.md) y
+[operación del analista](runbooks/native-ai-worker.md). Estos avances no completan los ítems
+más amplios del roadmap, integraciones de otros proveedores ni LIVE. No reinterpretar los
+checklists históricos inferiores como una auditoría actual de cada función.
+
 # WallyBot: implementación pendiente y criterios de entrega
 
 Revisión del repositorio: **12 de septiembre de 2026**. Este documento compara la especificación original de 146 apartados con el código y las evidencias existentes. Es un backlog de producto, no una autorización para activar LIVE ni una afirmación de rentabilidad.
@@ -122,6 +133,10 @@ Las entregas documentadas en [PHASE_2](PHASE_2.md) y [PHASE_3](PHASE_3.md) son a
 
 ## Fase 6: IA opcional, calibración y costes
 
+**Criterio de producto 2026-09-23:** IA produce propuestas explicadas; UI/Telegram permiten
+simular, aprobar o rechazar una propuesta puntual en ES/EN. Distribución, fuentes y frecuencia
+son por usuario y auditables. Ninguna salida IA ejecuta directamente ni puede retirar/transferir.
+
 - [ ] Implementar puerto AIProvider y adaptadores OpenAI/Anthropic con esquemas estrictos, límites y trazabilidad.
 - [ ] Validar salida, símbolos, razones y caducidad; contenido del proveedor se trata como datos no confiables.
 - [ ] Definir routing, timeouts, fallback y presupuestos por ejecución/día; registrar modelo, tokens, latencia y coste.
@@ -130,6 +145,8 @@ Las entregas documentadas en [PHASE_2](PHASE_2.md) y [PHASE_3](PHASE_3.md) son a
 - [ ] Entregar UI de decisiones IA y contabilidad de costes, sin permitir ejecución directa desde recomendaciones.
 
 **Aceptación:** pruebas de JSON inválido, inyección de instrucciones, timeout y agotamiento del presupuesto; el veto determinista de riesgo siempre prevalece. No hace falta instalar todos los proveedores propuestos para cumplir un contrato neutral.
+
+**Excepción (2026-09-23, [ADR-016](adr/016-ai-autonomous-account.md)):** se implementó un `AIProvider` real (`wallybot/intelligence/cli_ai_provider.py`, `CliAiProvider`) que invoca los CLIs locales `claude`/`codex` del operador -- no los adaptadores OpenAI/Anthropic de API hosteada que esta fase originalmente proponía, así que ningún ítem de arriba se marca como hecho. Cubre validación de salida/JSON/inyección/timeout (ítems 2 y 4), pero deliberadamente **NO** respeta "el veto determinista de riesgo siempre prevalece": el operador confirmó dos veces, tras dos advertencias con escenarios concretos de fallo, que la cuenta `paper-ai:` debe operar sin `PortfolioAllocator`/`RiskEngine`/circuit breakers. Ver ADR-016 y `.ai/CURRENT.md` para el detalle completo. No confundir esto con que la fase esté completa: routing/presupuesto/costes, calibración y UI de decisiones IA siguen sin implementar.
 
 ## Fase 7: agentes de investigación aislados
 

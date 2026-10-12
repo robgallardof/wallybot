@@ -33,7 +33,7 @@ def settings(dependencies):
     db_url, redis_url = dependencies
     api_password = token()
     with psycopg.connect(db_url.replace("+psycopg", ""), autocommit=True) as connection:
-        for role in ("api", "worker", "scheduler", "research"):
+        for role in ("api", "worker", "scheduler", "research", "ai"):
             connection.execute(
                 psycopg.sql.SQL("CREATE ROLE {} LOGIN PASSWORD {}").format(
                     psycopg.sql.Identifier("wally_" + role), psycopg.sql.Literal(api_password)
@@ -86,4 +86,5 @@ def client(settings, db):
         headers={"Origin": settings.origin},
         backend_options={"loop_factory": selector_loop},
     ) as client:
+        client.app.state.portfolio_market_provider = None
         yield client

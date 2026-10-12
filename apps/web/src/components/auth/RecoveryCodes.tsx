@@ -1,4 +1,4 @@
-import { ArrowUpRight } from "lucide-react";
+import { FaArrowUpRightFromSquare } from "react-icons/fa6";
 import i18n from "../../lib/i18n";
 import { Button } from "../ui/button";
 
@@ -19,7 +19,7 @@ export function RecoveryCodes({
       <pre className="recovery">{recovery.join("\n")}</pre>
       <Button onClick={complete}>
         {i18n.t("Ya los guardé. Abrir panel")}
-        <ArrowUpRight size={16} />
+        <FaArrowUpRightFromSquare size={14} />
       </Button>
     </div>
   );

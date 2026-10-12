@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { KeyRound, X } from "lucide-react";
+import { FaKey, FaXmark } from "react-icons/fa6";
 import { z } from "zod";
 import { api } from "../lib/api-client";
 import i18n from "../lib/i18n";
@@ -56,9 +56,9 @@ export function MfaConfirmationModal() {
         role="dialog"
       >
         <button aria-label={i18n.t("Cerrar")} className="mfa-modal-close" onClick={close}>
-          <X size={18} />
+          <FaXmark size={17} />
         </button>
-        <span className="mfa-modal-icon"><KeyRound size={21} /></span>
+        <span className="mfa-modal-icon"><FaKey size={18} /></span>
         <h2 id="mfa-confirmation-title">{i18n.t("Confirmá tu identidad")}</h2>
         <p className="muted" id="mfa-confirmation-description">
           {i18n.t("Ingresá el código de tu autenticador para continuar. La acción se realizará automáticamente después de confirmarlo.")}

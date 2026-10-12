@@ -22,7 +22,9 @@ export function SystemPage({
     : [];
   const healthy = monitored.filter((status) => status === "HEALTHY").length;
   const attention = monitored.length - healthy;
-  if (system.isPending && !data) return <PageSkeleton rows={3} />;
+  if (system.isPending && !data) {
+    return <PageSkeleton rows={3} label={i18n.t("Cargando sistema…")} />;
+  }
   return (
     <article className="panel wide-panel system-panel">
       <div className="panel-heading">
@@ -137,7 +139,7 @@ export function SystemPage({
             </section>
             <section className="system-group-card" aria-labelledby="system-integrations">
               <h3 id="system-integrations">{t("Integraciones")}</h3>
-              <Service name="Exchange" status={data.exchange} />
+              <Service name={t("Datos de mercado")} status={data.exchange} />
               <Service name={t("Analista IA")} status={data.ai} />
               <Service name="Telegram" status={data.telegram} />
               <p className="muted">

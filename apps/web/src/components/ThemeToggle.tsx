@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
-import { Moon, Sun } from "lucide-react";
+import { FaMoon, FaSun } from "react-icons/fa6";
 import { useTranslation } from "react-i18next";
 
 export function ThemeToggle() {
@@ -21,7 +21,7 @@ export function ThemeToggle() {
       title={dark ? t("Cambiar a modo claro") : t("Cambiar a modo oscuro")}
       onClick={() => setTheme(dark ? "light" : "dark")}
     >
-      {dark ? <Sun size={16} /> : <Moon size={16} />}
+      {dark ? <FaSun size={15} /> : <FaMoon size={15} />}
     </button>
   );
 }

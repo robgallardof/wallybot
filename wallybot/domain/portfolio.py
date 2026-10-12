@@ -43,7 +43,7 @@ class PortfolioPolicy:
         if set(self.bucket_targets) != set(Bucket):
             raise ValueError("bucket_targets must cover every Bucket exactly once")
         for bucket, target in self.bucket_targets.items():
-            if not (Decimal(0) < target <= Decimal(1)):
+            if not (Decimal(0) <= target <= Decimal(1)):
                 raise ValueError(f"bucket target for {bucket} must be between 0 and 1")
         if sum(self.bucket_targets.values()) != Decimal(1):
             raise ValueError("bucket_targets must sum to exactly 1")

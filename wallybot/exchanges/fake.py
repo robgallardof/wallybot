@@ -101,7 +101,6 @@ class FakeExchange:
         self._fill_script = {key: list(value) for key, value in (fill_script or {}).items()}
         self._orders: dict[str, _SimulatedOrder] = {}
         self._fills: dict[str, list[Fill]] = {}
-        self._fill_counter = 0
         self.market_data = market_data
         self._instruments = [
             Instrument(
@@ -236,13 +235,16 @@ class FakeExchange:
             VenueOrderStatus.REJECTED,
         ):
             return
-        self._fill_counter += 1
+        # Scoped to the (globally unique) client order id, not a per-instance counter: a counter
+        # restarts at 1 after a process restart or in a second simulator instance, and fills are
+        # deduplicated by id, so a reused id would silently drop a real fill from the ledger.
+        fill_number = len(self._fills.get(intent.client_order_id, ())) + 1
         price_increment, _quantity_increment, _min_quantity = _require_precision(
             intent.instrument
         )
         fee = (quantity * price * self.fee_rate).quantize(price_increment)
         fill = Fill(
-            fill_id=f"fake-fill-{self._fill_counter}",
+            fill_id=f"fake-fill-{intent.client_order_id}-{fill_number}",
             client_order_id=intent.client_order_id,
             instrument=intent.instrument,
             side=intent.side,

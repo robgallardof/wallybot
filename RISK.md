@@ -1,5 +1,9 @@
 # Deterministic risk and execution policy
 
+Update 2026-10-12: manual, MFA-approved Kraken spot LIVE is implemented under ADR-018. Historical
+phase status below is not the current delivery scope. Required evidence is tracked in
+[verification](docs/stats/testing.md); no financial-performance claim is made.
+
 Status: baseline requirements for Phases 3–4; no trading is implemented. Defaults come from the supplied specification and require validation before any LIVE rollout. They are constraints, not claims of investment performance.
 
 ## Invariants
@@ -55,6 +59,24 @@ Risk-reducing intents use a separate deterministic policy: cannot exceed held qu
 
 Pyramiding requires profit, renewed evidence, original thesis validity and full reapproval; it never bypasses aggregate limits. Profit harvesting and speculative scaling remain experiment parameters until tested. Full Kelly, live arbitrage and autonomous limit relaxation are excluded.
 
-## Evidence before LIVE
+**AI proposals ([ADR-017](docs/adr/017-approved-ai-proposals.md))**: the AI worker does not
+submit orders. It creates explained, expiring proposals only. An operator approval (Admin, fresh
+MFA, single-use, rejected once the proposal's signal TTL elapsed) creates at most one PAPER order
+on the separate `paper-ai:` account, and only while PAPER is explicitly enabled. Before that order
+exists, `wallybot/application/proposal_execution.py` re-reads instrument precision, candles,
+quality, spread, equity, active breakers and that account's reconciliation, then runs the same
+allocator and `DeterministicRiskEngine`; any rejection or error records BLOCKED/FAILED with its
+reasons and no order. The approval never acts as a bypass, and SELL only reduces held spot.
+
+## Operator-approved real spot (ADR-018)
+
+The operator explicitly requested real-money operation. The implemented manual-approval path is
+documented in [ADR-018](docs/adr/018-real-spot-objective.md). It adds verified private Kraken
+permissions, observed opening balances, per-account serialization, bounded IOC limits, real fee
+and book checks, policy binding and restart reconciliation. The stricter USD daily budget or 2%
+loss applies, alongside 5% weekly loss and 10% drawdown. An individual human approval is not
+unattended strategy promotion; automatic LIVE strategies still require the evidence below.
+
+## Evidence before unattended LIVE strategy promotion
 
 Require risk/unit/property tests, exchange adapter contracts, failure recovery and paper/replay ledger reconciliation to pass. A strategy progresses DRAFT → BACKTESTED → VALIDATED → PAPER → CANDIDATE → LIVE → RETIRED with immutable artifacts and human promotion. Predeclare evaluation windows and thresholds, compare BTC/ETH/cash/passive portfolio, include costs and uncertainty, and evaluate drawdown and concentration of returns. Backtest profits alone are insufficient. Start small only after explicit activation; no document here authorizes placing a real trade.

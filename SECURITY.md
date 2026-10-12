@@ -1,5 +1,9 @@
 # Security design
 
+Update 2026-10-12: [ADR-018](docs/adr/018-real-spot-objective.md) implements explicit, per-operation
+approved Kraken spot LIVE activation. This supersedes the older Phase 1/PAPER-only status below;
+unattended strategy promotion and external tamper-evident export remain separate work.
+
 Status: password/TOTP setup, recovery-code login, hashed sessions, CSRF/origin checks, shared throttling, role checks, scoped database grants and isolated research credentials are implemented. Provider secrets, strategy promotion, LIVE activation, MFA replacement and external tamper-evident audit export remain later work. Application authentication remains mandatory behind Cloudflare Zero Trust.
 
 ## Trust boundaries and threats
@@ -36,6 +40,18 @@ LIVE activation requires enabled build/environment capability, validated trade-o
 Use Docker secrets or owner-readable external secret files in production; environment variables are a development option. No secrets in source, build arguments, images, fixtures, URLs, traces or exception bodies. Encrypt stored provider/exchange credentials with an externally managed key and versioned envelope; restrict decryption to the process needing the secret. Key rotation must preserve decryptability of backups. Never mount the Docker socket or host root into application or research containers.
 
 Research receives sanitized exports or read-only analytics views, separate metadata write access, a bounded workspace and no production trading credentials. Candidate code remains untrusted until review. It can create experiments/branches/PRs but cannot promote itself, edit live limits, access production executor endpoints, or mutate production balances. Provider text is data, never executable code or instructions to bypass policy. Research container network membership alone is not an authorization boundary; DB grants and secret isolation are mandatory.
+
+**AI proposals (ADR-017, supersedes ADR-016)**: `apps/ai_worker` may use the operator's local
+`claude`/`codex` CLI to analyze validated public market context, but it can only persist a
+schema-validated, operator-scoped `TradeProposal`. It has no execution gateway, account balance,
+order-building, withdrawal or transfer capability. An authenticated operator chooses approve,
+reject or simulate. Only the MFA-protected API route, after committing that one-time approval,
+may revalidate it against data freshness and the deterministic controls and submit one PAPER
+order through the AI account's simulated gateway. ADR-018 additionally allows an explicitly
+activated, operator-owned LIVE spot account, with per-order mode/policy binding and revalidation.
+The worker may read only the sanitized cash/holding snapshot, not private credentials or execution
+tables. The worker's local CLI access never
+turns untrusted model text into an executable instruction.
 
 Do not create an agent HTTP endpoint until needed. If introduced, require a narrowly scoped service identity and an HMAC over method, path, exact-body hash, timestamp and nonce. Store nonce consumption atomically with TTL, use constant-time signature comparison and a bounded timestamp window; reject if replay storage is unavailable. Rotate keys; consider mTLS for transport identity. Only the authorized WallyBot service may call it.
 

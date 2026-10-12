@@ -1,4 +1,10 @@
-# AI: contracts exist, no provider is connected
+# AI: proposal architecture and approval boundary
+
+> Current product boundary: an AI may assemble context and emit a structured proposal, but it
+> cannot turn that proposal directly into an order. Each operation requires an expiring human
+> approval and a fresh mandate/risk validation. Withdrawals are recommendations only. See
+> [ADR-017](adr/017-approved-ai-proposals.md) and the plain-language
+> [product mandate](PRODUCT-MANDATE.md).
 
 Status: this is genuinely a stub in the sense that matters most — **no real AI model is ever
 called**. There is no OpenAI adapter, no Anthropic adapter, no API route, and no UI for anything

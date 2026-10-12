@@ -18,14 +18,7 @@
 }
 
 :root {
-  font-family:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+  font-family: "Poppins", ui-sans-serif, system-ui, sans-serif;
   color: #263d38;
   background: #f4f6f3;
   font-synthesis: none;
@@ -51,6 +44,44 @@ button {
 button:disabled {
   cursor: wait;
   opacity: 0.55;
+}
+/* Shared financial-product component language. Page-specific views inherit these primitives. */
+:root .panel,
+:root .metric {
+  border-radius: 18px;
+}
+:root .panel {
+  backdrop-filter: blur(12px);
+}
+:root .metric {
+  min-height: 148px;
+  position: relative;
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+:root .metric:hover {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  box-shadow: 0 12px 26px rgb(0 0 0 / 7%);
+  transform: translateY(-2px);
+}
+:root .button {
+  align-items: center;
+  display: inline-flex;
+  font-weight: 600;
+  gap: 9px;
+  letter-spacing: -0.1px;
+  padding-inline: 16px;
+}
+:root :is(input, select, textarea) {
+  border-radius: 11px;
+  font-weight: 500;
+}
+:root .markets-table-wrap,
+:root .activity-list {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+:root .markets-table th {
+  background: var(--surface-raised);
 }
 a {
   color: inherit;

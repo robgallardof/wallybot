@@ -8,7 +8,7 @@ test("intelligence index supports keyboard jumps, return links, locale and query
     : { json: { rows: [] } }));
   await page.goto("/intelligence");
   const index = page.getByRole("navigation", { name: "Explorar inteligencia" });
-  await expect(index.getByRole("link")).toHaveCount(7);
+  await expect(index.getByRole("link")).toHaveCount(8);
   await expect(index.getByRole("link").last()).toContainText("0 registros");
   const link = index.getByRole("link", { name: /Grafo de correlación/ });
   await link.focus();
@@ -185,9 +185,32 @@ async function shell(page: Page, role: "ADMIN" | "VIEWER" = "VIEWER") {
         balances: [],
         activity: [],
         performance: [],
+        proposal_history: [],
+        orders: [],
+      },
+      "/api/portfolio/ai": {
+        environment: "PAPER",
+        connection_count: 0,
+        balances: [],
+        activity: [],
+        performance: [],
+        proposal_history: [],
+        orders: [],
+      },
+      "/api/ai-autonomy/control": {
+        status: "DISABLED",
+        target_core_pct: "0.70",
+        target_growth_pct: "0.20",
+        target_speculative_pct: "0.10",
+        digest_interval_hours: 6,
+        codex_enabled: true,
+        claude_enabled: true,
+        require_consensus: true,
       },
       "/api/system": system,
       "/api/events": { rows: [], next_before: null },
+      "/api/connections": { rows: [] },
+      "/api/live": { capable: true, configured: false, enabled: false, state: "NOT_CONFIGURED", reason: "", version: null, connection_id: null, max_order_usd: null, max_daily_loss_usd: null, max_total_usd: null, slippage_pct: null, equity_usd: null, as_of: null, balances: [], orders: [] },
       "/api/intelligence/smart-money": { rows: [] },
       "/api/intelligence/whale-flow": { rows: [] },
       "/api/intelligence/token-risk": { rows: [] },
@@ -197,6 +220,7 @@ async function shell(page: Page, role: "ADMIN" | "VIEWER" = "VIEWER") {
       "/api/intelligence/entity-graph": { rows: [] },
       "/api/backtests": { rows: [] },
       "/api/research/jobs": { rows: [] },
+      "/api/proposals": { rows: [] },
       "/api/telegram": {
         has_bot_token: false,
         chat_id: null,
@@ -206,6 +230,7 @@ async function shell(page: Page, role: "ADMIN" | "VIEWER" = "VIEWER") {
       },
       "/api/telegram/confirmations": { rows: [] },
       "/api/auth/confirm-mfa": { ok: true },
+      "/api/auth/sessions": { rows: [] },
     };
     if (!(path in responses))
       throw new Error(`Unexpected API request: ${path}`);
@@ -215,6 +240,54 @@ async function shell(page: Page, role: "ADMIN" | "VIEWER" = "VIEWER") {
 
 test("settings and first-steps pages keep actions aligned on desktop and mobile", async ({ page }) => {
   await shell(page, "ADMIN");
+  await page.route("**/api/auth/sessions**", async (route) => {
+    if (route.request().method() === "DELETE") {
+      await route.fulfill({ json: { ok: true } });
+      return;
+    }
+    await route.fulfill({
+      json: {
+        rows: [
+          {
+            session_id: "current-session",
+            created_at: "2026-01-01T00:00:00Z",
+            last_seen: "2026-01-01T00:05:00Z",
+            expires_at: "2026-01-01T12:00:00Z",
+            is_current: true,
+          },
+        ],
+      },
+    });
+  });
+  await page.route("**/api/auth/password", (route) => route.fulfill({ json: { ok: true } }));
+  await page.route("**/api/auth/totp/replace/start", (route) =>
+    route.fulfill({
+      json: {
+        challenge: "synthetic-challenge",
+        secret: "SYNTHETICSECRET",
+        uri: "otpauth://totp/WallyBot?secret=SYNTHETICSECRET",
+      },
+    }),
+  );
+  await page.route("**/api/auth/totp/replace/finish", (route) =>
+    route.fulfill({ json: { ok: true } }),
+  );
+  let aiAutonomyEnabled = false;
+  await page.route("**/api/ai-autonomy/control", async (route) => {
+    if (route.request().method() === "POST") aiAutonomyEnabled = true;
+    await route.fulfill({
+      json: {
+        status: aiAutonomyEnabled ? "ENABLED" : "DISABLED",
+        target_core_pct: "0.70",
+        target_growth_pct: "0.20",
+        target_speculative_pct: "0.10",
+        digest_interval_hours: 6,
+        codex_enabled: true,
+        claude_enabled: true,
+        require_consensus: true,
+      },
+    });
+  });
   await page.goto("/settings");
   // shell()'s mocked /api/dashboard always returns environment: "PAPER" -- assert the settled
   // PAPER-state text, not the pre-fetch OBSERVE default. Asserting the default was a race: the
@@ -224,6 +297,15 @@ test("settings and first-steps pages keep actions aligned on desktop and mobile"
   await expect(
     page.getByRole("button", { name: "Desactivar simulación (volver a OBSERVE)" }),
   ).toBeVisible();
+  // AI analysis (proposals only, never auto-executes -- ADR-017) is a toggle fully separate
+  // from the PAPER on/off switch above.
+  await expect(
+    page.getByRole("heading", { name: "Análisis de IA desactivado" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Activar análisis de IA" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Análisis de IA activado" }),
+  ).toBeVisible();
   await expect(page.getByLabel("Token del bot")).toBeVisible();
   await expect(page.getByRole("button", { name: "Guardar y vincular bot" })).toBeVisible();
   await page.getByLabel("Código de autenticación").fill("123456");
@@ -231,6 +313,24 @@ test("settings and first-steps pages keep actions aligned on desktop and mobile"
   await expect(
     page.getByText("Identidad confirmada. Ya podés repetir la acción que había fallado."),
   ).toBeVisible();
+
+  await page.getByLabel("Contraseña actual").fill("correct-horse-battery-staple");
+  await page.getByLabel("Contraseña nueva").fill("a-new-long-password");
+  await page.getByRole("button", { name: "Cambiar contraseña" }).click();
+  await expect(page.getByText("Contraseña actualizada.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Reemplazar autenticador" }).click();
+  await expect(page.getByRole("img", { name: /código qr/i })).toBeVisible();
+  await page.getByText("¿No puedes escanearlo?").click();
+  await expect(page.getByText("SYNTHETICSECRET")).toBeVisible();
+  await page.getByLabel("Código de verificación").fill("123456");
+  await page.getByRole("button", { name: "Verificar y entrar" }).click();
+  await expect(page.getByRole("button", { name: "Reemplazar autenticador" })).toBeVisible();
+
+  const sessionRow = page.getByRole("row").filter({ hasText: "Esta sesión" });
+  await expect(sessionRow).toBeVisible();
+  await sessionRow.getByRole("button", { name: "Cerrar sesión" }).click();
+
   await page.setViewportSize({ width: 390, height: 844 });
   const navigation = page.locator("#control-navigation");
   await expect(navigation).toBeHidden();
@@ -244,7 +344,7 @@ test("settings and first-steps pages keep actions aligned on desktop and mobile"
     page.getByRole("heading", { name: "Cómo funciona realmente WallyBot" }),
   ).toBeVisible();
   await expect(page.getByRole("link", { name: /Mercados/ })).toBeVisible();
-  await expect(page.getByText("WallyBot no puede mover tu dinero.")).toBeVisible();
+  await expect(page.getByText("WallyBot no puede retirar ni transferir fondos.")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
@@ -265,8 +365,32 @@ test("markets direct route, loading, filters, keyboard details, locales and stal
         : { json: reply === "empty" ? { ...snapshot, rows: [] } : snapshot },
     );
   });
+  await page.route("**/api/markets/**", (route) =>
+    route.fulfill({
+      json: {
+        ...snapshot.rows[0],
+        as_of: snapshot.as_of,
+        candles: [
+          {
+            open_time: "2026-01-01T00:00:00Z",
+            close_time: "2026-01-01T01:00:00Z",
+            open: "100",
+            high: "106",
+            low: "98",
+            close: "104",
+            volume: "123.45",
+          },
+        ],
+      },
+    }),
+  );
   expect((await page.goto("/markets"))?.status()).toBe(200);
-  await expect(page.getByLabel("Cargando contenido")).toBeVisible();
+  // MarketsPage's own PageSkeleton uses the "Cargando mercados…" label (not the generic
+  // "Cargando contenido" default) -- asserting the generic label only "passed" before by
+  // catching a transient pre-hydration frame, the same race class already fixed once in this
+  // suite for Settings; assert the real, stable loading state the gated /api/markets route
+  // actually produces instead.
+  await expect(page.locator(".page-skeleton")).toBeVisible();
   release();
   await expect(page.getByRole("table").getByRole("row")).toHaveCount(3);
   await page.getByLabel("Idioma").selectOption("en");
@@ -278,12 +402,10 @@ test("markets direct route, loading, filters, keyboard details, locales and stal
     .getByLabel("Eligibility", { exact: true })
     .selectOption("excluded");
   await expect(page.getByRole("table").getByRole("row")).toHaveCount(2);
-  const detail = page.getByText("View reasons", { exact: true });
-  await detail.focus();
-  await page.keyboard.press("Enter");
-  await expect(
-    page.getByText("QUALITY_FAILURE", { exact: true }),
-  ).toBeVisible();
+  await page.getByRole("button", { name: "View detail" }).first().click();
+  await expect(page.getByRole("img", { name: "Recent candles" })).toBeVisible();
+  await expect(page.getByText("123.45", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Close" }).click();
   await page.getByRole("button", { name: "Clear filters" }).click();
   await page.getByLabel("Quality", { exact: true }).selectOption("PASS");
   await expect(page.getByRole("table").getByRole("row")).toHaveCount(2);
@@ -341,7 +463,7 @@ test("system reports API status, refresh failures, empty processes and mobile la
   });
   await expect(summary.locator("dd")).toHaveText(["4", "2", "2"]);
   await expect(
-    page.locator(".service-row").filter({ hasText: "Exchange" }),
+    page.locator(".service-row").filter({ hasText: "Market data" }),
   ).toContainText("Available");
   await page.setViewportSize({ width: 390, height: 844 });
   expect(
@@ -800,4 +922,167 @@ test("research jobs panel creates, lists and cancels a job", async ({ page }) =>
   await row.getByRole("button", { name: "Cancelar" }).click();
   await expect(row).toContainText("Cancelado");
   await expect(row.getByRole("button", { name: "Cancelar" })).toHaveCount(0);
+});
+
+test("proposals enforce expiry and show the recorded PAPER approval outcome", async ({ page }) => {
+  await shell(page, "ADMIN");
+  const now = Date.now();
+  const proposal = {
+    proposal_id: "current-proposal", venue: "kraken", base: "BTC", quote: "USD",
+    direction: "LONG", confidence: "0.80", suggested_allocation_pct: "0.05",
+    entry_price: "60000", stop_price: "57000", take_profit_price: "66000",
+    reasons: ["Validated market context"], risks: ["Market volatility"], model_id: "consensus",
+    as_of: new Date(now).toISOString(), expires_at: new Date(now + 3600000).toISOString(),
+    decision_status: "PENDING", decided_at: null, simulation: null,
+    execution: null as null | { status: string; client_order_id: string; reasons: string[] },
+  };
+  const expired = { ...proposal, proposal_id: "expired-proposal", expires_at: new Date(now - 60000).toISOString() };
+  let approvalRequests = 0;
+  await page.route("**/api/proposals", (route) => route.fulfill({ json: { rows: [proposal, expired] } }));
+  await page.route("**/api/proposals/current-proposal/approve", async (route) => {
+    approvalRequests += 1;
+    expect(route.request().method()).toBe("POST");
+    proposal.decision_status = "APPROVED";
+    proposal.execution = { status: "FILLED", client_order_id: "paper-order", reasons: [] };
+    await route.fulfill({ json: { proposal_id: proposal.proposal_id, status: "APPROVED", execution_status: "FILLED" } });
+  });
+  await page.goto("/intelligence?proposal=current-proposal&decision=approve#proposals");
+  const current = page.locator("details").filter({ has: page.getByText("current-proposal", { exact: true }) });
+  const stale = page.locator("details").filter({ has: page.getByText("expired-proposal", { exact: true }) });
+  await expect(current).toHaveAttribute("open", "");
+  expect(approvalRequests).toBe(0);
+  await stale.locator("summary").click();
+  await expect(stale.getByRole("button", { name: "Aprobar", exact: true })).toHaveCount(0);
+  await expect(stale.getByRole("button", { name: "Simular", exact: true })).toHaveCount(0);
+  await expect(stale.getByRole("button", { name: "Rechazar", exact: true })).toBeVisible();
+  await expect(current.getByRole("button", { name: "Simular", exact: true })).toBeVisible();
+  await current.getByRole("button", { name: "Aprobar", exact: true }).click();
+  await expect(current.getByRole("status")).toContainText("Orden PAPER ejecutada");
+  expect(approvalRequests).toBe(1);
+  await expect(current.getByRole("button", { name: "Aprobar", exact: true })).toHaveCount(0);
+});
+
+test("LIVE proposals require explicit money confirmation and bind the limits version", async ({ page }) => {
+  await shell(page, "ADMIN");
+  await page.route("**/api/dashboard", route => route.fulfill({ json: { environment: "LIVE", status: "RUNNING", trading_available: true, equity: null, exchange: "KRAKEN_SPOT_REAL", positions: [], phase: 1 } }));
+  await page.route("**/api/live", route => route.fulfill({ json: { capable: true, configured: true, enabled: true, state: "READY", reason: "", version: 7, connection_id: "00000000-0000-0000-0000-000000000007", max_order_usd: "25", max_daily_loss_usd: "5", max_total_usd: "100", slippage_pct: "0.005", equity_usd: "1000", as_of: new Date().toISOString(), balances: [], orders: [] } }));
+  const now = Date.now();
+  await page.route("**/api/proposals", route => route.fulfill({ json: { rows: [{ proposal_id: "live-proposal", venue: "kraken", base: "XBT", quote: "USD", direction: "LONG", confidence: "0.8", suggested_allocation_pct: "0.05", entry_price: "60000", stop_price: "57000", take_profit_price: "66000", reasons: ["Market context"], risks: ["Price risk"], model_id: "consensus", as_of: new Date(now).toISOString(), expires_at: new Date(now + 3600000).toISOString(), decision_status: "PENDING", decided_at: null, simulation: null, execution: null }] } }));
+  let approvals = 0;
+  await page.route("**/api/proposals/live-proposal/approve", async route => {
+    approvals += 1;
+    expect(route.request().postDataJSON()).toEqual({ environment: "LIVE", live_version: 7 });
+    await route.fulfill({ json: { proposal_id: "live-proposal", status: "APPROVED", execution_status: "FILLED" } });
+  });
+  await page.goto("/intelligence?proposal=live-proposal#proposals");
+  const action = page.getByRole("button", { name: "Aprobar operación real", exact: true });
+  await expect(action).toBeDisabled();
+  expect(approvals).toBe(0);
+  await page.getByLabel("Confirmo esta operación con dinero real").check();
+  await expect(action).toBeEnabled();
+  await action.click();
+  expect(approvals).toBe(1);
+  await expect(action).toBeDisabled();
+});
+
+test("real account activation requires a connection, explicit limits and LIVE text", async ({ page }) => {
+  await shell(page, "ADMIN");
+  await page.route("**/api/connections", route => route.fulfill({ json: { rows: [{ id: "00000000-0000-0000-0000-000000000007", provider: "KRAKEN", label: "Cuenta Kraken", mode: "TRADE_ONLY", status: "HEALTHY", has_credentials: true, created_at: 1 }] } }));
+  let submitted = 0;
+  await page.route("**/api/live/control", async route => {
+    const body = route.request().postDataJSON();
+    expect(body).toMatchObject({ enabled: true, confirmation: "LIVE", max_order_usd: "25", max_daily_loss_usd: "5", max_total_usd: "100", slippage_pct: "0.005" });
+    submitted += 1;
+    await route.fulfill({ status: 409, json: { detail: "Exchange balances require reconciliation" } });
+  });
+  await page.goto("/settings");
+  const panel = page.locator("article").filter({ has: page.getByRole("heading", { name: "Operaciones con dinero real", exact: true }) });
+  const activate = panel.getByRole("button", { name: "Verificar cuenta y activar LIVE", exact: true });
+  await expect(activate).toBeDisabled();
+  await panel.getByLabel("Cuenta real", { exact: true }).selectOption("00000000-0000-0000-0000-000000000007");
+  await panel.getByLabel("Máximo por operación (USD)", { exact: true }).fill("25");
+  await panel.getByLabel("Pérdida diaria máxima (USD)", { exact: true }).fill("5");
+  await panel.getByLabel("Exposición total máxima (USD)", { exact: true }).fill("100");
+  await panel.getByLabel("Cambio de precio máximo (%)", { exact: true }).fill("0.5");
+  await panel.getByLabel("Escribe LIVE para activar dinero real", { exact: true }).fill("LIVE");
+  await activate.click();
+  await expect(panel.getByRole("alert")).toContainText("Exchange balances require reconciliation");
+  expect(submitted).toBe(1);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test("portfolio page shows the main account and the fully separate AI account", async ({
+  page,
+}) => {
+  await shell(page, "ADMIN");
+  let mainFunded = false;
+  let aiFunded = false;
+  const emptyView = {
+    environment: "PAPER",
+    connection_count: 0,
+    balances: [] as Array<Record<string, unknown>>,
+    activity: [],
+    performance: [],
+    proposal_history: [],
+    orders: [],
+  };
+  await page.route("**/api/portfolio", async (route) => {
+    if (route.request().method() === "POST") mainFunded = true;
+    await route.fulfill({
+      json: mainFunded
+        ? { ...emptyView, balances: [{ currency: "USD", purpose: "CASH", amount: "10000" }] }
+        : emptyView,
+    });
+  });
+  await page.route("**/api/portfolio/ai/fund", async (route) => {
+    aiFunded = true;
+    await route.fulfill({
+      json: { ...emptyView, balances: [{ currency: "USD", purpose: "CASH", amount: "5000" }] },
+    });
+  });
+  await page.route("**/api/portfolio/ai", async (route) => {
+    await route.fulfill({
+      json: aiFunded
+        ? { ...emptyView, balances: [{ currency: "USD", purpose: "CASH", amount: "5000" }] }
+        : emptyView,
+    });
+  });
+  await page.goto("/portfolio");
+  await expect(page.getByRole("heading", { name: "Aún no hay saldos registrados" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Cuenta PAPER de IA" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "La cuenta de IA todavía no tiene saldo" }),
+  ).toBeVisible();
+
+  // Funding the AI account must never affect the main account, and vice versa -- they are fully
+  // separate ledgers (.ai/DECISIONS.md, 2026-09-23).
+  await page.getByRole("button", { name: "Fondear cuenta de IA" }).click();
+  await expect(page.getByRole("row", { name: /USD Efectivo/ })).toContainText("5000");
+  await expect(page.getByRole("heading", { name: "Aún no hay saldos registrados" })).toBeVisible();
+});
+
+test("AI position monitoring shows quote provenance, PnL and review levels on mobile", async ({ page }) => {
+  await shell(page, "ADMIN");
+  await page.route("**/api/portfolio/ai", route => route.fulfill({ json: {
+    environment: "PAPER", connection_count: 0,
+    balances: [{ currency: "BTC", purpose: "POSITION", amount: "0.005" }],
+    activity: [], performance: [], orders: [],
+    proposal_history: [{
+      proposal_id: "tracked-proposal", base: "BTC", quote: "USD", direction: "BUY",
+      filled_quantity: "0.005", filled_price: "50000", filled_at: "2026-10-08T00:00:00Z",
+      held_for_seconds: 3600, stop_price: "48000", take_profit_price: "54000", execution_status: "FILLED",
+      remaining_quantity: "0.005", realized_pnl: "0", current_price: "55000",
+      quote_at: new Date().toISOString(), quote_source: "kraken", unrealized_pnl: "24.75",
+      closed_at: null, monitoring_status: "TARGET_REACHED",
+    }],
+  } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/portfolio");
+  const row = page.getByRole("row").filter({ hasText: "tracked-proposal" });
+  await expect(row).toContainText("Objetivo alcanzado: revisar");
+  await expect(row).toContainText("kraken");
+  await expect(row).toContainText("24,75 USD");
+  await expect(page.getByText(/Stop y objetivo son avisos de revisión/)).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });

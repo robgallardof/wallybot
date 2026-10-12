@@ -48,9 +48,23 @@ class AIAnalysisContext:
     regime: RegimeClassification
     strategy_signals: tuple[StrategySignal, ...]
     as_of: datetime
+    allocation_guidance: tuple[tuple[str, Decimal], ...] = ()
+    portfolio_cash_usd: Decimal | None = None
+    portfolio_holdings: tuple[tuple[str, Decimal], ...] = ()
+    portfolio_as_of: datetime | None = None
 
     def __post_init__(self) -> None:
         require_aware_datetime(self.as_of, "as_of")
+        if self.portfolio_as_of is not None:
+            require_aware_datetime(self.portfolio_as_of, "portfolio_as_of")
+        values = [self.portfolio_cash_usd] if self.portfolio_cash_usd is not None else []
+        values += [quantity for _, quantity in self.portfolio_holdings]
+        if any(not value.is_finite() or value < 0 for value in values):
+            raise ValueError("Portfolio context values must be finite and nonnegative")
+        for tier, target in self.allocation_guidance:
+            if not tier:
+                raise ValueError("allocation guidance tier must not be empty")
+            require_unit_interval(target, f"allocation guidance for {tier}")
 
 
 @dataclass(frozen=True)

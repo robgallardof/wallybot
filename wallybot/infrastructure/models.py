@@ -26,13 +26,40 @@ class ControlRow(Base):
     __tablename__ = "control"
     __table_args__ = (
         CheckConstraint("id = 1"),
-        CheckConstraint("environment IN ('OBSERVE', 'PAPER')"),
+        CheckConstraint("environment IN ('OBSERVE', 'PAPER', 'LIVE')"),
         CheckConstraint("status IN ('RUNNING', 'PAUSED')"),
     )
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     setup_complete: Mapped[bool] = mapped_column(Boolean, default=False)
     environment: Mapped[str] = mapped_column(String(16), default="OBSERVE")
     status: Mapped[str] = mapped_column(String(16), default="RUNNING")
+
+
+class AiAutonomyControlRow(Base):
+    """Singleton configuring independent, proposal-only market analysts."""
+
+    __tablename__ = "ai_autonomy_control"
+    __table_args__ = (
+        CheckConstraint("id = 1"),
+        CheckConstraint("status IN ('DISABLED', 'ENABLED')"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    status: Mapped[str] = mapped_column(String(16), default="DISABLED")
+    target_core_pct: Mapped[Decimal] = mapped_column(Numeric)
+    target_growth_pct: Mapped[Decimal] = mapped_column(Numeric)
+    target_speculative_pct: Mapped[Decimal] = mapped_column(Numeric)
+    digest_interval_hours: Mapped[int] = mapped_column(Integer)
+    codex_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    claude_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    require_consensus: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class AiProposalDigestRow(Base):
+    """Per-operator delivery watermark for grouped AI proposal notifications."""
+
+    __tablename__ = "ai_proposal_digests"
+    owner_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), primary_key=True)
+    last_sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class UserRow(Base):
@@ -683,6 +710,15 @@ class TradeProposalRow(Base):
     model_id: Mapped[str] = mapped_column(String(64))
     prompt_version: Mapped[str] = mapped_column(String(32))
     as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    # Market evidence may be shared, but a proposal and its decision never cross accounts.
+    owner_id: Mapped[str | None] = mapped_column(String(64), ForeignKey("users.id"), index=True)
+    decision_status: Mapped[str] = mapped_column(String(16), nullable=False, default="PENDING")
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Outcome of the post-approval revalidation (ADR-017); null until an approval is processed.
+    execution_status: Mapped[str | None] = mapped_column(String(24))
+    execution_environment: Mapped[str | None] = mapped_column(String(8))
+    execution_order_id: Mapped[str | None] = mapped_column(String(64))
+    execution_reasons: Mapped[list | None] = mapped_column(JSONB)
 
 
 class ShadowDecisionRow(Base):

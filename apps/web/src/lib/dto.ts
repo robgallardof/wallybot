@@ -5,10 +5,33 @@ export const meSchema = z.object({
   role: z.enum(["ADMIN", "VIEWER"]),
   csrf: z.string(),
 });
+export const tradeProposalSchema = z.object({
+  proposal_id: z.string(), venue: z.string(), base: z.string(), quote: z.string(), direction: z.string(),
+  confidence: z.string(), suggested_allocation_pct: z.string(), entry_price: z.string(),
+  stop_price: z.string().nullable(), take_profit_price: z.string().nullable(), reasons: z.array(z.string()),
+  risks: z.array(z.string()), model_id: z.string(), as_of: z.string(), expires_at: z.string(),
+  decision_status: z.enum(["PENDING", "SIMULATED", "APPROVED", "REJECTED"]), decided_at: z.string().nullable(),
+  simulation: z.object({ allocation_approved: z.boolean(), risk_decision: z.string().nullable(), reasons: z.array(z.string()), simulated_at: z.string() }).nullable(),
+  execution: z.object({ status: z.string(), environment: z.string().default("PAPER"), client_order_id: z.string().nullable(), reasons: z.array(z.string()) }).nullable(),
+});
+export const tradeProposalListSchema = z.object({ rows: z.array(tradeProposalSchema) });
+export const enrollmentSchema = z.object({
+  challenge: z.string(),
+  secret: z.string(),
+  uri: z.string(),
+});
+export const sessionSchema = z.object({
+  session_id: z.string(),
+  created_at: z.string(),
+  last_seen: z.string(),
+  expires_at: z.string(),
+  is_current: z.boolean(),
+});
+export const sessionListSchema = z.object({ rows: z.array(sessionSchema) });
 export const dashboardSchema = z.object({
-  environment: z.enum(["OBSERVE", "PAPER"]),
+  environment: z.enum(["OBSERVE", "PAPER", "LIVE"]),
   status: z.enum(["RUNNING", "PAUSED"]),
-  trading_available: z.literal(false),
+  trading_available: z.boolean(),
   equity: z.null(),
   exchange: z.string(),
   positions: z.array(z.unknown()),
@@ -24,7 +47,7 @@ export const systemSchema = z.object({
   exchange: z.string(),
   ai: z.string(),
   telegram: z.string(),
-  live_available: z.literal(false),
+  live_available: z.boolean(),
 });
 export const eventSchema = z.object({
   id: z.string(),
@@ -55,6 +78,19 @@ export const marketRowSchema = z.object({
 export const marketsSchema = z.object({
   as_of: z.string(),
   rows: z.array(marketRowSchema),
+});
+export const marketCandleSchema = z.object({
+  open_time: z.string(),
+  close_time: z.string(),
+  open: z.string(),
+  high: z.string(),
+  low: z.string(),
+  close: z.string(),
+  volume: z.string(),
+});
+export const marketDetailSchema = marketRowSchema.extend({
+  as_of: z.string(),
+  candles: z.array(marketCandleSchema),
 });
 export const smartMoneyRowSchema = z.object({
   wallet_id: z.string(),
@@ -241,11 +277,25 @@ export const portfolioActivitySchema = z.object({
   fee: z.string(),
   fee_currency: z.string(),
   occurred_at: z.string(),
+  proposal_id: z.string().nullable(),
 });
 export const portfolioPerformanceSchema = z.object({
   quote: z.string(),
   realized_pnl: z.string(),
   open_cost_basis: z.string(),
+});
+export const portfolioProposalHistorySchema = z.object({
+  proposal_id: z.string(), base: z.string(), quote: z.string(), direction: z.enum(["BUY", "SELL"]),
+  filled_quantity: z.string(), filled_price: z.string(), filled_at: z.string(), held_for_seconds: z.number(),
+  stop_price: z.string().nullable(), take_profit_price: z.string().nullable(), execution_status: z.string(),
+  remaining_quantity: z.string(), realized_pnl: z.string(),
+  current_price: z.string().nullable(), quote_at: z.string().nullable(), quote_source: z.string().nullable(),
+  unrealized_pnl: z.string().nullable(), closed_at: z.string().nullable(), monitoring_status: z.string(),
+});
+export const portfolioOrderSchema = z.object({
+  client_order_id: z.string(), venue: z.string(), base: z.string(), quote: z.string(),
+  side: z.enum(["BUY", "SELL"]), kind: z.enum(["MARKET", "LIMIT"]), quantity: z.string(),
+  limit_price: z.string().nullable(), status: z.string(), created_at: z.string(), expires_at: z.string(),
 });
 export const portfolioSchema = z.object({
   environment: z.literal("PAPER"),
@@ -253,6 +303,19 @@ export const portfolioSchema = z.object({
   balances: z.array(portfolioBalanceSchema),
   activity: z.array(portfolioActivitySchema),
   performance: z.array(portfolioPerformanceSchema),
+  proposal_history: z.array(portfolioProposalHistorySchema),
+  orders: z.array(portfolioOrderSchema),
+});
+
+export const aiAutonomyControlSchema = z.object({
+  status: z.enum(["DISABLED", "ENABLED"]),
+  target_core_pct: z.string(),
+  target_growth_pct: z.string(),
+  target_speculative_pct: z.string(),
+  digest_interval_hours: z.number(),
+  codex_enabled: z.boolean(),
+  claude_enabled: z.boolean(),
+  require_consensus: z.boolean(),
 });
 
 export const telegramConfigSchema = z.object({

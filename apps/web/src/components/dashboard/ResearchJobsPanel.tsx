@@ -135,7 +135,12 @@ export function ResearchJobsPanel({
                   <td>{row.attempts}</td>
                   <td>
                     {row.artifact_uri ? (
-                      <code>{row.artifact_uri}</code>
+                      <a
+                        href={`/api/backtests/export?format=json&experiment_id=${encodeURIComponent(row.artifact_uri)}`}
+                        download
+                      >
+                        {i18n.t("Descargar resultado")}
+                      </a>
                     ) : row.error ? (
                       row.error
                     ) : (

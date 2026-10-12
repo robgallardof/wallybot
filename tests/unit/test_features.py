@@ -37,8 +37,7 @@ def make_candle(open_time: datetime, close: Decimal) -> Candle:
 
 def make_series(closes: list[str]) -> list[Candle]:
     return [
-        make_candle(START + timedelta(hours=i), Decimal(value))
-        for i, value in enumerate(closes)
+        make_candle(START + timedelta(hours=i), Decimal(value)) for i, value in enumerate(closes)
     ]
 
 
@@ -49,7 +48,7 @@ def test_computes_sma_and_momentum():
     vector = engine.compute(candles, as_of=as_of, window=4)
     assert vector.values["sma_4"] == Decimal("115")
     assert vector.values["momentum_4"] == Decimal("0.3")
-    assert vector.version == 1
+    assert vector.version == 2
     assert vector.instrument == INSTRUMENT
     assert vector.timeframe == "1h"
 
@@ -59,6 +58,38 @@ def test_uses_only_the_trailing_window():
     as_of = candles[-1].close_time
     vector = SimpleFeatureEngine().compute(candles, as_of=as_of, window=4)
     assert vector.values["sma_4"] == Decimal("115")
+
+
+def test_computes_volatility_atr_and_volume_features_from_the_same_as_of_window():
+    candles = [
+        Candle(
+            instrument=INSTRUMENT,
+            timeframe="1h",
+            open_time=START + timedelta(hours=index),
+            close_time=START + timedelta(hours=index + 1),
+            open=Decimal(open_),
+            high=Decimal(high),
+            low=Decimal(low),
+            close=Decimal(close),
+            volume=Decimal(volume),
+            source="fake",
+            received_at=START + timedelta(hours=index + 1),
+        )
+        for index, (open_, high, low, close, volume) in enumerate(
+            [
+                ("100", "102", "99", "101", "10"),
+                ("101", "105", "100", "104", "20"),
+                ("104", "106", "102", "103", "30"),
+            ]
+        )
+    ]
+    vector = SimpleFeatureEngine().compute(candles, as_of=candles[-1].close_time, window=3)
+
+    assert vector.values["atr_3"] == Decimal("4")
+    assert vector.values["relative_volume_3"] == Decimal("1.5")
+    assert vector.values["average_quote_volume_3"] == Decimal("2060")
+    expected_volatility = (((Decimal(3) / 101) ** 2 + (Decimal(-1) / 104) ** 2) / 2).sqrt()
+    assert vector.values["realized_volatility_3"] == expected_volatility
 
 
 def test_rejects_future_candle_beyond_as_of():

@@ -59,6 +59,14 @@ export function BacktestHistory({
         >
           {t(history.isFetching ? "Actualizando…" : "Actualizar")}
         </button>
+        <div className="portfolio-export-links" aria-label={t("Exportar experimentos")}>
+          <a href="/api/backtests/export?format=csv" download>
+            {t("Exportar CSV")}
+          </a>
+          <a href="/api/backtests/export?format=json" download>
+            {t("Exportar JSON")}
+          </a>
+        </div>
       </div>
       {history.isPending ? (
         <p className="muted" role="status">

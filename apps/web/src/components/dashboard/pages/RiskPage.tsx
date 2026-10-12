@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Pause, Play, ShieldCheck } from "lucide-react";
+import { FaCirclePause, FaPlay, FaShieldHalved } from "react-icons/fa6";
 import i18n from "../../../lib/i18n";
 import type { breakerListSchema, dashboardSchema, riskLimitsSchema } from "../../../lib/dto";
 import type { UseMutationResult, UseQueryResult } from "@tanstack/react-query";
@@ -44,7 +44,7 @@ export function RiskPage({
             <span className="eyebrow">{i18n.t("CONTROL OPERATIVO")}</span>
             <h2>{i18n.t("Control de la instancia")}</h2>
           </div>
-          <ShieldCheck size={20} />
+          <FaShieldHalved size={18} />
         </div>
         <div className="risk-control-state">
           <span className={dashboard.data?.status === "PAUSED" ? "status-light pending" : "status-light"} />
@@ -71,7 +71,7 @@ export function RiskPage({
                   })
                 }
               >
-                {dashboard.data?.status === "PAUSED" ? <Play size={16} /> : <Pause size={16} />}
+                {dashboard.data?.status === "PAUSED" ? <FaPlay size={13} /> : <FaCirclePause size={15} />}
                 {dashboard.data?.status === "PAUSED"
                   ? i18n.t("Reanudar instancia")
                   : i18n.t("Pausar instancia")}
@@ -92,7 +92,7 @@ export function RiskPage({
             <span className="eyebrow">{i18n.t("LÍMITES")}</span>
             <h2>{i18n.t("Límites y consumo")}</h2>
           </div>
-          <ShieldCheck size={20} />
+          <FaShieldHalved size={18} />
         </div>
         {riskLimits.isPending && <p className="muted">{i18n.t("Cargando…")}</p>}
         {riskLimits.isError && (
@@ -197,7 +197,7 @@ export function RiskPage({
         )}
         {breakers.data && activeBreakers.length === 0 && (
           <div className="breaker-empty">
-            <ShieldCheck size={20} />
+            <FaShieldHalved size={18} />
             <div>
               <strong>{i18n.t("Ningún breaker activo.")}</strong>
               <p>{i18n.t("Las protecciones están listas y no hay una condición pendiente de revisión.")}</p>

@@ -50,3 +50,9 @@ Implementation follows this order: mandate + portfolio context snapshots; read-o
 adapters; AI costed advisory and periodic SHADOW; PAPER execution/evaluation; then separately
 reviewed LIVE trading. Backtests and SHADOW evidence are required before promotion; no strategy
 is promoted solely because of retrospective profit.
+
+**Partially superseded by [ADR-016](016-ai-autonomous-account.md) (2026-09-23)** for one narrow,
+named exception: a separate, opt-in AI-autonomous PAPER account may skip the "passes
+`PortfolioAllocator` and `RiskEngine`" step in this ADR's Decision section — confirmed twice by the
+operator after concrete failure scenarios were raised. The no-withdrawal boundary and PAPER/LIVE
+gating this ADR describes are unaffected and still fully apply.

@@ -1,4 +1,4 @@
-import { ArrowUpRight } from "lucide-react";
+import { FaArrowUpRightFromSquare } from "react-icons/fa6";
 import { QRCodeSVG } from "qrcode.react";
 import i18n from "../../lib/i18n";
 import { Button } from "../ui/button";
@@ -73,7 +73,7 @@ export function MfaForm({
       )}
       <Button disabled={busy}>
         {busy ? i18n.t("Verificando…") : i18n.t("Verificar y entrar")}{" "}
-        <ArrowUpRight size={16} />
+        <FaArrowUpRightFromSquare size={14} />
       </Button>
     </form>
   );

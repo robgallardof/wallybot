@@ -208,10 +208,12 @@ test("setup, MFA, dashboard, controls, activity, logout and recovery login", asy
   await expect(page.locator(".paper-pill")).toHaveText("OBSERVE");
   await page.getByRole("button", { name: "Documentación", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Documentación y primeros pasos" }),
+    page.getByRole("heading", { name: "Cómo funciona realmente WallyBot" }),
   ).toBeVisible();
-  await expect(page.getByText("uv tool install graphifyy")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Comandos de tu bot" })).toBeVisible();
+  await expect(page.getByText("/proposals", { exact: true })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Abrir navegación" }).click();
   await page.getByRole("button", { name: "Resumen", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Una visión clara." }),

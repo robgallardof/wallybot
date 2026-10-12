@@ -5,10 +5,12 @@ validation change for different reasons: an input DTO tightens what a client may
 output DTO documents and locks the wire contract a client can rely on.
 """
 
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel
 
+from wallybot.domain.ai_autonomy import AiAutonomyStatus
 from wallybot.domain.control import Environment, Status
 
 
@@ -41,6 +43,18 @@ class MeView(BaseModel):
     csrf: str
 
 
+class SessionView(BaseModel):
+    session_id: str
+    created_at: str
+    last_seen: str
+    expires_at: str
+    is_current: bool
+
+
+class SessionListView(BaseModel):
+    rows: list[SessionView]
+
+
 class LogoutView(BaseModel):
     ok: bool
 
@@ -48,7 +62,7 @@ class LogoutView(BaseModel):
 class DashboardView(BaseModel):
     environment: Environment
     status: Status
-    trading_available: Literal[False]
+    trading_available: bool
     exchange: str
     equity: None
     positions: list[object]
@@ -72,6 +86,9 @@ class PortfolioActivityView(BaseModel):
     fee: str
     fee_currency: str
     occurred_at: str
+    # A fill can be the result of an approved AI proposal. This is read-only provenance, not an
+    # instruction to submit or repeat the trade.
+    proposal_id: str | None = None
 
 
 class PortfolioPerformanceView(BaseModel):
@@ -80,12 +97,50 @@ class PortfolioPerformanceView(BaseModel):
     open_cost_basis: str
 
 
+class PortfolioProposalHistoryView(BaseModel):
+    proposal_id: str
+    base: str
+    quote: str
+    direction: Literal["BUY", "SELL"]
+    filled_quantity: str
+    filled_price: str
+    filled_at: str
+    held_for_seconds: int
+    stop_price: str | None
+    take_profit_price: str | None
+    execution_status: str
+    remaining_quantity: str = "0"
+    realized_pnl: str = "0"
+    current_price: str | None = None
+    quote_at: str | None = None
+    quote_source: str | None = None
+    unrealized_pnl: str | None = None
+    closed_at: str | None = None
+    monitoring_status: str = "QUOTE_UNAVAILABLE"
+
+
+class PortfolioOrderView(BaseModel):
+    client_order_id: str
+    venue: str
+    base: str
+    quote: str
+    side: Literal["BUY", "SELL"]
+    kind: Literal["MARKET", "LIMIT"]
+    quantity: str
+    limit_price: str | None
+    status: str
+    created_at: str
+    expires_at: str
+
+
 class PortfolioView(BaseModel):
     environment: Literal["PAPER"]
     connection_count: int
     balances: list[PortfolioBalanceView]
     activity: list[PortfolioActivityView]
     performance: list[PortfolioPerformanceView]
+    proposal_history: list[PortfolioProposalHistoryView] = []
+    orders: list[PortfolioOrderView] = []
 
 
 class OrderCancelView(BaseModel):
@@ -139,7 +194,7 @@ class SystemView(BaseModel):
     exchange: str
     ai: str
     telegram: str
-    live_available: Literal[False]
+    live_available: bool
 
 
 class EventView(BaseModel):
@@ -170,6 +225,57 @@ class AuditEventView(BaseModel):
 class ControlView(BaseModel):
     status: Status
     environment: Environment
+
+
+class AiAutonomyControlView(BaseModel):
+    status: AiAutonomyStatus
+    target_core_pct: Decimal
+    target_growth_pct: Decimal
+    target_speculative_pct: Decimal
+    digest_interval_hours: int
+    codex_enabled: bool
+    claude_enabled: bool
+    require_consensus: bool
+
+
+class ProposalSimulationView(BaseModel):
+    allocation_approved: bool
+    risk_decision: str | None
+    reasons: list[str]
+    simulated_at: str
+
+
+class ProposalExecutionView(BaseModel):
+    environment: str = "PAPER"
+    status: str
+    client_order_id: str | None
+    reasons: list[str]
+
+
+class TradeProposalView(BaseModel):
+    proposal_id: str
+    venue: str
+    base: str
+    quote: str
+    direction: str
+    confidence: str
+    suggested_allocation_pct: str
+    entry_price: str
+    stop_price: str | None
+    take_profit_price: str | None
+    reasons: list[str]
+    risks: list[str]
+    model_id: str
+    as_of: str
+    expires_at: str
+    decision_status: str
+    decided_at: str | None
+    simulation: ProposalSimulationView | None = None
+    execution: ProposalExecutionView | None = None
+
+
+class TradeProposalListView(BaseModel):
+    rows: list[TradeProposalView]
 
 
 class MarketRowView(BaseModel):

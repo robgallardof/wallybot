@@ -1,4 +1,229 @@
+## Verified real spot delivery — 2026-10-12
+
+Operator-approved Kraken spot USD/XBT/ETH is implemented and deployed. Credentials and limits
+are entered by the operator through the UI with fresh MFA. No real account is configured and
+no real orders were placed. Runtime remains OBSERVE. Preserve unrelated Rust work.
+
+Verification: 952 backend tests passed (144.53s); production browser suite 19 passed (48.1s);
+WallyBot-scoped Pyright zero errors; Ruff, frontend types and focused lint passed. Eight Compose
+services healthy, readiness 200, migration 0044 deployed. Native AI heartbeat verified.
+Codex readiness succeeds; Claude is not logged in. Operator must log in locally or configure
+only available analysts in the UI; do not silently weaken consensus.
+
+LIVE includes encrypted trade-only credentials, nonce serialization, manual single-use approval,
+mode/version binding, bounded IOC limits, ledger opening balances, fill recovery and periodic
+reconciliation. Account discrepancies and losses block execution. No withdrawals, transfers,
+leverage, AI direct orders or automatic stop sales. See docs/adr/018-real-spot-objective.md and
+docs/runbooks/real-spot-trading.md. Funded venue acceptance remains untested.
+
+User requested publication to robgallardof/wallybot and a polished Spanish README. Exclude
+secrets, runtime files and unrelated Rust bot. Publication status must be verified after push.
+
+## Verified PAPER delivery — 2026-10-08
+
+This entry supersedes the older Docker-unavailable status below. User authorized completing
+WallyBot only; unrelated Rust work and existing dirty changes were preserved.
+
+Implemented trustworthy Kraken bid marks (source/instrument/age/spread validation), FIFO
+remaining cost and realized/unrealized proposal position results, partial reductions, closed
+holding time, and read-only stop/target review states. Failed/stale quotes withhold valuations.
+Telegram /approve, /reject and /simulate return owner-scoped review links; only the web's
+authenticated Admin + fresh MFA + CSRF path can decide. Links never execute actions.
+
+Both local CLI analysts passed real HOLD readiness calls; Telegram getMe and public Kraken
+quotes responded. Native Windows AI worker now has hidden start/stop scripts, isolated CLI
+subprocesses, a 10-second heartbeat, and migration 0041 restricting its database role from
+orders/fills/ledger access. Eight Compose services are healthy and readiness returns 200.
+API/native-worker restart preserved existing production row counts (no production orders or
+fills existed). Runtime analysis remains DISABLED until the operator enables it through MFA.
+No LIVE, transfer, withdrawal, automatic stop sale, or real-money trade was enabled.
+
+Verification: 911 unit/property/contract/integration tests passed using real disposable
+PostgreSQL/Redis (143.21s); WallyBot-scoped Pyright zero errors; Ruff and frontend TypeScript/
+focused ESLint passed. Final production browser rerun passed 17/17 in 42.6s, including
+production CSP and setup/MFA/recovery. Evidence is recorded in docs/stats/testing.md.
+Integration startup now skips external market ingestion; job tests invoke it explicitly.
+Third-party deprecation warnings and a Windows pytest-cache permission warning remain.
+
+Launch/restart: scripts/start_wallybot.ps1, scripts/start_ai_worker.ps1,
+scripts/stop_ai_worker.ps1. See docs/runbooks/native-ai-worker.md.
+Before claiming operation, check System heartbeat and enable analysis in Settings with the
+operator's session/MFA. HOLD is a valid analyst response and does not guarantee a proposal.
+Quote levels are review information; future selling still requires a separate approved proposal.
+Broader multi-provider/equities/LIVE roadmap items in docs/PENDING.md are outside this delivery.
+
+## WallyBot completion verification — 2026-10-08
+
+User explicitly resumed WallyBot, excluding the unrelated Rust Discord bot. Preserved all
+existing dirty changes; .git now EXISTS (older instructions saying otherwise are stale).
+Fixed the two previously recorded WallyBot Pyright failures: /auth/me uses Pydantic model_validate
+for the string-backed persisted role (retaining Literal validation), and backtest CSV field names
+have an explicit tuple[str, ...] annotation. Updated browser mocks to include required analyst
+flags and proposal_history, and replaced the obsolete Graphify installation assertion on the
+product Docs page with Telegram command documentation assertions. Added browser coverage for
+expired proposals hiding approval/simulation, rejection remaining available, and recorded PAPER
+approval results removing the approval action.
+
+Verified: 569 unit/contract tests passed; WallyBot-scoped Pyright zero errors; Ruff on changed
+backend files passed; frontend tsc and focused ESLint passed; 14 observability browser tests
+passed against a standalone Next dev server with mocked API responses. git diff --check passed.
+The normal backend run returned 570 passed and 283 setup errors because Docker is unavailable;
+the standard Playwright stack also could not start its PostgreSQL/Redis containers. These are
+NOT passing real-service integration or full-stack acceptance results. No deployment occurred.
+Unrelated Rust files have existing type errors; they were not edited or included in scoped checks.
+
+Remaining product work from the previous handoff includes trustworthy current valuation and
+per-proposal P&L, position stop/target follow-up, and full real-service/end-to-end acceptance.
+Do not claim the complete bot is finished based on mocked browser and unit tests alone.
+
 # Claude handoff — 2026-09-16 (new session)
+
+## Proposal provenance in the portfolio — 2026-09-27
+
+`GET /api/portfolio` and `GET /api/portfolio/ai` now include an optional `proposal_id` for each
+fill when it originated from the signed-in operator's approved proposal. The API correlates the
+persisted `execution_order_id` with its fill's `client_order_id`; the web activity table labels it
+as a WallyBot AI proposal. It is evidence only -- it cannot cause approval, execution, transfer,
+or a valuation. Tests, static checks, graph update, and an API/web/gateway deployment passed.
+
+`PortfolioView.proposal_history` now exposes the same linked fills in a dedicated monitoring list:
+entry actually filled, quantity, elapsed holding time, recorded stop/target and execution outcome.
+No live price or unrealized P&L is inferred without a trusted quote. The API/web/gateway deployment
+was recreated and verified after this addition.
+
+Telegram `/withdrawal` is now implemented as a read-only informational review over confirmed FIFO
+results in `paper-ai:<owner>`. It cannot receive a destination, submit a trade, create a Telegram
+confirmation, transfer or withdraw. The command is in `/help` and the docs. 38 focused tests and
+static checks passed; the deployment was verified.
+
+## Approved proposal → revalidated PAPER order — 2026-09-27
+
+ADR-017's missing step now exists. `POST /api/proposals/{id}/approve` (Admin + fresh MFA + CSRF)
+commits the single-use approval first and returns 409 `Proposal expired` once `as_of +
+signal_ttl` has passed (simulate too). In OBSERVE the approval is stored with
+`execution_status=OBSERVE_ONLY` and no order. In PAPER, `wallybot/application/proposal_execution.py`
+(`execute_approved_proposal`) resyncs the `paper-ai:<user>` balances, reconciles only that
+account, re-reads instrument/candles/quality/spread/equity/breakers, runs `ShadowDecisionService`
+(allocator + `DeterministicRiskEngine`), persists the evidence and only then submits one MARKET
+order via the AI account's own `FakeExchange` (`app.state.paper_ai`, idempotency key
+`proposal:<id>`). A process-local lock serializes executions. Outcome + reasons are stored in
+`trade_proposals.execution_*` (migration `0040_proposal_execution`) and audited; the Telegram
+decision message reports it. The deterministic loop's reconciliation sweep is now scoped to its
+own account.
+
+Pre-existing bug fixed in the same migration: `wally_api` had no grant on `shadow_decisions`, so
+`GET /api/proposals` (with rows) and Simulate returned 503 under the real API role.
+
+Second pre-existing bug fixed: `FakeExchange` fill ids were a per-instance counter
+(`fake-fill-1`...), which restarts after an API restart (and would collide between the two PAPER
+gateways) while fills/ledger transactions are keyed by that id. Now `fake-fill-<client_order_id>-<n>`.
+
+Verified: full backend suite 870 passed; Ruff clean; pyright shows 2 pre-existing errors in
+`auth_routes.py:76` and `backtest_routes.py:245` (untouched here). Frontend tsc/eslint clean;
+Playwright 12 passed, 2 failed in untouched areas (Docs page "uv tool install graphifyy" text,
+Settings "Activar análisis de IA" button disabled) -- pre-existing, not investigated. Migration
+0040 deployed; api/web/gateway recreated; readiness 200.
+
+UI: proposals show "valid until", hide Approve/Simulate once expired, and show the approval
+outcome; proposal strings now have English translations.
+
+Next candidates: portfolio history/P&L per approved proposal (spec point 4, now unblocked),
+informational withdrawal recommendations (point 5), stop/take-profit follow-up for AI positions.
+
+## 2026-09-27 — configurable, read-only Telegram AI digest
+
+`0038_ai_proposal_digests` is deployed. The API's pre-existing Telegram
+report loop calls the new `run_ai_proposal_digest_tick` for the operator. When AI analysis is
+enabled, it sends one bilingual read-only digest of up to five new pending proposals only after
+the configured AI digest interval. `ai_proposal_digests.last_sent_at` prevents repeats. It uses the
+existing encrypted Telegram configuration, paired chat allowlist, notification throttle and API
+egress boundary. It cannot approve, simulate, execute, transfer, reveal credentials, or modify
+settings; sensitive decisions remain the authenticated web MFA flow. Focused verification passed:
+Ruff, pyright and 15 Telegram/AI tests. Graphify was updated, migration 0038 applied, and API plus
+gateway were recreated; `/health/ready` and `/docs` return 200. Preserve the shared dirty tree.
+
+## 2026-09-27 — dual local analysts, strict consensus, OBSERVE default
+
+Active product flow: Codex and Claude are independent local CLI analysts, never executors.
+`0037_ai_analyst_consensus` persists their toggles plus strict-consensus selection. Strict
+consensus is the default and fails closed unless both return compatible BUY proposals for the same
+immutable context. The worker uses `ConsensusAiProvider`; no provider obtains wallet, transfer,
+order, or private-key capability. The supported credentials stay in each locally authenticated
+CLI; do not add API tokens to UI/DB without a dedicated secret-management design.
+
+OBSERVE is still the default. Proposal simulation requires an explicit Settings switch to PAPER;
+the UI hides its button and the API rejects the simulation otherwise. This does not alter the
+non-executing approval/reject flow.
+
+Strict consensus verifies both price proximity and direction. If one local analyst recommends a
+buy and the other recommends a sell, the result is HOLD/no proposal. Ruff, pyright and 23 focused
+consensus/CLI/decision tests passed for this guardrail.
+
+The read-only Telegram `/proposals` reply now includes each persisted proposal's execution context
+such as `PAPER FILLED` or `OBSERVE_ONLY`, alongside its decision state. It is informational only;
+Telegram cannot approve or execute. 39 focused Telegram/proposal tests passed and API/gateway were
+rebuilt with readiness plus in-container verification.
+
+CLI analysts now support BUY, SELL and HOLD. SELL is a reduction proposal only: the simulation
+maps it to `Action.SELL`, and allocation/risk cap it by existing spot exposure; an unheld asset is
+rejected. It remains non-executing and cannot short, borrow, transfer or withdraw. Ruff, pyright
+and 29 focused AI/consensus/shadow tests passed; rebuild/recreate API for the simulation update.
+
+Verified: 36 focused unit tests, 10 integration tests, Ruff, pyright, TypeScript/ESLint; migration
+0037 deployed. Docker services api/web/gateway healthy and `http://localhost:3333/docs` 200.
+Shared tree is intentionally dirty: do not broad stage, reset, or commit unrelated work.
+
+## 2026-09-24 — proposal safety and deployment state
+
+The deployed stack is healthy at `http://localhost:3333` (API/web/gateway healthy, readiness
+200). Rebuild the `migrate` image when adding migrations: the earlier API 503 was an
+image-version mismatch. Current Alembic head is `0036_proposal_owner`.
+
+ADR-017 supersedes the historical ADR-016 direct-execution exception. The AI worker only produces
+operator-owned proposals. Decisions are Admin + fresh MFA, audited and non-executing. The frontend
+exposes Simulate/Approve/Reject; those statuses deliberately do not create PAPER orders yet.
+Future work must place mandate, quality, allocation and risk validation between approval and an
+order. Do not call `ExecutionService` from `ai_decision_loop.py` or `apps/ai_worker`.
+
+Telegram `/proposals` is now implemented as an owner-scoped, read-only summary. It is bilingual
+and tells the user to use the MFA web UI for a sensitive decision; it does not turn Telegram into
+an execution channel. The API was rebuilt/redeployed after this addition and readiness stayed 200.
+
+Verified: 18 focused tests, Ruff, frontend tsc and focused ESLint. Graphify updated. The shared
+working tree is extensively dirty; preserve unrelated work and do not broad-commit.
+
+## AI-autonomous PAPER trading via local claude/codex CLI — 2026-09-23
+
+Full detail in `.ai/CURRENT.md`'s matching entry -- **read [ADR-016](../docs/adr/016-ai-autonomous-account.md) first** before touching anything in this area. Summary: the operator asked for AI-driven trading using their own local `claude`/`codex` CLI (not a hosted API key), then explicitly confirmed twice -- after being shown concrete failure scenarios -- that this new path should run with zero risk limits (no `RiskEngine`/`PortfolioAllocator`/breakers). This is a deliberate, dated exception to ADR-007/013, not a bug.
+
+Built: `CliAiProvider` (real CLI subprocess adapter, flags verified against installed binaries), `wallybot/application/ai_decision_loop.py` (structurally guaranteed via an import-inspection test to never touch risk/allocator/breaker code), migrations `0033`/`0034` (`ai_autonomy_control` table + least-privilege `wally_ai` role), `GET`/`POST /api/ai-autonomy/control` + `/api/portfolio/ai(/fund)`, the native (non-container) `apps/ai_worker` process, and a Portfolio/Settings UI update. Verified for real against the live dev stack (real Kraken + real `claude` CLI call, no crash). Also fixed a real pre-existing Playwright flake (unrelated to this feature) found while adding UI test coverage.
+
+**Key lessons for next time:**
+1. Docker Desktop on WSL2 cannot publish a host port from a container whose only networks are `internal: true` -- confirmed by directly testing (attach to a non-internal network and the port immediately works). This silently affected the pre-existing Prometheus/Grafana ports too, not just this new one.
+2. When a user asks for a new capability that contradicts a documented ADR/security rule, get their explicit, informed confirmation (concrete failure scenarios, not just "are you sure") before building it, then write a new superseding ADR rather than silently editing the old one -- `.ai/DECISIONS.md` is explicitly *not* the place for product/architecture decisions in this repo, `docs/adr/` is.
+3. `getByLabel`/`getByRole` in this Playwright version did not reliably match a `role="status"` element's accessible name computed from a visually-hidden child span's text content in one real case -- a CSS-class locator (`.page-skeleton`) worked instantly where both label-based locators silently failed to find an element visibly present in the accessibility snapshot. Worth remembering if another skeleton-loading assertion looks inexplicably flaky.
+
+**Verified:** full backend suite 862 passed, ruff/pyright clean. Frontend tsc/eslint/build clean, Playwright 13/13 stable across 3 runs. Docker rebuilt/redeployed, all services healthy.
+
+**Not yet committed** -- ask before committing; this is a very large diff, consider splitting it.
+
+**Immediate next actions:** Slice 6 (feed 70/20/10 tier targets + wider coin discovery into the AI's actual prompt context -- stored/editable today but not yet used), Slice 7 (Telegram strategic-suggestion confirmations + digest notifications). Out of scope, unchanged: equities/VIX strategy (data-provider decision still pending), LIVE trading (no real gateway exists). Unresolved: the user's request for XML/JSDoc-style comments conflicts with this repo's "no comments unless the why is non-obvious" convention -- needs their decision.
+
+## Reproducible research exports and artifacts — 2026-09-23
+
+The authenticated `GET /api/backtests/export?format=csv|json` provides full immutable replay
+metadata, with optional `experiment_id` filtering. The research job result link downloads the
+single completed re-run as JSON. No secrets or execution capability are exposed. Verification:
+15 focused integration tests, TS/ESLint/Ruff, Docker api+web rebuild and gateway readiness passed.
+Avoid broad commits because the shared tree still has parallel auth/security work.
+
+## Codex UI slice — 2026-09-23
+
+Added an R3F/Three.js access-screen scene, product-facing Docs architecture guide and onboarding,
+visible Telegram command help, accessible page skeletons, plus real per-instrument candle detail
+on Markets (existing API contract). Checks passed: Next build, focused TS/ESLint and mocked
+Playwright. Docker Desktop was not running/installed at the engine endpoint, so deployment is
+pending. Preserve the concurrent auth/security files; do not broad-stage or broad-commit.
 
 ## MarketCache wired into the Markets view — 2026-09-21 (continued further still)
 

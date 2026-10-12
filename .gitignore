@@ -28,3 +28,9 @@ graphify-out/
 .claude/scheduled_tasks.lock
 .claude/settings.local.json
 .playwright-mcp/
+
+# Unrelated project: excluded from WallyBot publication
+/apps/rust_discord_bot/
+/tests/rust_discord_bot/
+.env.*
+!.env.example

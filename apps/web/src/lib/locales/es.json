@@ -17,5 +17,17 @@
   "JSON required": "El formato de la solicitud no es válido.",
   "Invalid content length": "El tamaño de la solicitud no es válido.",
   "Content-Length required": "La solicitud está incompleta.",
-  "Request too large": "La solicitud es demasiado grande."
+  "Request too large": "La solicitud es demasiado grande.",
+  "Real trading is not active and ready": "Las operaciones reales no están activadas y listas.",
+  "Real account is being reconciled; retry after it completes": "La cuenta real se está verificando. Espera a que termine y vuelve a intentarlo.",
+  "Exchange balances differ from the ledger; review external account activity": "Los saldos del exchange no coinciden con los registros. Revisa la actividad externa de la cuenta.",
+  "A daily, weekly or drawdown loss limit has been reached": "Se alcanzó un límite de pérdida diaria, semanal o de caída desde el máximo.",
+  "Open exchange orders must be resolved before activating or trading": "Resuelve las órdenes abiertas del exchange antes de activar u operar.",
+  "This adapter currently supports a USD/XBT/ETH spot account only": "Esta conexión admite actualmente una cuenta spot con USD, BTC y ETH.",
+  "Real account has no funds": "La cuenta real no tiene fondos.",
+  "Cannot verify real permissions, balances, prices and reconciliation": "No se pudieron verificar permisos, saldos, precios y conciliación de la cuenta real.",
+  "Insufficient order book liquidity within the price limit": "No hay liquidez suficiente dentro del precio permitido.",
+  "Price moved beyond the approved slippage limit": "El precio cambió más de lo permitido.",
+  "Execution mode changed; review the proposal again": "Cambió el modo de operación. Revisa de nuevo la propuesta.",
+  "Explicit LIVE approval with current limits is required": "Confirma la operación LIVE con los límites actuales."
 }

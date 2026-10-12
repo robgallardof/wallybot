@@ -11,6 +11,7 @@ from wallybot.application.telegram_command_loop import run_telegram_command_tick
 from wallybot.domain.equity import EquitySnapshot
 from wallybot.domain.telegram_confirmation import TelegramAction
 from wallybot.infrastructure.equity_snapshot_repository import EquitySnapshotRepository
+from wallybot.infrastructure.models import TradeProposalRow, UserRow
 from wallybot.infrastructure.telegram_config_repository import TelegramConfigRepository
 from wallybot.infrastructure.telegram_confirmation_repository import TelegramConfirmationRepository
 from wallybot.security.crypto import Crypto, digest
@@ -44,9 +45,7 @@ class FakeCommandTransport:
         self.sent.append((url, form))
 
 
-def _message(
-    update_id: int, chat_id: int, text: str, language_code: str | None = None
-) -> dict:
+def _message(update_id: int, chat_id: int, text: str, language_code: str | None = None) -> dict:
     message: dict = {"chat": {"id": chat_id}, "text": text}
     if language_code is not None:
         message["from"] = {"id": chat_id, "language_code": language_code}
@@ -184,6 +183,22 @@ async def test_status_command_replies_in_english_for_an_english_client(sessions,
     assert "Status: RUNNING" in reply
 
 
+async def test_portfolio_command_includes_the_read_only_ai_account_summary(
+    sessions, crypto
+) -> None:
+    await _configure(sessions, crypto)
+    async with sessions.begin() as db:
+        await TelegramConfigRepository(db).set_last_update_id(99)
+
+    transport = FakeCommandTransport([_message(100, ALLOWED_CHAT_ID, "/portfolio")])
+    await run_telegram_command_tick(
+        sessions, crypto, transport, SequentialIds(), None, NOW, owner_id="operator-without-fills"
+    )
+
+    reply = transport.sent[0][1]["text"]
+    assert "Cuenta IA: aún no hay operaciones confirmadas." in reply
+
+
 async def test_help_command_lists_every_recognized_command(sessions, crypto) -> None:
     await _configure(sessions, crypto)
     async with sessions.begin() as db:
@@ -194,8 +209,41 @@ async def test_help_command_lists_every_recognized_command(sessions, crypto) -> 
 
     assert len(transport.sent) == 1
     reply = transport.sent[0][1]["text"]
-    for command in ("/status", "/breakers", "/portfolio", "/pause", "/resume", "/help"):
+    for command in (
+        "/status",
+        "/breakers",
+        "/portfolio",
+        "/proposals",
+        "/withdrawal",
+        "/pause",
+        "/resume",
+        "/help",
+    ):
         assert command in reply
+
+
+async def test_withdrawal_command_is_read_only_when_no_ai_operations_exist(
+    sessions, crypto
+) -> None:
+    await _configure(sessions, crypto)
+    async with sessions.begin() as db:
+        await TelegramConfigRepository(db).set_last_update_id(99)
+
+    transport = FakeCommandTransport([_message(100, ALLOWED_CHAT_ID, "/withdrawal")])
+    await run_telegram_command_tick(
+        sessions,
+        crypto,
+        transport,
+        SequentialIds(),
+        None,
+        NOW,
+        owner_id="operator-without-fills",
+    )
+
+    assert len(transport.sent) == 1
+    reply = transport.sent[0][1]["text"]
+    assert "no hay revisión de retiro" in reply
+    assert "no puede mover fondos" in reply
 
 
 async def test_commands_and_start_are_aliases_for_help_once_already_paired(
@@ -306,6 +354,66 @@ async def test_portfolio_command_reports_the_latest_equity_snapshot(sessions, cr
 
     assert "10500.00" in transport.sent[0][1]["text"]
     assert "11000.00" in transport.sent[0][1]["text"]
+
+
+async def test_proposals_command_includes_the_recorded_paper_outcome(sessions, crypto) -> None:
+    await _configure(sessions, crypto)
+    owner_id = "telegram-proposal-owner"
+    async with sessions.begin() as db:
+        await TelegramConfigRepository(db).set_last_update_id(99)
+        db.add(
+            UserRow(
+                id=owner_id,
+                username="telegram-proposal-admin",
+                password_hash="test",
+                totp_encrypted="test",
+                last_totp_step=-1,
+                role="ADMIN",
+                created_at=0,
+            )
+        )
+        await db.flush()
+        db.add(
+            TradeProposalRow(
+                proposal_id="telegram-proposal",
+                venue="kraken",
+                base="BTC",
+                quote="USD",
+                direction="LONG",
+                strategy_id="ai-consensus",
+                confidence=Decimal("0.8"),
+                suggested_allocation_pct=Decimal("0.05"),
+                entry_price=Decimal("50000"),
+                stop_price=Decimal("48000"),
+                take_profit_price=Decimal("55000"),
+                time_horizon_seconds=Decimal("86400"),
+                signal_ttl_seconds=Decimal("3600"),
+                reasons=["analysts agree"],
+                risks=["volatility"],
+                supporting_signal_ids=[],
+                invalidating_conditions=[],
+                source_event_ids=[],
+                model_id="consensus:codex+claude",
+                prompt_version="consensus/v1",
+                as_of=NOW,
+                owner_id=owner_id,
+                decision_status="APPROVED",
+                decided_at=NOW,
+                execution_status="FILLED",
+                execution_order_id="paper-order-1",
+                execution_reasons=["approved"],
+            )
+        )
+
+    transport = FakeCommandTransport([_message(100, ALLOWED_CHAT_ID, "/proposals")])
+    await run_telegram_command_tick(
+        sessions, crypto, transport, SequentialIds(), None, NOW, owner_id=owner_id
+    )
+
+    reply = transport.sent[0][1]["text"]
+    assert "telegram-proposal" in reply
+    assert "APPROVED" in reply
+    assert "PAPER FILLED" in reply
 
 
 async def test_an_unrecognized_message_gets_no_reply(sessions, crypto) -> None:

@@ -83,21 +83,25 @@ class UnitOfWork:
         row = await self.session.get(OrderIntentRow, client_order_id)
         return OrderStatus(row.status) if row is not None else None
 
-    async def list_open_order_intents(self, environment: str) -> list[tuple[str, str, str, str]]:
+    async def list_open_order_intents(
+        self, environment: str, account_id: str | None = None
+    ) -> list[tuple[str, str, str, str]]:
         """`(client_order_id, venue, account_id, environment)` for every non-terminal order in
         `environment` -- exactly what a reconciliation sweep needs, without requiring the full
-        `Instrument` fidelity (tick sizes, etc.) this table doesn't carry."""
-        result = await self.session.execute(
-            select(
-                OrderIntentRow.client_order_id,
-                OrderIntentRow.venue,
-                OrderIntentRow.account_id,
-                OrderIntentRow.environment,
-            ).where(
-                OrderIntentRow.environment == environment,
-                OrderIntentRow.status.not_in([status.value for status in TERMINAL_STATUSES]),
-            )
+        `Instrument` fidelity (tick sizes, etc.) this table doesn't carry. `account_id` narrows
+        the sweep to one account, whose orders only its own gateway can look up."""
+        query = select(
+            OrderIntentRow.client_order_id,
+            OrderIntentRow.venue,
+            OrderIntentRow.account_id,
+            OrderIntentRow.environment,
+        ).where(
+            OrderIntentRow.environment == environment,
+            OrderIntentRow.status.not_in([status.value for status in TERMINAL_STATUSES]),
         )
+        if account_id is not None:
+            query = query.where(OrderIntentRow.account_id == account_id)
+        result = await self.session.execute(query)
         return [tuple(row) for row in result.all()]
 
     async def fill_exists(

@@ -13,20 +13,30 @@ class TelegramCommand(StrEnum):
     STATUS = "STATUS"
     BREAKERS = "BREAKERS"
     PORTFOLIO = "PORTFOLIO"
+    PROPOSALS = "PROPOSALS"
+    WITHDRAWAL = "WITHDRAWAL"
     PAUSE = "PAUSE"
     RESUME = "RESUME"
     HELP = "HELP"
+    APPROVE = "APPROVE"
+    REJECT = "REJECT"
+    SIMULATE = "SIMULATE"
 
 
 _COMMANDS: dict[str, TelegramCommand] = {
     "/status": TelegramCommand.STATUS,
     "/breakers": TelegramCommand.BREAKERS,
     "/portfolio": TelegramCommand.PORTFOLIO,
+    "/proposals": TelegramCommand.PROPOSALS,
+    "/withdrawal": TelegramCommand.WITHDRAWAL,
     "/pause": TelegramCommand.PAUSE,
     "/resume": TelegramCommand.RESUME,
     "/help": TelegramCommand.HELP,
     "/commands": TelegramCommand.HELP,
     "/start": TelegramCommand.HELP,
+    "/approve": TelegramCommand.APPROVE,
+    "/reject": TelegramCommand.REJECT,
+    "/simulate": TelegramCommand.SIMULATE,
 }
 
 

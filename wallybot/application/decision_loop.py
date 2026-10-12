@@ -113,7 +113,9 @@ async def run_decision_tick(
     # e.g. a funding transaction posted between ticks must be picked up.
     paper_gateway.balances = {balance.currency: balance.amount for balance in balances}
 
-    reconciliation_outcomes = await reconciliation.sweep("PAPER")
+    # Scoped to this account: approved AI proposals execute through a separate simulated gateway
+    # (`paper-ai:` namespace), which is the only one able to look those orders up.
+    reconciliation_outcomes = await reconciliation.sweep("PAPER", account_id)
     reconciliation_healthy = not any(outcome.error for outcome in reconciliation_outcomes)
     reconciliation_unknown_orders = sum(
         1 for outcome in reconciliation_outcomes if outcome.resolved_status is OrderStatus.UNKNOWN

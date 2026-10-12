@@ -29,17 +29,34 @@ async def csrf(request: Request, user: SignedIn) -> Identity:
 
 Protected = Annotated[Identity, Depends(csrf)]
 
+# SECURITY.md: "Require recent MFA for secret changes, risk edits, LIVE activation, resumption
+# from a breaker and destructive emergency commands."
+MFA_RECENCY_SECONDS = 300
+
 
 async def admin(request: Request, user: Protected) -> Identity:
     if user.role != "ADMIN":
         raise AuthError("Administrator required", 403)
-    if user.mfa_at + 300 <= int(time.time()):
+    if user.mfa_at + MFA_RECENCY_SECONDS <= int(time.time()):
         raise AuthError("Sign in again with MFA to confirm this action", 403)
     await request.app.state.throttle.check("control:" + user.id)
     return user
 
 
 Admin = Annotated[Identity, Depends(admin)]
+
+
+async def fresh_mfa(user: Protected) -> Identity:
+    """Same recent-MFA requirement `admin()` enforces, without the ADMIN role restriction -- a
+    VIEWER changing their own password or TOTP is a "secret change" too (SECURITY.md), but not an
+    administrative action; role has nothing to do with whether the session proved MFA recently.
+    """
+    if user.mfa_at + MFA_RECENCY_SECONDS <= int(time.time()):
+        raise AuthError("Sign in again with MFA to confirm this action", 403)
+    return user
+
+
+FreshMfa = Annotated[Identity, Depends(fresh_mfa)]
 
 
 async def auth_throttle(request: Request) -> None:

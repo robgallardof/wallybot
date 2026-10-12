@@ -197,3 +197,38 @@ def test_history_is_empty_before_any_backtest_has_run(client, settings) -> None:
     response = client.get("/api/backtests")
     assert response.status_code == 200
     assert response.json()["rows"] == []
+
+
+def test_experiment_export_is_authenticated_and_contains_reproducibility_inputs(
+    client, settings, tmp_path
+) -> None:
+    assert client.get("/api/backtests/export").status_code == 401
+
+    write_fixture(tmp_path)
+    wire_fake_orchestrator(client, tmp_path)
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    run = client.post("/api/backtests", json=run_body(), headers={"X-CSRF-Token": csrf})
+    assert run.status_code == 200, run.text
+
+    csv_export = client.get("/api/backtests/export")
+    assert csv_export.status_code == 200
+    assert csv_export.headers["content-type"].startswith("text/csv")
+    header, row = csv_export.text.splitlines()
+    assert "strategy_version" in header
+    assert "fee_rate" in header
+    assert "feature_window" in header
+    assert run.json()["experiment_id"] in row
+
+    json_export = client.get("/api/backtests/export?format=json")
+    assert json_export.status_code == 200
+    record = json_export.json()[0]
+    assert record["feature_window"] == 3
+    assert record["fee_rate"] == "0"
+    assert record["seed"] is None
+
+    filtered = client.get(
+        f"/api/backtests/export?format=json&experiment_id={run.json()['experiment_id']}"
+    )
+    assert [row["experiment_id"] for row in filtered.json()] == [run.json()["experiment_id"]]
+    assert client.get("/api/backtests/export?format=json&experiment_id=missing").json() == []

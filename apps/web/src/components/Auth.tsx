@@ -1,12 +1,13 @@
 import i18n from "../lib/i18n";
 import { useTranslation } from "react-i18next";
-import { ShieldCheck } from "lucide-react";
+import { FaShieldHalved } from "react-icons/fa6";
 import { useAuthFlow } from "../hooks/useAuthFlow";
 import { LanguageSelector } from "./LanguageSelector";
 import { ThemeToggle } from "./ThemeToggle";
 import { CredentialsForm } from "./auth/CredentialsForm";
 import { MfaForm } from "./auth/MfaForm";
 import { RecoveryCodes } from "./auth/RecoveryCodes";
+import { AuthScene } from "./auth/AuthScene";
 
 export function Auth({
   setup,
@@ -33,6 +34,7 @@ export function Auth({
   return (
     <main className="auth-layout">
       <section className="auth-story">
+        <AuthScene />
         <a className="brand" href="/">
           wally<span>bot</span>
           <i />
@@ -53,7 +55,7 @@ export function Auth({
           </p>
         </div>
         <small>
-          <ShieldCheck size={16} />{" "}
+          <FaShieldHalved size={15} />{" "}
           {i18n.t("Entorno PAPER · Sin operaciones reales")}
         </small>
       </section>
@@ -106,7 +108,7 @@ export function Auth({
             />
           )}
           <footer>
-            <ShieldCheck size={15} />{" "}
+            <FaShieldHalved size={14} />{" "}
             {i18n.t("Acceso protegido con contraseña y TOTP")}
           </footer>
         </div>

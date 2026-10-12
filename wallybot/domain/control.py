@@ -15,6 +15,7 @@ class Status(StrEnum):
 class Environment(StrEnum):
     OBSERVE = "OBSERVE"
     PAPER = "PAPER"
+    LIVE = "LIVE"
 
 
 @dataclass(frozen=True)
@@ -23,8 +24,8 @@ class Control:
     status: Status = Status.RUNNING
 
     def __post_init__(self) -> None:
-        if self.environment not in {Environment.OBSERVE, Environment.PAPER}:
-            raise ValueError("environment must be OBSERVE or PAPER")
+        if self.environment not in set(Environment):
+            raise ValueError("unknown environment")
 
     def change(
         self, status: Status, role: Role, environment: Environment | None = None

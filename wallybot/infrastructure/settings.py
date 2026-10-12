@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     encryption_key: SecretStr
     bootstrap_token: SecretStr
     cookie_secure: bool = False
+    live_capable: bool = False
     session_idle_seconds: int = 1800
     session_absolute_seconds: int = 43200
     auth_limit: int = 10

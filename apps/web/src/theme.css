@@ -18,9 +18,7 @@
   --danger: #a92a26;
   --danger-soft: #fff0ef;
   --shadow: 0 2px 12px rgb(0 0 0 / 3%);
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", ui-sans-serif, system-ui,
-    sans-serif;
+  font-family: "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--text);
   background: var(--canvas);
 }
@@ -385,7 +383,33 @@
   background: var(--canvas);
   color: var(--text);
   border-right: 1px solid var(--border);
+  overflow: hidden;
+  position: relative;
 }
+:root .auth-story > :not(.auth-scene) {
+  position: relative;
+  z-index: 1;
+}
+:root .auth-scene {
+  background:
+    radial-gradient(circle at 65% 32%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 25%),
+    radial-gradient(circle at 28% 78%, rgb(247 147 26 / 13%), transparent 24%);
+  inset: 0;
+  opacity: 0.72;
+  pointer-events: none;
+  position: absolute;
+  z-index: 0;
+}
+:root.dark .auth-scene { opacity: 0.44; }
+:root .auth-scene-orb {
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  border-radius: 50%;
+  height: 260px;
+  position: absolute;
+  width: 260px;
+}
+:root .auth-scene-orb-one { right: 9%; top: 17%; }
+:root .auth-scene-orb-two { border-color: rgb(247 147 26 / 24%); bottom: 8%; height: 160px; left: 7%; width: 160px; }
 :root .auth-story h1 {
   color: var(--text);
   font-size: clamp(36px, 4.3vw, 62px);
@@ -477,6 +501,15 @@
   display: grid;
   gap: 14px;
   max-width: 1120px;
+}
+:root .visually-hidden {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
 }
 :root .skeleton-line,
 :root .skeleton-card {
@@ -922,6 +955,86 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Product guide: application architecture, not a link to development tooling. */
+:root .docs-stack { display: grid; gap: 20px; }
+:root .docs-hero-modern {
+  align-items: center;
+  background: linear-gradient(125deg, var(--surface), var(--accent-soft));
+  display: grid;
+  gap: 20px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+:root .docs-solid-mark,
+:root .docs-solid-lock {
+  align-items: center;
+  background: var(--accent);
+  border-radius: 15px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 22px;
+  font-weight: 750;
+  height: 50px;
+  justify-content: center;
+  width: 50px;
+}
+:root .architecture-panel { overflow-x: auto; }
+:root .architecture-diagram { display: block; margin: 22px 0 16px; min-width: 720px; width: 100%; }
+:root .architecture-path { fill: none; stroke: var(--border); stroke-dasharray: 6 6; stroke-width: 2; }
+:root .architecture-node rect { fill: var(--surface-raised); stroke: var(--border); stroke-width: 1.2; }
+:root .architecture-node-accent rect { fill: var(--accent); stroke: var(--accent); }
+:root .architecture-node text { fill: var(--text); font-family: inherit; font-size: 15px; font-weight: 700; }
+:root .architecture-node .architecture-subtext { fill: var(--muted); font-size: 11px; font-weight: 500; }
+:root .architecture-node-accent text { fill: #fff; }
+:root .architecture-node-accent .architecture-subtext { fill: rgb(255 255 255 / 82%); }
+:root .architecture-legend { color: var(--muted); display: flex; flex-wrap: wrap; font-size: 12px; gap: 18px; }
+:root .architecture-legend span { align-items: center; display: inline-flex; gap: 7px; }
+:root .architecture-legend i { background: var(--accent); border-radius: 50%; display: block; height: 7px; width: 7px; }
+:root .docs-explainer-grid { display: grid; gap: 14px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+:root .docs-explainer-grid article { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
+:root .docs-explainer-grid article > span,
+:root .docs-area-number { color: var(--accent); font-size: 12px; font-weight: 750; letter-spacing: .08em; }
+:root .docs-explainer-grid h3,
+:root .docs-area-card h3 { font-size: 16px; margin: 18px 0 8px; }
+:root .docs-explainer-grid p,
+:root .docs-area-card p { color: var(--muted); font-size: 13px; line-height: 1.55; margin: 0; }
+:root .docs-commands-panel { align-items: center; display: grid; gap: 24px; grid-template-columns: minmax(0, 1fr) minmax(330px, .9fr); }
+:root .docs-command-list { display: grid; gap: 8px 14px; grid-template-columns: max-content minmax(0, 1fr); }
+:root .docs-command-list code { background: var(--accent-soft); border-radius: 7px; color: var(--accent); font-size: 12px; padding: 5px 7px; }
+:root .docs-command-list span { color: var(--muted); font-size: 13px; padding-top: 4px; }
+:root .settings-command-help { color: var(--muted); font-size: 12px; margin: -4px 0 14px; }
+:root .docs-safety-panel { align-items: center; display: grid; gap: 18px; grid-template-columns: auto minmax(0, 1fr) auto; }
+:root .docs-safety-panel h2 { margin: 3px 0 7px; }
+:root .docs-safety-panel p:last-child { color: var(--muted); font-size: 13px; margin: 0; }
+:root .market-detail-panel { border-top: 1px solid var(--border); margin-top: 24px; padding-top: 22px; }
+:root .candle-chart { background: var(--surface-raised); border-radius: 12px; display: block; height: auto; margin: 16px 0; width: 100%; }
+:root .candle-chart line { stroke: currentColor; stroke-width: 1.5; }
+:root .candle-chart rect { fill: currentColor; }
+:root .candle-up { color: var(--positive); }
+:root .candle-down { color: var(--danger); }
+:root .market-detail-stats { display: grid; gap: 12px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+:root .market-detail-stats span { background: var(--surface-raised); border-radius: 10px; display: grid; gap: 5px; padding: 12px; }
+:root .market-detail-stats small { color: var(--muted); font-size: 11px; }
+:root .market-detail-stats strong { font-size: 14px; overflow-wrap: anywhere; }
+@media (max-width: 900px) {
+  :root .docs-explainer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :root .docs-hero-modern,
+  :root .docs-safety-panel,
+  :root .docs-commands-panel { grid-template-columns: auto minmax(0, 1fr); }
+  :root .docs-hero-modern .button,
+  :root .docs-safety-panel .button { grid-column: 2; justify-self: start; }
+  :root .docs-commands-panel > div:last-child { grid-column: 1 / -1; }
+}
+@media (max-width: 600px) {
+  :root .docs-hero-modern,
+  :root .docs-safety-panel,
+  :root .docs-commands-panel { grid-template-columns: 1fr; }
+  :root .docs-hero-modern .button,
+  :root .docs-safety-panel .button { grid-column: auto; width: 100%; }
+  :root .docs-explainer-grid { grid-template-columns: 1fr; }
+  :root .market-detail-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :root .architecture-diagram { min-width: 680px; }
+}
 :root .system-groups h3 {
   margin: 0 0 12px;
 }
@@ -1114,6 +1227,11 @@
 }
 :root .settings-panel {
   max-width: none;
+  /* A CSS grid item defaults to min-width: auto (its content's max-content size), which lets a
+     wide child -- e.g. the sessions table below -- inflate .settings-stack's track and the whole
+     page's scroll width, even though .markets-table-wrap has its own overflow-x: auto. Allowing
+     this item to shrink is what lets that inner scroll container actually take effect. */
+  min-width: 0;
   padding: 26px;
 }
 :root .settings-heading {

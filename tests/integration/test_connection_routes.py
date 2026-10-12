@@ -147,3 +147,86 @@ def test_connections_are_scoped_to_the_signed_in_user(client, settings, db) -> N
 
     assert response.status_code == 200, response.text
     assert response.json() == {"rows": [own]}
+
+
+@pytest.mark.parametrize("forbidden", [False, True])
+def test_trading_connection_checks_permissions_without_submitting(client, settings, db, forbidden):
+    from wallybot.exchanges.kraken_private import REQUIRED_PERMISSIONS
+
+    calls = []
+
+    class Transport:
+        async def call(self, method, params):
+            calls.append(method)
+            if method == "GetApiKeyInfo":
+                return {
+                    "permissions": sorted(
+                        REQUIRED_PERMISSIONS | ({"withdraw-funds"} if forbidden else set())
+                    )
+                }
+            assert method == "BalanceEx"
+            return {"ZUSD": {"balance": "100", "hold_trade": "0"}}
+
+    client.app.state.kraken_private_factory = lambda key, secret: Transport()
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    response = client.post(
+        "/api/connections",
+        headers={"X-CSRF-Token": csrf},
+        json={
+            "provider": "KRAKEN",
+            "label": "Real spot",
+            "mode": "TRADE_ONLY",
+            "api_key": "synthetic-key",
+            "api_secret": "synthetic-secret",
+        },
+    )
+    assert response.status_code == (409 if forbidden else 200)
+    assert "synthetic" not in response.text
+    assert "AddOrder" not in calls
+    if forbidden:
+        assert db.execute("SELECT count(*) FROM provider_connections").fetchone()[0] == 0
+    else:
+        assert response.json()["status"] == "HEALTHY"
+        assert response.json()["mode"] == "TRADE_ONLY"
+        assert calls == ["GetApiKeyInfo", "BalanceEx"]
+    assert db.execute("SELECT environment FROM control WHERE id=1").fetchone()[0] != "LIVE"
+
+
+def test_private_nonces_serialize_concurrent_requests_and_survive_new_transports(client, settings):
+    import asyncio
+    import base64
+    from urllib.parse import parse_qs
+
+    import httpx
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from wallybot.infrastructure.kraken_private_session import DatabaseKrakenTransport
+
+    observed = []
+
+    async def verify():
+        engine = create_async_engine(settings.database_url.get_secret_value())
+
+        async def respond(request):
+            nonce = int(parse_qs(request.content.decode())["nonce"][0])
+            observed.append(nonce)
+            await asyncio.sleep(0.01)
+            return httpx.Response(200, json={"error": [], "result": {}})
+
+        try:
+            async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+                adapters = [
+                    DatabaseKrakenTransport(
+                        engine, "nonce-test-key", base64.b64encode(b"fake-secret").decode(), http
+                    )
+                    for _ in range(8)
+                ]
+                await asyncio.gather(*(adapter.call("GetApiKeyInfo", {}) for adapter in adapters))
+        finally:
+            await engine.dispose()
+
+    client.portal.call(verify)
+    client.portal.call(verify)
+    assert len(observed) == 16
+    assert observed == sorted(set(observed))

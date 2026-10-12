@@ -123,7 +123,31 @@ def test_a_clean_long_proposal_is_approved_by_allocation_and_risk() -> None:
     assert outcome.risk_assessment.final_notional > 0
 
 
-def test_a_short_proposal_is_refused_before_allocation_or_risk() -> None:
+def test_a_short_proposal_reduces_only_an_existing_spot_position() -> None:
+    proposal = make_proposal(
+        direction=TradeDirection.SHORT,
+        stop_price=Decimal("52000"),
+        take_profit_price=Decimal("45000"),
+    )
+    state = make_state(
+        bucket_exposure={Bucket.CORE: Decimal("1000")},
+        asset_exposure={INSTRUMENT.id: Decimal("1000")},
+        open_positions=1,
+    )
+    outcome = SERVICE.evaluate(
+        proposal,
+        Bucket.CORE,
+        state,
+        PORTFOLIO_POLICY,
+        make_risk_context(portfolio_state=state),
+        RISK_POLICY,
+    )
+    assert outcome.allocation_approved is True
+    assert outcome.risk_assessment is not None
+    assert outcome.risk_assessment.final_notional <= Decimal("1000")
+
+
+def test_a_short_proposal_cannot_sell_an_asset_that_is_not_held() -> None:
     proposal = make_proposal(
         direction=TradeDirection.SHORT,
         stop_price=Decimal("52000"),
@@ -133,7 +157,6 @@ def test_a_short_proposal_is_refused_before_allocation_or_risk() -> None:
         proposal, Bucket.CORE, make_state(), PORTFOLIO_POLICY, make_risk_context(), RISK_POLICY
     )
     assert outcome.allocation_approved is False
-    assert "SHORT" in outcome.allocation_reasons[0]
     assert outcome.risk_assessment is None
 
 

@@ -43,6 +43,7 @@ export function ConnectionsPage({
   const [label, setLabel] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
+  const [trading, setTrading] = useState(false);
   const isWallet = provider === "WALLET";
   // TIINGO takes a single API key, same as a wallet address -- no secret field for either.
   const singleCredential = provider === "WALLET" || provider === "TIINGO";
@@ -53,7 +54,7 @@ export function ConnectionsPage({
       {
         provider,
         label: label.trim(),
-        mode: "READ_ONLY",
+        mode: provider === "KRAKEN" && trading ? "TRADE_ONLY" : "READ_ONLY",
         api_key: apiKey.trim() || undefined,
         api_secret: singleCredential
           ? undefined
@@ -82,7 +83,7 @@ export function ConnectionsPage({
       </div>
       <p className="muted">
         {i18n.t(
-          "Agrega un proveedor en modo lectura o PAPER. Las credenciales se cifran y nunca se vuelven a mostrar. No se habilitan claves de trading ni retiros aquí.",
+          "Conecta tus fuentes o una cuenta Kraken spot con permisos de trading. Las credenciales se cifran y nunca se vuelven a mostrar. Conectar una cuenta no activa operaciones reales.",
         )}
       </p>
       <section className="connection-setup" aria-labelledby="new-connection-title">
@@ -91,7 +92,7 @@ export function ConnectionsPage({
             <span className="eyebrow">{i18n.t("NUEVA CONEXIÓN")}</span>
             <h3 id="new-connection-title">{i18n.t("Elegí un proveedor")}</h3>
           </div>
-          <p>{isWallet ? i18n.t("Solo se guarda una dirección pública; nunca una clave privada.") : i18n.t("Usá credenciales de lectura. No habilites trading ni retiros.")}</p>
+          <p>{isWallet ? i18n.t("Solo se guarda una dirección pública; nunca una clave privada.") : i18n.t("Para Kraken spot: consulta de fondos, órdenes abiertas/cerradas, crear y cancelar órdenes. Sin permisos de depósito, retiro ni transferencia.")}</p>
         </div>
         <form className="connection-form" onSubmit={submit}>
           <label>
@@ -107,6 +108,12 @@ export function ConnectionsPage({
               ))}
             </select>
           </label>
+          {provider === "KRAKEN" && (
+            <label>
+              <input type="checkbox" checked={trading} onChange={(event) => setTrading(event.target.checked)} />
+              {i18n.t("Conectar cuenta para trading spot real")}
+            </label>
+          )}
           <label>
             {i18n.t("Nombre")}
             <input

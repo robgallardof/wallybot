@@ -80,7 +80,15 @@ symbolically, or when Graphify can answer it structurally.
   `ARCHITECTURE.md` "Contracts". Don't introduce float arithmetic for monetary values.
 - Never grant execution/withdrawal capability to research code paths, and never write code that
   could let AI-analyzed output submit trades directly — `SECURITY.md`'s "Secret and agent
-  isolation" section is authoritative on this boundary.
+  isolation" section is authoritative on this boundary. ADR-016 is superseded by ADR-017:
+  the AI gathers context and creates an explained proposal; the authenticated operator approves,
+  rejects or simulates it, then mandate and deterministic risk validation decide whether a PAPER
+  or explicitly activated LIVE spot order can exist (ADR-018). LIVE is operator-configured,
+  MFA-protected and bound to the account, mode and current limits; AI/research never execute.
+  No agent, Telegram command, UI route or provider adapter can transfer/withdraw funds or accept
+  wallet seeds/private keys. The allocation (e.g. CORE/GROWTH/SPECULATIVE 70/20/10), cadence
+  and sources are user-configurable and auditable. Read `docs/PRODUCT-MANDATE.md` and ADR-017
+  before changing AI, Telegram, portfolio, provider or execution code.
 - Run the relevant tests before declaring an implementation complete (`uv run pytest ...` per
   layer — see `TESTING.md`). Never claim a test was run without evidence (actual command output).
 - Keep changes scoped to the requested objective.
