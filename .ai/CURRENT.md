@@ -16,8 +16,10 @@ reconciliation. Account discrepancies and losses block execution. No withdrawals
 leverage, AI direct orders or automatic stop sales. See docs/adr/018-real-spot-objective.md and
 docs/runbooks/real-spot-trading.md. Funded venue acceptance remains untested.
 
-User requested publication to robgallardof/wallybot and a polished Spanish README. Exclude
-secrets, runtime files and unrelated Rust bot. Publication status must be verified after push.
+Published WallyBot to https://github.com/robgallardof/wallybot on main (implementation
+commit 10fa747). Spanish README includes installation, real-account configuration, architecture
+and documentation. Protected paths and unrelated Rust are excluded; reachable master history
+and staged content passed a token/private-key pattern scan. Codex checkpoint refs were not pushed.
 
 ## Verified PAPER delivery — 2026-10-08
 
