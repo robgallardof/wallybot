@@ -72,7 +72,7 @@ def db(settings, dependencies):
     with psycopg.connect(dependencies[0].replace("+psycopg", ""), autocommit=True) as connection:
         connection.execute(
             "TRUNCATE sessions, recovery_codes, auth_challenges, users, "
-            "events, jobs, heartbeats CASCADE"
+            "events, jobs, heartbeats, ai_analyst_status CASCADE"
         )
         connection.execute("UPDATE control SET setup_complete=false, status='RUNNING'")
         yield connection

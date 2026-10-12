@@ -1,3 +1,13 @@
+# Operator-readiness fixes — 2026-10-12 (second pass)
+
+971 backend tests passed in 145.82s (unit/property/contract/integration, real PostgreSQL/Redis via
+Testcontainers). Production-mode browser suite: 19 passed in 45.9s (`WALLY_E2E_PRODUCTION=1 pnpm
+test:e2e`). Mocked UI suite (`playwright.ui.config.ts`): 17 passed. Scoped Pyright (apps/api,
+apps/ai_worker, wallybot): 0 errors. New regression coverage: closed-candle lookback reaching the
+analysts, analyst availability reporting/privileges/API, Kraken error explanations, malformed
+secret, LIVE activation with a rejected key, local limit validation and signed-out guidance in
+Settings. Pre-deploy encrypted backup restore verified (revision 0044, row counts recorded).
+
 # Real spot verification â€” 2026-10-12
 
 Operator-approved Kraken spot USD/XBT/ETH is implemented and deployed. Credentials and limits

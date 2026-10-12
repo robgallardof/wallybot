@@ -36,6 +36,47 @@ class KrakenPrivateError(Exception):
     """Sanitized provider failure; raw response may contain account or key information."""
 
 
+# Kraken error codes carry no key or account data. Map them to operator-actionable text and
+# never echo the provider's raw response. First matching fragment wins.
+_ERROR_EXPLANATIONS = (
+    (
+        "EAPI:Invalid key",
+        "Kraken rejected the API key; check that it was copied completely and is not deleted",
+    ),
+    (
+        "EAPI:Invalid signature",
+        "Kraken rejected the signature; check that the private key (API secret) was copied "
+        "completely",
+    ),
+    (
+        "EAPI:Invalid nonce",
+        "Kraken rejected the request sequence (nonce); use an API key dedicated to WallyBot",
+    ),
+    ("otp", "API keys with their own 2FA password are not supported; create one without it"),
+    (
+        "EGeneral:Permission denied",
+        "The API key lacks a permission required for this operation",
+    ),
+    (
+        "Rate limit exceeded",
+        "Kraken is temporarily limiting this API key; wait a few minutes and retry",
+    ),
+    (
+        "Temporary lockout",
+        "Kraken is temporarily limiting this API key; wait a few minutes and retry",
+    ),
+    ("EService:", "Kraken is temporarily unavailable; retry later"),
+    ("EOrder:Insufficient funds", "Kraken reports insufficient funds for this order"),
+)
+
+
+def explain_kraken_errors(errors: list[Any]) -> str:
+    for fragment, explanation in _ERROR_EXPLANATIONS:
+        if any(fragment.lower() in str(error).lower() for error in errors):
+            return explanation
+    return "Kraken rejected the private request"
+
+
 class PrivateTransport(Protocol):
     async def call(self, method: str, params: dict[str, str]) -> dict[str, Any]: ...
 
@@ -86,6 +127,11 @@ class SignedKrakenTransport:
         body = urlencode({**params, "nonce": nonce})
         try:
             signature = api_signature(path, nonce, body, self._secret)
+        except ValueError:
+            raise KrakenPrivateError(
+                "The API secret is not in Kraken's format; paste the private key exactly"
+            ) from None
+        try:
             response = await self._client.post(
                 "https://api.kraken.com" + path,
                 content=body,
@@ -101,12 +147,13 @@ class SignedKrakenTransport:
             payload = response.json()
         except (httpx.HTTPError, ValueError, TypeError):
             raise KrakenPrivateError(
-                "Kraken private request failed; outcome may be unknown"
+                "Kraken could not be reached; check the connection and retry. An order's "
+                "outcome may be unknown until reconciliation"
             ) from None
         if not isinstance(payload, dict) or not isinstance(payload.get("error"), list):
             raise KrakenPrivateError("Invalid Kraken response")
         if payload["error"]:
-            raise KrakenPrivateError("Kraken rejected the private request")
+            raise KrakenPrivateError(explain_kraken_errors(payload["error"]))
         result = payload.get("result")
         if not isinstance(result, dict):
             raise KrakenPrivateError("Invalid Kraken result")

@@ -775,5 +775,12 @@
   "Define tus máximos por operación, exposición y pérdida diaria. Activa LIVE con MFA y confirma cada propuesta. Codex y Claude analizan; PAPER es una prueba opcional.": "Set your trade, exposure and daily-loss limits. Activate LIVE with MFA and confirm each proposal. Codex and Claude analyze; PAPER is an optional test.",
   "Para Kraken spot usa una clave API con consulta de fondos y órdenes, crear y cancelar órdenes. Sin permisos de depósito, retiro ni transferencia. Las otras fuentes son de consulta.": "For Kraken spot, use an API key with balance/order queries, order creation and cancellation. No deposit, withdrawal or transfer permissions. Other sources are read-only.",
   "Conecta tus fuentes o una cuenta Kraken spot con permisos de trading. Las credenciales se cifran y nunca se vuelven a mostrar. Conectar una cuenta no activa operaciones reales.": "Connect data sources or a Kraken spot account with trading permissions. Credentials are encrypted and never shown again. Connecting an account does not activate real trades.",
-  "Para Kraken spot: consulta de fondos, órdenes abiertas/cerradas, crear y cancelar órdenes. Sin permisos de depósito, retiro ni transferencia.": "For Kraken spot: balance queries, open/closed order queries, create and cancel orders. No deposit, withdrawal or transfer permissions."
+  "Para Kraken spot: consulta de fondos, órdenes abiertas/cerradas, crear y cancelar órdenes. Sin permisos de depósito, retiro ni transferencia.": "For Kraken spot: balance queries, open/closed order queries, create and cancel orders. No deposit, withdrawal or transfer permissions.",
+  "Disponibilidad de analistas": "Analyst availability",
+  "Sin comprobar todavía": "Not checked yet",
+  "comprobado": "checked",
+  "{{name}} no respondió en esta PC: la sesión de su CLI está cerrada o el programa no está instalado. Abre una terminal y ejecuta {{command}}; la siguiente comprobación lo detectará sin reiniciar WallyBot.": "{{name}} did not respond on this PC: its CLI is signed out or not installed. Open a terminal and run {{command}}; the next check will detect it without restarting WallyBot.",
+  "Mientras exijas coincidencia no se crearán propuestas. Si prefieres no usarlo, desactívalo y desmarca la coincidencia tú mismo: WallyBot no cambia estos ajustes automáticamente.": "While agreement is required, no proposals will be created. If you prefer not to use it, disable it and clear the agreement option yourself: WallyBot never changes these settings automatically.",
+  "El máximo por operación no puede superar la exposición total máxima.": "The maximum per trade cannot exceed the maximum total exposure.",
+  "El cambio de precio máximo debe estar entre 0,01% y 2%.": "The maximum price change must be between 0.01% and 2%."
 }

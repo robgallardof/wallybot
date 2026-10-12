@@ -13,7 +13,7 @@ uv run python scripts/backup.py verify
 
 Create reads a consistent PostgreSQL custom dump, configuration and individual secret files, then encrypts the archive with a separate Fernet backup key. The backup key is excluded from the archive and is never mounted in app containers. Store encrypted archives off-host and escrow that key separately. Losing the key loses the backup. Never publish `.secrets` or backup plaintext.
 
-Verify authenticates/decrypts the newest archive, restores it into Testcontainers PostgreSQL, checks schema revision and PAPER control state, and records row counts and elapsed time in `backups/restore-verification.json`. No restore writes to the operational database. The current tool is for small foundation databases; a 256 MiB dump limit is checked after capture, so it is not a streaming solution. Use streaming backup tooling before datasets grow.
+Verify authenticates/decrypts the newest archive, restores it into Testcontainers PostgreSQL, checks that the schema revision is one this checkout knows and that the control mode is OBSERVE, PAPER or LIVE, and records the revision, core/ledger row counts and elapsed time in `backups/restore-verification.json`. No restore writes to the operational database. The current tool is for small foundation databases; a 256 MiB dump limit is checked after capture, so it is not a streaming solution. Use streaming backup tooling before datasets grow.
 
 ## Restore a real installation
 

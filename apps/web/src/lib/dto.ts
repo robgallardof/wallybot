@@ -316,6 +316,14 @@ export const aiAutonomyControlSchema = z.object({
   codex_enabled: z.boolean(),
   claude_enabled: z.boolean(),
   require_consensus: z.boolean(),
+  analysts: z
+    .array(
+      z.object({
+        analyst: z.enum(["codex", "claude"]),
+        available: z.boolean().nullable(),
+        checked_at: z.string().nullable(),
+      }),
+    ),
 });
 
 export const telegramConfigSchema = z.object({

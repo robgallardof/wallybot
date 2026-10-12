@@ -39,7 +39,11 @@ from wallybot.domain.portfolio import Bucket, PortfolioState
 from wallybot.domain.risk import RiskDecision
 from wallybot.domain.trade_proposal import TradeDirection
 from wallybot.exchanges.kraken_gateway import KrakenSpotGateway
-from wallybot.exchanges.kraken_private import spot_balances, validate_permissions
+from wallybot.exchanges.kraken_private import (
+    KrakenPrivateError,
+    spot_balances,
+    validate_permissions,
+)
 from wallybot.infrastructure.equity_snapshot_repository import EquitySnapshotRepository
 from wallybot.infrastructure.live_models import AnalystPortfolioRow, LiveControlRow
 from wallybot.infrastructure.models import (
@@ -329,6 +333,8 @@ class LiveTradingService:
         except LiveBlocked as exc:
             if "being reconciled" not in str(exc):
                 await self.latch(str(exc))
+        except KrakenPrivateError as exc:
+            await self.latch(str(exc))
         except Exception:
             await self.latch("Real account synchronization failed; no new trades are allowed")
 

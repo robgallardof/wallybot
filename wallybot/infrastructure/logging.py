@@ -2,10 +2,18 @@ import json
 import logging
 from datetime import UTC, datetime
 
+# Allowlisted integer counters only: they make silent no-op cycles visible without logging text.
+_COUNT_FIELDS = ("instruments_evaluated", "proposals_received", "proposals_persisted")
+
 
 class SafeFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         # Only structured event codes are emitted; raw exceptions and bodies are excluded.
+        counts = {
+            name: value
+            for name in _COUNT_FIELDS
+            if type(value := getattr(record, name, None)) is int
+        }
         return json.dumps(
             {
                 "timestamp": datetime.now(UTC).isoformat(),
@@ -17,6 +25,7 @@ class SafeFormatter(logging.Formatter):
                 "symbol": None,
                 "event": record.getMessage(),
                 "message": record.getMessage(),
+                **({"counts": counts} if counts else {}),
             }
         )
 

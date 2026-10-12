@@ -9,18 +9,36 @@ The worker only persists proposals; it cannot execute, transfer or withdraw. See
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Request
+from sqlalchemy import select
 
 from apps.api.dependencies import Admin, SignedIn
-from apps.api.dto import AiAutonomyControlView
+from apps.api.dto import AiAnalystAvailabilityView, AiAutonomyControlView
 from apps.api.schemas import AiAutonomyChange
 from wallybot.application.notification_dispatch import dispatch_telegram_notification
 from wallybot.domain.ai_autonomy import AiAutonomyControl, AiAutonomyStatus
 from wallybot.domain.control import Role
-from wallybot.infrastructure.models import AiAutonomyControlRow
+from wallybot.infrastructure.models import AiAnalystStatusRow, AiAutonomyControlRow
 from wallybot.notifications.telegram import Notification, NotificationSeverity
 from wallybot.security.auth import AuthError, audit
 
 router = APIRouter(prefix="/api", tags=["ai-autonomy"])
+
+ANALYSTS = ("codex", "claude")
+
+
+async def _analyst_availability(db) -> list[AiAnalystAvailabilityView]:
+    """Report what the native worker observed; settings are never changed from this signal."""
+    rows = {row.analyst: row for row in (await db.scalars(select(AiAnalystStatusRow))).all()}
+    return [
+        AiAnalystAvailabilityView(
+            analyst=name,
+            available=rows[name].available if name in rows else None,
+            checked_at=(
+                datetime.fromtimestamp(rows[name].checked_at, UTC) if name in rows else None
+            ),
+        )
+        for name in ANALYSTS
+    ]
 
 
 @router.get("/ai-autonomy/control", response_model=AiAutonomyControlView)
@@ -38,6 +56,7 @@ async def get_ai_autonomy_control(request: Request, user: SignedIn) -> AiAutonom
             codex_enabled=row.codex_enabled,
             claude_enabled=row.claude_enabled,
             require_consensus=row.require_consensus,
+            analysts=await _analyst_availability(db),
         )
 
 
@@ -89,6 +108,7 @@ async def change_ai_autonomy_control(
                 else "AI_AUTONOMY_DISABLED"
             )
             audit(db, event, user.id)
+        analysts = await _analyst_availability(db)
     if changed_state:
         enabled = changed.status == AiAutonomyStatus.ENABLED
         title = "AI proposal analysis enabled" if enabled else "AI proposal analysis disabled"
@@ -110,4 +130,5 @@ async def change_ai_autonomy_control(
         codex_enabled=changed.codex_enabled,
         claude_enabled=changed.claude_enabled,
         require_consensus=changed.require_consensus,
+        analysts=analysts,
     )

@@ -84,3 +84,52 @@ async def test_transport_signs_exact_body_and_never_exposes_provider_payload():
         with pytest.raises(KrakenPrivateError):
             await transport.call("Withdraw", {})
     assert len(requests) == 1
+
+
+@pytest.mark.parametrize(
+    "errors,expected",
+    [
+        (["EAPI:Invalid key"], "rejected the API key"),
+        (["EAPI:Invalid signature"], "private key (API secret)"),
+        (["EAPI:Invalid nonce"], "dedicated to WallyBot"),
+        (["EGeneral:Permission denied"], "lacks a permission"),
+        (["EAPI:Rate limit exceeded"], "wait a few minutes"),
+        (["EService:Unavailable"], "temporarily unavailable"),
+        (["EGeneral:Invalid arguments:otp"], "2FA password"),
+        (["sensitive-provider-payload"], "Kraken rejected the private request"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_provider_errors_become_actionable_sanitized_explanations(errors, expected):
+    secret = base64.b64encode(b"test-secret").decode()
+
+    async def nonce():
+        return "1"
+
+    def respond(request):
+        return httpx.Response(200, json={"error": errors})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        transport = SignedKrakenTransport("test-key", secret, nonce, client)
+        with pytest.raises(KrakenPrivateError) as error:
+            await transport.call("GetApiKeyInfo", {})
+    assert expected in str(error.value)
+    assert "test-key" not in str(error.value)
+
+
+@pytest.mark.asyncio
+async def test_malformed_secret_is_explained_without_contacting_kraken():
+    requests = []
+
+    async def nonce():
+        return "1"
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda request: requests.append(request))
+    ) as client:
+        transport = SignedKrakenTransport("test-key", "not base64!", nonce, client)
+        with pytest.raises(KrakenPrivateError) as error:
+            await transport.call("GetApiKeyInfo", {})
+    assert "API secret is not in Kraken's format" in str(error.value)
+    assert "not base64" not in str(error.value)
+    assert requests == []

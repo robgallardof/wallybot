@@ -31,6 +31,9 @@ from wallybot.intelligence.cli_ai_provider import CliAiProvider
 from wallybot.intelligence.consensus_ai_provider import ConsensusAiProvider
 from wallybot.market.universe import UniverseFilterConfig
 
+# A tick that consults no analyst re-checks availability at most this often (one HOLD call).
+_STATUS_REFRESH_SECONDS = 3600
+
 
 def _write_heartbeat(now: int) -> None:
     folder = Path(tempfile.gettempdir())
@@ -93,6 +96,7 @@ async def run_ai_worker() -> None:
             pass  # Windows: the launcher terminates this tracked child process directly.
 
     heartbeat = asyncio.create_task(_heartbeat_loop(sessions, stopping, logger))
+    status_recorded_at: dict[str, int] = {}
     try:
         while not stopping.is_set():
             try:
@@ -105,6 +109,7 @@ async def run_ai_worker() -> None:
                     universe_config,
                     clock,
                     logger,
+                    status_recorded_at,
                 )
             except Exception:
                 logger.warning("AI_WORKER_TICK_FAILED")
@@ -127,6 +132,7 @@ async def _tick(
     universe_config: UniverseFilterConfig,
     clock: SystemClock,
     logger: logging.LoggerAdapter,
+    status_recorded_at: dict[str, int],
 ) -> None:
     async with sessions() as db:
         control = await db.get(AiAutonomyControlRow, 1)
@@ -177,6 +183,62 @@ async def _tick(
         logger.warning("AI_WORKER_NO_ANALYST_CONFIGURED")
         return
 
+    try:
+        await _analyze(
+            sessions,
+            provider,
+            analysts,
+            control,
+            admin_id,
+            portfolio,
+            quality_policy,
+            universe_config,
+            clock,
+            logger,
+        )
+    finally:
+        await _report_analyst_status(sessions, analysts, status_recorded_at, logger)
+
+
+async def _report_analyst_status(
+    sessions: async_sessionmaker[AsyncSession],
+    analysts: list[CliAiProvider],
+    recorded_at: dict[str, int],
+    logger: logging.LoggerAdapter,
+) -> None:
+    """Expose per-CLI availability to the operator; never changes analyst or consensus settings."""
+    for analyst in analysts:
+        now = int(time.time())
+        available = analyst.last_call_ok
+        if available is None:
+            if now - recorded_at.get(analyst.cli, 0) < _STATUS_REFRESH_SECONDS:
+                continue
+            available = await analyst.check_ready()
+        if not available:
+            logger.warning(f"AI_ANALYST_UNAVAILABLE_{analyst.cli.upper()}")
+        try:
+            async with sessions.begin() as db:
+                await db.execute(
+                    text("SELECT public.record_ai_analyst_status(:analyst, :available, :now)"),
+                    {"analyst": analyst.cli, "available": available, "now": now},
+                )
+            recorded_at[analyst.cli] = now
+        except Exception:
+            logger.warning("AI_ANALYST_STATUS_FAILED")
+
+
+async def _analyze(
+    sessions: async_sessionmaker[AsyncSession],
+    provider: KrakenExchange,
+    analysts: list[CliAiProvider],
+    control: AiAutonomyControlRow,
+    admin_id: str,
+    portfolio: AnalystPortfolioRow | None,
+    quality_policy: QualityPolicy,
+    universe_config: UniverseFilterConfig,
+    clock: SystemClock,
+    logger: logging.LoggerAdapter,
+) -> None:
     result = await run_ai_decision_tick(
         sessions=sessions,
         provider=provider,

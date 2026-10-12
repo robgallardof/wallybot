@@ -169,3 +169,22 @@ def test_no_op_change_is_not_audited_again(client, settings, db) -> None:
 
     assert result.status_code == 200
     assert db.execute("SELECT count(*) FROM events").fetchone()[0] == count_before
+
+
+def test_analyst_availability_is_reported_without_changing_consensus(client, settings, db):
+    enroll(client, settings)
+    before = client.get("/api/ai-autonomy/control").json()
+    assert before["analysts"] == [
+        {"analyst": "codex", "available": None, "checked_at": None},
+        {"analyst": "claude", "available": None, "checked_at": None},
+    ]
+
+    db.execute("SELECT public.record_ai_analyst_status('claude', false, 1791790000)")
+    after = client.get("/api/ai-autonomy/control").json()
+
+    claude = after["analysts"][1]
+    assert claude["available"] is False
+    assert claude["checked_at"].startswith("2026-10-12T")
+    assert {k: v for k, v in after.items() if k != "analysts"} == {
+        k: v for k, v in before.items() if k != "analysts"
+    }

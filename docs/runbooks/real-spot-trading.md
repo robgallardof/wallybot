@@ -25,6 +25,26 @@ adapter. There are no leveraged positions, transfers or withdrawals. IOC limit o
 partially filled or cancelled instead of filling. Stops and targets are review notices, not
 automatic protective orders. No trading return is guaranteed.
 
+## Connection and activation errors
+
+Linking and activation show the specific, sanitized reason (translated in the UI); the raw
+provider response and the key are never shown. Typical causes and fixes:
+
+| Message (English key) | What to do |
+|---|---|
+| Kraken rejected the API key | Copy the API key again completely; check it was not deleted. |
+| Kraken rejected the signature / API secret is not in Kraken's format | Paste the private key (API secret) exactly as Kraken showed it. |
+| API key has excessive permissions | Create a new key without deposit, withdrawal, transfer, earn or address permissions. |
+| API key lacks required ... permissions | Add query funds, query open/closed orders, create/modify and cancel/close orders. |
+| API key history restrictions prevent complete reconciliation | Remove the key's query start/end date restriction. |
+| API keys with their own 2FA password are not supported | Create a key without API 2FA (Kraken login 2FA is unaffected). |
+| Kraken rejected the request sequence (nonce) | Use a key dedicated to WallyBot only. |
+| Kraken is temporarily limiting / unavailable / could not be reached | Wait and retry; nothing is activated meanwhile. |
+| The maximum per trade cannot exceed the maximum total exposure | Fix the limits; the form checks this before sending. |
+| This deployment has real trading capability disabled | `WALLY_LIVE_CAPABLE` is false on the API. |
+
+A failed activation leaves the account BLOCKED with that reason and the mode outside LIVE.
+
 ## Blocking and recovery
 
 An outstanding/ambiguous order blocks another trade. The monitor reconciles it every 30 seconds,

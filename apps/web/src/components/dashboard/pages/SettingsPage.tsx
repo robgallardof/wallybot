@@ -314,6 +314,48 @@ export function SettingsPage({
             </p>
           )}
         </div>
+        <ul className="analyst-availability" aria-label={i18n.t("Disponibilidad de analistas")}>
+          {(aiAutonomy.data?.analysts ?? []).map((item) => {
+            const name = item.analyst === "codex" ? "Codex" : "Claude";
+            const enabled =
+              item.analyst === "codex"
+                ? aiAutonomy.data?.codex_enabled
+                : aiAutonomy.data?.claude_enabled;
+            const state =
+              item.available === null
+                ? i18n.t("Sin comprobar todavía")
+                : item.available
+                  ? i18n.t("Disponible")
+                  : i18n.t("No disponible");
+            return (
+              <li key={item.analyst}>
+                <strong>{name}</strong>: {state}
+                {item.checked_at && (
+                  <span className="muted">
+                    {" · "}
+                    {i18n.t("comprobado")} {new Date(item.checked_at).toLocaleString()}
+                  </span>
+                )}
+                {enabled && item.available === false && (
+                  <p className="error" role="alert">
+                    {i18n.t(
+                      "{{name}} no respondió en esta PC: la sesión de su CLI está cerrada o el programa no está instalado. Abre una terminal y ejecuta {{command}}; la siguiente comprobación lo detectará sin reiniciar WallyBot.",
+                      {
+                        name,
+                        command: item.analyst === "codex" ? "codex login" : "claude auth login",
+                      },
+                    )}
+                    {aiAutonomy.data?.require_consensus &&
+                      " " +
+                        i18n.t(
+                          "Mientras exijas coincidencia no se crearán propuestas. Si prefieres no usarlo, desactívalo y desmarca la coincidencia tú mismo: WallyBot no cambia estos ajustes automáticamente.",
+                        )}
+                  </p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
         {role === "ADMIN" && (
           <form className="settings-form" onSubmit={submitAiAutonomyTargets}>
             <label>

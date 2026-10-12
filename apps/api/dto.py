@@ -5,6 +5,7 @@ validation change for different reasons: an input DTO tightens what a client may
 output DTO documents and locks the wire contract a client can rely on.
 """
 
+from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
@@ -227,6 +228,14 @@ class ControlView(BaseModel):
     environment: Environment
 
 
+class AiAnalystAvailabilityView(BaseModel):
+    """Last observed CLI availability; `available` is None until the worker has checked."""
+
+    analyst: Literal["codex", "claude"]
+    available: bool | None
+    checked_at: datetime | None
+
+
 class AiAutonomyControlView(BaseModel):
     status: AiAutonomyStatus
     target_core_pct: Decimal
@@ -236,6 +245,7 @@ class AiAutonomyControlView(BaseModel):
     codex_enabled: bool
     claude_enabled: bool
     require_consensus: bool
+    analysts: list[AiAnalystAvailabilityView] = []
 
 
 class ProposalSimulationView(BaseModel):

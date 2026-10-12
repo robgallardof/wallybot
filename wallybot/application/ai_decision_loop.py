@@ -24,7 +24,9 @@ from wallybot.market.universe import UniverseFilterConfig
 from wallybot.strategies.trend_following import TrendFollowingStrategy
 
 TIMEFRAME = "1h"
-HISTORY_CANDLES = 20
+# Lookback exceeds FEATURE_WINDOW: providers return only closed, boundary-aligned candles, so an
+# exact 20-hour window yields 19 and every instrument failed the minimum-history filter.
+HISTORY_CANDLES = 30
 FEATURE_WINDOW = 20
 MAX_FINALISTS = 5
 RISK_OFF_THRESHOLD = Decimal("0.5")

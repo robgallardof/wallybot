@@ -508,3 +508,27 @@ def test_quote_expiring_during_permission_check_prevents_submission(setup_live, 
     response = approve(setup_live, proposal(setup_live), state["version"])
     assert response.json()["execution_status"] == "REJECTED"
     assert private.orders == {}
+
+
+def test_activation_explains_a_revoked_or_invalid_key_and_stays_blocked(setup_live):
+    client, db, csrf, _, private, _, body = setup_live
+    original = private.call
+
+    async def revoked(method, params):
+        if method == "GetApiKeyInfo":
+            raise KrakenPrivateError(
+                "Kraken rejected the API key; check that it was copied completely and is not "
+                "deleted"
+            )
+        return await original(method, params)
+
+    private.call = revoked
+    response = client.post("/api/live/control", json=body, headers={"X-CSRF-Token": csrf})
+
+    assert response.status_code == 409
+    assert response.json()["detail"].startswith("Kraken rejected the API key")
+    state = client.get("/api/live").json()
+    assert state["state"] == "BLOCKED" and state["enabled"] is False
+    assert state["reason"].startswith("Kraken rejected the API key")
+    assert db.execute("SELECT environment FROM control").fetchone()[0] != "LIVE"
+    assert not any(method == "AddOrder" for method, _ in private.calls)

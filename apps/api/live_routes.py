@@ -11,6 +11,7 @@ from apps.api.dependencies import Admin, SignedIn
 from apps.api.schemas import Input
 from wallybot.application.live_trading import LiveBlocked, account_id
 from wallybot.domain.control import Environment
+from wallybot.exchanges.kraken_private import KrakenPrivateError
 from wallybot.infrastructure.equity_snapshot_repository import EquitySnapshotRepository
 from wallybot.infrastructure.live_models import LiveControlRow
 from wallybot.infrastructure.models import (
@@ -185,9 +186,9 @@ async def configure_live(body: LiveChange, request: Request, user: Admin):
             if body.enabled:
                 try:
                     await service._sync(config, initialize=True)
-                except LiveBlocked as exc:
+                except (LiveBlocked, KrakenPrivateError) as exc:
                     await service.latch(str(exc))
-                    raise
+                    raise LiveBlocked(str(exc)) from None
                 except Exception:
                     await service.latch("Cannot verify the real account; no new trades are allowed")
                     raise LiveBlocked(

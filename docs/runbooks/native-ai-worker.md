@@ -37,6 +37,34 @@ analista corren en un directorio temporal y reciben un entorno acotado sin crede
 Codex ignora configuración de usuario, reglas y herramientas de shell/apps; Claude recibe una
 lista vacía de herramientas. Las credenciales propias de las CLI siguen bajo su gestión local.
 
+## Disponibilidad de Codex y Claude
+
+Con el análisis activo, el analista registra en cada ciclo si cada CLI respondió (migración
+`0045_ai_analyst_status`, mediante una función acotada; el rol de analista no puede escribir la
+tabla directamente). Si en un ciclo no se consultó a ningún analista, repite una comprobación HOLD
+como máximo una vez por hora. **Configuración → Análisis de IA** muestra para cada uno
+«Disponible», «No disponible» o «Sin comprobar todavía», con la hora de la comprobación.
+
+Si uno aparece como no disponible, inicia sesión en su CLI desde una terminal de esta misma
+cuenta de Windows y espera al siguiente ciclo (no hace falta reiniciar WallyBot):
+
+```powershell
+claude auth login     # comprobar: claude auth status
+codex login           # comprobar: codex login status
+```
+
+WallyBot nunca desactiva un analista ni la coincidencia por su cuenta. Mientras se exija
+coincidencia y uno no esté disponible, no se crean propuestas. Si prefieres usar sólo el
+disponible, desmarca tú ese analista **y** «Exigir coincidencia entre ambos» y guarda; el servidor
+rechaza la coincidencia estricta con un solo analista en lugar de debilitarla en silencio.
+
+El ciclo pide 30 velas horarias cerradas (mínimo 20 para el filtro de universo). Kraken excluye
+la vela en curso; con una ventana exacta de 20 horas sólo llegaban 19 y ningún instrumento era
+elegible, por lo que hasta el 2026-10-12 los analistas nunca fueron consultados. El log del
+proceso incluye ahora `counts.instruments_evaluated`, `proposals_received` y
+`proposals_persisted` en `AI_WORKER_TICK_COMPLETED`, y `AI_ANALYST_UNAVAILABLE_<CLI>` cuando una
+CLI no responde.
+
 En la web, el operador habilita análisis con MFA y elige sus analistas. PAPER se habilita por
 separado. Cada operación sigue requiriendo aprobación, vigencia y revalidación determinista.
 Arrancar procesos no cambia esos ajustes. LIVE y retiros siguen sin habilitarse.

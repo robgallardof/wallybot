@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
+import psycopg
 import pytest
 
 from tests.integration.test_portfolio_route import add_executed_proposal, add_fill_for, enroll
@@ -69,3 +70,19 @@ def test_native_analyst_can_only_announce_its_own_heartbeat_not_write_orders(set
     assert db.execute(
         "SELECT service, timestamp FROM heartbeats WHERE service='ai_worker'"
     ).fetchone() == ("ai_worker", 100)
+
+
+def test_native_analyst_reports_cli_availability_only_through_bounded_function(settings, db):
+    db.execute("SET ROLE wally_ai")
+    try:
+        db.execute("SELECT public.record_ai_analyst_status('claude', false, 200)")
+        assert db.execute(
+            "SELECT has_table_privilege(current_user, 'ai_analyst_status', 'UPDATE')"
+        ).fetchone() == (False,)
+        with pytest.raises(psycopg.errors.CheckViolation):
+            db.execute("SELECT public.record_ai_analyst_status('gpt', true, 200)")
+    finally:
+        db.execute("RESET ROLE")
+    assert db.execute(
+        "SELECT analyst, available, checked_at FROM ai_analyst_status"
+    ).fetchone() == ("claude", False, 200)

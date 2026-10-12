@@ -185,6 +185,7 @@ def test_trading_connection_checks_permissions_without_submitting(client, settin
     assert "synthetic" not in response.text
     assert "AddOrder" not in calls
     if forbidden:
+        assert response.json()["detail"].startswith("API key has excessive permissions")
         assert db.execute("SELECT count(*) FROM provider_connections").fetchone()[0] == 0
     else:
         assert response.json()["status"] == "HEALTHY"

@@ -1,3 +1,33 @@
+## Verified operator-readiness fixes — 2026-10-12 (second pass)
+
+Supersedes the "Claude is not logged in" note below. No real account configured, no real or
+PAPER orders placed, runtime OBSERVE throughout. Unrelated Rust work (gitignored) untouched.
+
+Fixed:
+- AI analysis never reached Codex/Claude: a 20-hour lookback yields 19 closed Kraken candles,
+  below the 20-candle universe minimum, so every tick evaluated 0 instruments (0 proposals ever
+  existed). Lookback is now 30 candles; a live dry run and the deployed worker evaluate ETH/USD
+  and XBT/USD. Worker logs now carry allowlisted integer counts.
+- Per-analyst CLI availability: migration 0045 + bounded SECURITY DEFINER function for the
+  analyst role; Settings shows Disponible/No disponible/Sin comprobar with `claude auth login` /
+  `codex login` guidance. Consensus and analyst toggles are never changed automatically.
+- Kraken linking/activation collapsed every failure into one generic message. Kraken error codes,
+  malformed secrets and network failures now map to sanitized, actionable messages (Spanish
+  translations added) on Connections, LIVE activation and the periodic BLOCKED reason. The LIVE
+  form rejects per-trade > total exposure locally.
+- Backup verify hardcoded revision 0001/PAPER and always failed; it now accepts any known revision
+  and a valid mode, and records ledger/order counts.
+
+Evidence: 971 backend tests passed (145.82s, real PostgreSQL/Redis); production browser suite
+19 passed (45.9s, WALLY_E2E_PRODUCTION=1); mocked UI suite 17 passed; scoped Pyright 0 errors;
+Ruff, tsc and focused ESLint clean. Encrypted backup created and isolated restore verified before
+deploy. Images rebuilt; 8 services healthy; readiness 200; alembic head 0045. Both CLIs READY
+via scripts/check_ai_analysts.py; first deployed tick recorded codex/claude available,
+instruments_evaluated=2, no consensus proposal (HOLD/disagreement is valid).
+
+Requires the operator's real account (not verifiable locally): Kraken key validation against the
+real API, opening-balance reconciliation, a funded IOC order and its fill/fee reconciliation.
+
 ## Verified real spot delivery — 2026-10-12
 
 Operator-approved Kraken spot USD/XBT/ETH is implemented and deployed. Credentials and limits

@@ -48,13 +48,13 @@ async def add_connection(
         try:
             validate_permissions(await transport.call("GetApiKeyInfo", {}))
             spot_balances(await transport.call("BalanceEx", {}))
-        except (KrakenPrivateError, ValueError, KeyError):
+        except KrakenPrivateError as exc:
+            # Messages are sanitized by construction and tell the operator what to fix.
+            raise HTTPException(status_code=409, detail=str(exc)) from None
+        except (ValueError, KeyError):
             raise HTTPException(
                 status_code=409,
-                detail=(
-                    "Cannot verify Kraken spot permissions and balances. Use query and order "
-                    "permissions only, without funding or withdrawal permissions."
-                ),
+                detail="Kraken returned balances in an unexpected format; nothing was saved",
             ) from None
         status = "HEALTHY"
     connection = ProviderConnectionRow(

@@ -13,6 +13,7 @@ export function LiveTradingPanel({ role }: { role: string }) {
   const [totalLimit, setTotalLimit] = useState("");
   const [slippage, setSlippage] = useState("");
   const [confirmation, setConfirmation] = useState("");
+  const [formError, setFormError] = useState("");
   useEffect(() => {
     if (!live.data?.configured) return;
     setConnectionId(live.data.connection_id ?? "");
@@ -36,8 +37,19 @@ export function LiveTradingPanel({ role }: { role: string }) {
     connections.data?.rows.filter(
       (row) => row.provider === "KRAKEN" && row.mode === "TRADE_ONLY",
     ) ?? [];
+  function limitsError() {
+    // Mirrors the API's bounds so the operator sees which value to fix, not a generic 422.
+    if (Number(orderLimit) > Number(totalLimit))
+      return "El máximo por operación no puede superar la exposición total máxima.";
+    if (Number(slippage) <= 0 || Number(slippage) > 2)
+      return "El cambio de precio máximo debe estar entre 0,01% y 2%.";
+    return "";
+  }
   function submit(event: React.FormEvent) {
     event.preventDefault();
+    const problem = limitsError();
+    setFormError(problem);
+    if (problem) return;
     configure.mutate(
       {
         connection_id: connectionId,
@@ -98,6 +110,7 @@ export function LiveTradingPanel({ role }: { role: string }) {
             <input
               type="number"
               min="0.01"
+              max="100000"
               step="0.01"
               required
               value={orderLimit}
@@ -109,6 +122,7 @@ export function LiveTradingPanel({ role }: { role: string }) {
             <input
               type="number"
               min="0.01"
+              max="100000"
               step="0.01"
               required
               value={dailyLoss}
@@ -120,6 +134,7 @@ export function LiveTradingPanel({ role }: { role: string }) {
             <input
               type="number"
               min="0.01"
+              max="1000000"
               step="0.01"
               required
               value={totalLimit}
@@ -188,6 +203,11 @@ export function LiveTradingPanel({ role }: { role: string }) {
           {t(
             "Primero agrega en Conexiones una clave API Kraken con consulta de fondos y órdenes, crear y cancelar órdenes. Nunca habilites depósitos, retiros ni transferencias.",
           )}
+        </p>
+      )}
+      {formError && (
+        <p className="error" role="alert">
+          {t(formError)}
         </p>
       )}
       {configure.isError && (

@@ -111,6 +111,15 @@ class EventRow(Base):
     correlation_id: Mapped[str] = mapped_column(String(36))
 
 
+class AiAnalystStatusRow(Base):
+    """Last observed CLI availability per analyst; written only via a bounded DB function."""
+
+    __tablename__ = "ai_analyst_status"
+    analyst: Mapped[str] = mapped_column(String(16), primary_key=True)
+    available: Mapped[bool] = mapped_column(Boolean)
+    checked_at: Mapped[int] = mapped_column(BigInteger)
+
+
 class HeartbeatRow(Base):
     __tablename__ = "heartbeats"
     service: Mapped[str] = mapped_column(String(32), primary_key=True)

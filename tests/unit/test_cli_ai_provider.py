@@ -354,3 +354,23 @@ async def test_subprocess_has_no_wally_credentials_or_repository_working_directo
     )
     assert result is not None
     assert result.splitlines() == ["False", "True"]
+
+
+async def test_call_outcome_reports_cli_reachability_not_recommendation_quality() -> None:
+    hold = make_provider(FakeCliTransport(stdout=claude_envelope({"action": "HOLD"})))
+    failed = make_provider(FakeCliTransport(stdout=None))
+    assert hold.last_call_ok is None
+
+    assert await hold.analyze(make_context()) is None
+    assert await failed.analyze(make_context()) is None
+
+    assert hold.last_call_ok is True
+    assert failed.last_call_ok is False
+
+
+async def test_signed_out_claude_error_envelope_is_unavailable() -> None:
+    envelope = json.dumps({"type": "result", "is_error": True, "result": "Not logged in"})
+    provider = make_provider(FakeCliTransport(stdout=envelope))
+
+    assert await provider.check_ready() is False
+    assert provider.last_call_ok is False

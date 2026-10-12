@@ -64,10 +64,10 @@ Este acceso inicia los servicios y el analista nativo. Consulta la [guía del an
 ## Configura tu cuenta real
 
 1. En **Conexiones**, añade una clave API de Kraken con permisos para consultar fondos/órdenes y crear/cancelar operaciones. Debe carecer de permisos de retiro, transferencias y gestión de fondos.
-2. En **Ajustes → Trading real**, selecciona la conexión e introduce tus límites en USD: importe por operación, exposición total y pérdida diaria máxima. Configura también la variación de precio permitida.
+2. En **Configuración → Operaciones con dinero real**, selecciona la conexión e introduce tus límites en USD: importe por operación, exposición total y pérdida diaria máxima. Configura también la variación de precio permitida.
 3. Confirma la activación escribiendo `LIVE` y completando MFA. WallyBot verifica permisos y concilia el saldo antes de habilitarla.
-4. Activa los analistas que tengas preparados. Revisa cada propuesta y confirma individualmente las operaciones reales.
-5. Consulta los saldos, órdenes y cantidades ejecutadas en **Cartera**. Puedes pausar la ejecución desde el panel.
+4. En **Configuración → Análisis de IA**, comprueba que Codex y Claude aparezcan como «Disponible». Si uno no lo está, ejecuta `claude auth login` o `codex login` en una terminal de esta PC, o desactívalo junto con «Exigir coincidencia» tú mismo; WallyBot no cambia esos ajustes automáticamente. Revisa cada propuesta y confirma individualmente las operaciones reales.
+5. Consulta los saldos, órdenes y cantidades ejecutadas en **Portafolio**. Puedes pausar la ejecución desde el panel.
 
 Las claves se introducen en tu instalación y se almacenan cifradas. **Nunca compartas claves API ni frases semilla por chat o en el repositorio.**
 

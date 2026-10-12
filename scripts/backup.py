@@ -84,6 +84,14 @@ def create() -> Path:
     return destination
 
 
+def known_revisions() -> set[str]:
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    script = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
+    return {revision.revision for revision in script.walk_revisions()}
+
+
 def verify(path: Path) -> None:
     import psycopg
     from testcontainers.postgres import PostgresContainer
@@ -125,19 +133,35 @@ def verify(path: Path) -> None:
         with psycopg.connect(pg.get_connection_url().replace("+psycopg", "")) as db:
             revision = db.execute("SELECT version_num FROM alembic_version").fetchone()
             mode = db.execute("SELECT environment FROM control WHERE id=1").fetchone()
-            if revision != ("0001_foundation",) or mode != ("PAPER",):
+            # A restore must land on a revision this checkout knows and a valid control mode.
+            if (
+                revision is None
+                or revision[0] not in known_revisions()
+                or mode is None
+                or mode[0] not in {"OBSERVE", "PAPER", "LIVE"}
+            ):
                 raise SystemExit("Restored state failed verification")
             counts = {
                 name: db.execute(f"SELECT count(*) FROM {name}").fetchone()[0]
-                for name in ("users", "events", "sessions", "jobs")
+                for name in (
+                    "users",
+                    "events",
+                    "sessions",
+                    "jobs",
+                    "trade_proposals",
+                    "order_intents",
+                    "fills",
+                    "ledger_transactions",
+                )
             }
     report = {
         "backup": path.name,
         "verified_at": datetime.now(UTC).isoformat(),
         "seconds": (datetime.now(UTC) - started).total_seconds(),
+        "revision": revision[0],
         "rows": counts,
         "result": "PASS",
-        "scope": "foundation schema and control; no ledger exists yet",
+        "scope": "schema revision, control mode and core/ledger row counts",
     }
     (BACKUPS / "restore-verification.json").write_text(json.dumps(report, indent=2))
     print("Isolated restore verification passed.")

@@ -206,6 +206,10 @@ async function shell(page: Page, role: "ADMIN" | "VIEWER" = "VIEWER") {
         codex_enabled: true,
         claude_enabled: true,
         require_consensus: true,
+        analysts: [
+          { analyst: "codex", available: null, checked_at: null },
+          { analyst: "claude", available: null, checked_at: null },
+        ],
       },
       "/api/system": system,
       "/api/events": { rows: [], next_before: null },
@@ -285,6 +289,10 @@ test("settings and first-steps pages keep actions aligned on desktop and mobile"
         codex_enabled: true,
         claude_enabled: true,
         require_consensus: true,
+        analysts: [
+          { analyst: "codex", available: true, checked_at: "2026-01-01T00:00:00Z" },
+          { analyst: "claude", available: false, checked_at: "2026-01-01T00:00:00Z" },
+        ],
       },
     });
   });
@@ -302,6 +310,15 @@ test("settings and first-steps pages keep actions aligned on desktop and mobile"
   await expect(
     page.getByRole("heading", { name: "Análisis de IA desactivado" }),
   ).toBeVisible();
+  // A signed-out analyst is explained with its exact login command; the page never silently
+  // disables it or weakens the consensus requirement.
+  const analysts = page.getByRole("list", { name: "Disponibilidad de analistas" });
+  await expect(analysts.getByRole("listitem").first()).toContainText("Codex: Disponible");
+  await expect(analysts.getByRole("listitem").nth(1)).toContainText("Claude: No disponible");
+  await expect(analysts.getByRole("alert")).toContainText("claude auth login");
+  await expect(analysts.getByRole("alert")).toContainText("no cambia estos ajustes");
+  await expect(page.getByLabel("Exigir coincidencia entre ambos")).toBeChecked();
+  await expect(page.getByLabel("Usar Claude como analista")).toBeChecked();
   await page.getByRole("button", { name: "Activar análisis de IA" }).click();
   await expect(
     page.getByRole("heading", { name: "Análisis de IA activado" }),
@@ -993,20 +1010,26 @@ test("real account activation requires a connection, explicit limits and LIVE te
     const body = route.request().postDataJSON();
     expect(body).toMatchObject({ enabled: true, confirmation: "LIVE", max_order_usd: "25", max_daily_loss_usd: "5", max_total_usd: "100", slippage_pct: "0.005" });
     submitted += 1;
-    await route.fulfill({ status: 409, json: { detail: "Exchange balances require reconciliation" } });
+    await route.fulfill({ status: 409, json: { detail: "API key has excessive permissions; use only balance queries and spot order management" } });
   });
   await page.goto("/settings");
   const panel = page.locator("article").filter({ has: page.getByRole("heading", { name: "Operaciones con dinero real", exact: true }) });
   const activate = panel.getByRole("button", { name: "Verificar cuenta y activar LIVE", exact: true });
   await expect(activate).toBeDisabled();
   await panel.getByLabel("Cuenta real", { exact: true }).selectOption("00000000-0000-0000-0000-000000000007");
-  await panel.getByLabel("Máximo por operación (USD)", { exact: true }).fill("25");
+  await panel.getByLabel("Máximo por operación (USD)", { exact: true }).fill("150");
   await panel.getByLabel("Pérdida diaria máxima (USD)", { exact: true }).fill("5");
   await panel.getByLabel("Exposición total máxima (USD)", { exact: true }).fill("100");
   await panel.getByLabel("Cambio de precio máximo (%)", { exact: true }).fill("0.5");
   await panel.getByLabel("Escribe LIVE para activar dinero real", { exact: true }).fill("LIVE");
   await activate.click();
-  await expect(panel.getByRole("alert")).toContainText("Exchange balances require reconciliation");
+  // Inconsistent limits are explained locally and never reach the API.
+  await expect(panel.getByRole("alert")).toContainText("no puede superar la exposición total");
+  expect(submitted).toBe(0);
+  await panel.getByLabel("Máximo por operación (USD)", { exact: true }).fill("25");
+  await activate.click();
+  // Kraken permission problems are shown as an actionable Spanish explanation.
+  await expect(panel.getByRole("alert")).toContainText("tiene permisos de más");
   expect(submitted).toBe(1);
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);

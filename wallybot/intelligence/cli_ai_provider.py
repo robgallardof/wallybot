@@ -141,13 +141,27 @@ class CliAiProvider:
         timeout_seconds: float = 120.0,
         transport: CliTransport | None = None,
     ) -> None:
-        self._cli = cli
+        self._cli: CliName = cli
         self._model_id = model_id
         self._prompt_version = prompt_version
         self._id_generator = id_generator
         self._clock = clock
         self._timeout_seconds = timeout_seconds
         self._transport = transport or SubprocessCliTransport()
+        self._last_call_ok: bool | None = None
+
+    @property
+    def cli(self) -> CliName:
+        return self._cli
+
+    @property
+    def last_call_ok(self) -> bool | None:
+        """Whether the most recent CLI call produced a response; `None` before any call.
+
+        A response that is not a valid proposal still counts as available: this reports CLI
+        reachability/authentication, never recommendation quality.
+        """
+        return self._last_call_ok
 
     async def analyze(self, context: AIAnalysisContext) -> TradeProposal | None:
         prompt = self._build_prompt(context)
@@ -156,6 +170,7 @@ class CliAiProvider:
             if self._cli == "claude"
             else await self._invoke_codex(prompt)
         )
+        self._last_call_ok = text is not None
         if text is None:
             return None
         payload = self._safe_json_loads(text)
@@ -171,6 +186,7 @@ class CliAiProvider:
             if self._cli == "claude"
             else await self._invoke_codex(prompt)
         )
+        self._last_call_ok = raw is not None
         return self._safe_json_loads(raw) == {"action": "HOLD"} if raw is not None else False
 
     async def _invoke_claude(self, prompt: str) -> str | None:
@@ -179,7 +195,8 @@ class CliAiProvider:
         if raw is None:
             return None
         envelope = self._safe_json_loads(raw)
-        if not isinstance(envelope, dict):
+        # A signed-out CLI can report its failure inside an otherwise well-formed envelope.
+        if not isinstance(envelope, dict) or envelope.get("is_error") is True:
             return None
         result = envelope.get("result")
         return result if isinstance(result, str) else None
