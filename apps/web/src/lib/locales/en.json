@@ -1,4 +1,13 @@
 {
+  "EDITAR CONEXIÓN": "EDIT CONNECTION",
+  "Deja la clave y el secreto vacíos para conservar los guardados.": "Leave key and secret empty to keep the stored ones.",
+  "Guardar cambios": "Save changes",
+  "Acciones": "Actions",
+  "Editar": "Edit",
+  "Editar {{name}}": "Edit {{name}}",
+  "Connection not found": "Connection not found.",
+  "This connection is the real trading account; disable real trading first": "This connection is the real trading account; disable real trading first.",
+  "Spot trading connections require a Kraken or Binance key": "Spot trading connections require a Kraken or Binance key.",
   "Iniciar {{name}}": "Start {{name}}",
   "Iniciando…": "Starting…",
   "Si exigís coincidencia, una recomendación sólo se guarda cuando ambos analistas responden y sus precios propuestos no difieren de forma material.": "When agreement is required, a recommendation is saved only when both analysts respond and their proposed prices do not differ materially.",

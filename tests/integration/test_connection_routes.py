@@ -231,3 +231,77 @@ def test_private_nonces_serialize_concurrent_requests_and_survive_new_transports
     client.portal.call(verify)
     assert len(observed) == 16
     assert observed == sorted(set(observed))
+
+
+@pytest.mark.parametrize("forbidden", [False, True])
+def test_read_only_connection_can_be_upgraded_to_trading_with_stored_credentials(
+    client, settings, db, forbidden
+):
+    from wallybot.exchanges.kraken_private import REQUIRED_PERMISSIONS
+
+    seen = []
+
+    class Transport:
+        async def call(self, method, params):
+            if method == "GetApiKeyInfo":
+                return {
+                    "permissions": sorted(
+                        REQUIRED_PERMISSIONS | ({"withdraw-funds"} if forbidden else set())
+                    )
+                }
+            assert method == "BalanceEx"
+            return {"ZUSD": {"balance": "100", "hold_trade": "0"}}
+
+    def factory(key, secret):
+        seen.append((key, secret))
+        return Transport()
+
+    client.app.state.kraken_private_factory = factory
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    created = create_connection(
+        client, csrf, api_key="synthetic-key", api_secret="synthetic-secret"
+    )
+
+    response = client.post(
+        f"/api/connections/{created['id']}",
+        headers={"X-CSRF-Token": csrf},
+        json={"label": "Real spot", "mode": "TRADE_ONLY"},
+    )
+
+    assert seen == [("synthetic-key", "synthetic-secret")]
+    assert "synthetic" not in response.text
+    row = db.execute("SELECT label, mode, status FROM provider_connections").fetchone()
+    if forbidden:
+        assert response.status_code == 409
+        assert tuple(row) == ("Cuenta principal", "READ_ONLY", "PENDING")
+    else:
+        assert response.status_code == 200, response.text
+        assert tuple(row) == ("Real spot", "TRADE_ONLY", "HEALTHY")
+
+
+def test_connection_label_can_be_edited_and_unknown_ids_are_not_found(client, settings) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    created = create_connection(client, csrf, provider="TIINGO", label="Old")
+
+    renamed = client.post(
+        f"/api/connections/{created['id']}",
+        headers={"X-CSRF-Token": csrf},
+        json={"label": "New", "mode": "READ_ONLY"},
+    )
+    trading = client.post(
+        f"/api/connections/{created['id']}",
+        headers={"X-CSRF-Token": csrf},
+        json={"label": "New", "mode": "TRADE_ONLY"},
+    )
+    missing = client.post(
+        "/api/connections/00000000-0000-0000-0000-000000000000",
+        headers={"X-CSRF-Token": csrf},
+        json={"label": "New", "mode": "READ_ONLY"},
+    )
+
+    assert renamed.status_code == 200, renamed.text
+    assert renamed.json()["label"] == "New"
+    assert trading.status_code == 422
+    assert missing.status_code == 404

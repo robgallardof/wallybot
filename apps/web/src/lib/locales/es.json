@@ -1,4 +1,13 @@
 {
+  "EDITAR CONEXIÓN": "EDITAR CONEXIÓN",
+  "Deja la clave y el secreto vacíos para conservar los guardados.": "Deja la clave y el secreto vacíos para conservar los guardados.",
+  "Guardar cambios": "Guardar cambios",
+  "Acciones": "Acciones",
+  "Editar": "Editar",
+  "Editar {{name}}": "Editar {{name}}",
+  "Connection not found": "No se encontró la conexión.",
+  "This connection is the real trading account; disable real trading first": "Esta conexión es la cuenta real en uso; desactiva primero las operaciones reales.",
+  "Spot trading connections require a Kraken or Binance key": "Las conexiones de trading spot solo admiten claves de Kraken o Binance.",
   "Iniciar {{name}}": "Iniciar {{name}}",
   "Iniciando…": "Iniciando…",
   "Comprobar ahora": "Comprobar ahora",

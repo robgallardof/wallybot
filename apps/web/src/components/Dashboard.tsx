@@ -81,7 +81,7 @@ export function Dashboard({
     create: createResearchJob,
     cancel: cancelResearchJob,
   } = useResearchJobsData(page === "research");
-  const { connections, add: addConnection } = useConnectionsData(
+  const { connections, add: addConnection, update: updateConnection } = useConnectionsData(
     page === "connections",
   );
   const { telegram, save: saveTelegram } = useTelegramData(page === "settings");
@@ -176,7 +176,7 @@ export function Dashboard({
         />
       )}
       {page === "connections" && (
-        <ConnectionsPage connections={connections} add={addConnection} />
+        <ConnectionsPage connections={connections} add={addConnection} update={updateConnection} />
       )}
       {page === "settings" && (
         <SettingsPage

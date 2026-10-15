@@ -21,9 +21,12 @@ const TRADING_PROVIDERS = new Set<string>(["KRAKEN", "BINANCE"]);
  * sent once and never redisplayed; the form always starts blank, and the table only shows
  * whether a connection already has credentials stored (`has_credentials`), never the values.
  */
+type ConnectionRow = z.infer<typeof providerConnectionListSchema>["rows"][number];
+
 export function ConnectionsPage({
   connections,
   add,
+  update,
 }: {
   connections: UseQueryResult<z.infer<typeof providerConnectionListSchema>>;
   add: UseMutationResult<
@@ -31,6 +34,17 @@ export function ConnectionsPage({
     Error,
     {
       provider: string;
+      label: string;
+      mode: string;
+      api_key?: string;
+      api_secret?: string;
+    }
+  >;
+  update: UseMutationResult<
+    unknown,
+    Error,
+    {
+      id: string;
       label: string;
       mode: string;
       api_key?: string;
@@ -45,30 +59,42 @@ export function ConnectionsPage({
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
   const [trading, setTrading] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editing = editingId !== null;
+  const save = editing ? update : add;
   const isWallet = provider === "WALLET";
   // TIINGO takes a single API key, same as a wallet address -- no secret field for either.
   const singleCredential = provider === "WALLET" || provider === "TIINGO";
 
+  function resetForm() {
+    setEditingId(null);
+    setLabel("");
+    setApiKey("");
+    setApiSecret("");
+    setTrading(false);
+  }
+
+  function startEditing(row: ConnectionRow) {
+    add.reset();
+    update.reset();
+    setEditingId(row.id);
+    setProvider(row.provider as (typeof PROVIDERS)[number]);
+    setLabel(row.label);
+    setTrading(row.mode === "TRADE_ONLY");
+    setApiKey("");
+    setApiSecret("");
+  }
+
   function submit(event: React.FormEvent) {
     event.preventDefault();
-    add.mutate(
-      {
-        provider,
-        label: label.trim(),
-        mode: TRADING_PROVIDERS.has(provider) && trading ? "TRADE_ONLY" : "READ_ONLY",
-        api_key: apiKey.trim() || undefined,
-        api_secret: singleCredential
-          ? undefined
-          : apiSecret.trim() || undefined,
-      },
-      {
-        onSuccess: () => {
-          setLabel("");
-          setApiKey("");
-          setApiSecret("");
-        },
-      },
-    );
+    const body = {
+      label: label.trim(),
+      mode: TRADING_PROVIDERS.has(provider) && trading ? "TRADE_ONLY" : "READ_ONLY",
+      api_key: apiKey.trim() || undefined,
+      api_secret: singleCredential ? undefined : apiSecret.trim() || undefined,
+    };
+    if (editingId) update.mutate({ id: editingId, ...body }, { onSuccess: resetForm });
+    else add.mutate({ provider, ...body }, { onSuccess: resetForm });
   }
 
   return (
@@ -90,8 +116,14 @@ export function ConnectionsPage({
       <section className="connection-setup" aria-labelledby="new-connection-title">
         <div className="section-intro">
           <div>
-            <span className="eyebrow">{i18n.t("NUEVA CONEXIÓN")}</span>
-            <h3 id="new-connection-title">{i18n.t("Elegí un proveedor")}</h3>
+            <span className="eyebrow">
+              {i18n.t(editing ? "EDITAR CONEXIÓN" : "NUEVA CONEXIÓN")}
+            </span>
+            <h3 id="new-connection-title">
+              {editing
+                ? i18n.t("Deja la clave y el secreto vacíos para conservar los guardados.")
+                : i18n.t("Elegí un proveedor")}
+            </h3>
           </div>
           <p>
             {isWallet
@@ -114,6 +146,7 @@ export function ConnectionsPage({
             {i18n.t("Proveedor")}
             <select
               value={provider}
+              disabled={editing}
               onChange={(event) =>
                 setProvider(event.target.value as (typeof PROVIDERS)[number])
               }
@@ -161,14 +194,25 @@ export function ConnectionsPage({
               />
             </label>
           )}
-          <button className="button button-primary" disabled={add.isPending}>
-            {i18n.t(add.isPending ? "Guardando conexión…" : "Agregar conexión")}
+          <button className="button button-primary" disabled={save.isPending}>
+            {i18n.t(
+              save.isPending
+                ? "Guardando conexión…"
+                : editing
+                  ? "Guardar cambios"
+                  : "Agregar conexión",
+            )}
           </button>
+          {editing && (
+            <button type="button" className="button" onClick={resetForm}>
+              {i18n.t("Cancelar")}
+            </button>
+          )}
         </form>
       </section>
-      {add.isError && (
+      {save.isError && (
         <p className="error" role="alert">
-          {i18n.t(add.error.message)}
+          {i18n.t(save.error.message)}
         </p>
       )}
       <section className="connection-registry" aria-labelledby="registered-connections-title">
@@ -188,6 +232,7 @@ export function ConnectionsPage({
               <th>{i18n.t("Modo")}</th>
               <th>{i18n.t("Estado")}</th>
               <th>{i18n.t("Credenciales")}</th>
+              <th>{i18n.t("Acciones")}</th>
             </tr>
           </thead>
           <tbody>
@@ -201,6 +246,16 @@ export function ConnectionsPage({
                   {row.has_credentials
                     ? i18n.t("Guardadas")
                     : i18n.t("Sin credenciales")}
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    className="button"
+                    aria-label={i18n.t("Editar {{name}}", { name: row.label })}
+                    onClick={() => startEditing(row)}
+                  >
+                    {i18n.t("Editar")}
+                  </button>
                 </td>
               </tr>
             ))}

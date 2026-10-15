@@ -117,6 +117,14 @@ class ProviderConnectionCreate(Input):
         return self
 
 
+class ProviderConnectionUpdate(Input):
+    label: str = Field(min_length=1, max_length=100)
+    mode: Literal["READ_ONLY", "PAPER", "TRADE_ONLY"]
+    # Omitted credentials keep the stored, encrypted ones.
+    api_key: str | None = Field(default=None, max_length=4096)
+    api_secret: str | None = Field(default=None, max_length=4096)
+
+
 class TelegramConfigUpdate(Input):
     bot_token: str | None = Field(default=None, max_length=4096)
     chat_id: int | None = None

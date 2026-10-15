@@ -15,5 +15,15 @@ export function useConnectionsData(enabled: boolean) {
     }) => api("/connections", providerConnectionSchema, body),
     onSuccess: () => void client.invalidateQueries({ queryKey: ["connections"] }),
   });
-  return { connections, add };
+  const update = useMutation({
+    mutationFn: ({ id, ...body }: {
+      id: string;
+      label: string;
+      mode: string;
+      api_key?: string;
+      api_secret?: string;
+    }) => api(`/connections/${id}`, providerConnectionSchema, body),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ["connections"] }),
+  });
+  return { connections, add, update };
 }
