@@ -107,7 +107,7 @@ def test_approval_commits_then_sends_an_informational_telegram_context(
     assert len(transport.calls) == 1
     assert "proposal approved" in transport.calls[0][1]["text"]
     assert "BUY / Comprar BTC/USD" in transport.calls[0][1]["text"]
-    assert "cannot execute" in transport.calls[0][1]["text"]
+    assert "Recorded with MFA" in transport.calls[0][1]["text"]
     # OBSERVE is the default: the approval is recorded, but no order can exist.
     assert response.json()["execution_status"] == "OBSERVE_ONLY"
     assert "No order was created" in transport.calls[0][1]["text"]

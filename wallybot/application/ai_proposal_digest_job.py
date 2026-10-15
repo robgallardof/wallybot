@@ -34,6 +34,7 @@ def _proposal_line(row: TradeProposalRow, web_origin: str | None) -> str:
     if web_origin:
         query = urlencode({"proposal": row.proposal_id, "decision": "approve"})
         line += f"\n  {web_origin.rstrip('/')}/intelligence?{query}#proposals"
+    line += f"\n  /approve {row.proposal_id} MFA · /reject {row.proposal_id} MFA"
     return line
 
 
@@ -41,8 +42,8 @@ def _digest_notification(rows: list[TradeProposalRow], web_origin: str | None) -
     body = (
         "New WallyBot analysis proposals / Nuevas propuestas de análisis:\n"
         + "\n".join(_proposal_line(row, web_origin) for row in rows)
-        + "\n\nOpen WallyBot to review, approve or reject with MFA. "
-        "Abrí WallyBot para revisar, aprobar o rechazar con MFA."
+        + "\n\nApprove or reject here replacing MFA with your 6-digit code, or open WallyBot. "
+        "Aprobá o rechazá aquí cambiando MFA por tu código de 6 dígitos, o abrí WallyBot."
     )
     # Unique per batch so the notification throttle's (severity, title) dedup never hides one.
     newest = rows[0]

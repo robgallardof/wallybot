@@ -3,7 +3,9 @@
 An approval is single-use and committed first. Only then, and only while the operator has
 explicitly enabled PAPER or LIVE, the selected account service re-reads market data and re-runs
 the deterministic allocator/risk gate before an order can exist. LIVE additionally binds the
-displayed limits version and rechecks private balances. Telegram and the AI worker never execute.
+displayed limits version and rechecks private balances. The allowlisted Telegram chat may record
+the same decision only with a fresh single-use TOTP code (`decide_from_telegram`); the AI worker
+never executes.
 """
 
 from datetime import UTC, datetime
@@ -11,6 +13,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
+from starlette.datastructures import State
 
 from apps.api.dependencies import Admin, SignedIn
 from apps.api.dto import (
@@ -66,24 +69,24 @@ def _decision_notification(
         NotificationSeverity.INFO,
         title,
         f"{action} {row.base}/{row.quote} at {row.entry_price}.\n{outcome}.\n"
-        "Telegram cannot execute this decision / Telegram no puede ejecutar esta decisión.",
+        "Recorded with MFA / Registrada con MFA.",
     )
 
 
-def _provider(request: Request) -> MarketDataProvider:
-    return request.app.state.market_overview.keywords["provider"]
+def _provider(state: State) -> MarketDataProvider:
+    return state.market_overview.keywords["provider"]
 
 
 async def _execute(
-    row: TradeProposalRow, request: Request, user_id: str, approved_version: int | None = None
+    row: TradeProposalRow, state: State, user_id: str, approved_version: int | None = None
 ) -> ProposalExecutionResult:
     """Revalidate after the committed approval; a failure is recorded, never retried."""
-    async with request.app.state.sessions() as db:
+    async with state.sessions() as db:
         control = await db.get(ControlRow, 1)
     if control is not None and control.environment != row.execution_environment:
         return ProposalExecutionResult("BLOCKED", None, ("Execution mode changed after approval",))
     if control is not None and control.environment == Environment.LIVE:
-        return await request.app.state.live_trading.execute(row, user_id, approved_version)
+        return await state.live_trading.execute(row, user_id, approved_version)
     if control is None or control.environment != Environment.PAPER:
         return ProposalExecutionResult(
             ProposalExecutionStatus.OBSERVE_ONLY,
@@ -92,10 +95,10 @@ async def _execute(
         )
     try:
         return await execute_approved_proposal(
-            request.app.state.sessions,
-            _provider(request),
-            request.app.state.paper_ai,
-            request.app.state.id_generator,
+            state.sessions,
+            _provider(state),
+            state.paper_ai,
+            state.id_generator,
             row,
             paper_ai_account_id(user_id),
             datetime.now(UTC),
@@ -143,7 +146,7 @@ async def decide_proposal(
         try:
             await simulate_proposal(
                 request.app.state.sessions,
-                _provider(request),
+                _provider(request.app.state),
                 row,
                 paper_ai_account_id(user.id),
                 datetime.now(UTC),
@@ -154,8 +157,19 @@ async def decide_proposal(
             audit(db, "AI_PROPOSAL_SIMULATED", user.id)
         # Simulation is evidence, not an approval. The proposal remains actionable.
         return {"proposal_id": proposal_id, "status": status, "execution_status": None}
+    return await record_decision(request.app.state, user.id, proposal_id, decision, body)
 
-    async with request.app.state.sessions.begin() as db:
+
+async def record_decision(
+    state: State,
+    user_id: str,
+    proposal_id: str,
+    decision: str,
+    body: ProposalDecisionInput | None,
+) -> dict[str, str | None]:
+    """Commit one approve/reject decision, then execute an approval under the bound mode."""
+    status = {"approve": "APPROVED", "reject": "REJECTED"}[decision]
+    async with state.sessions.begin() as db:
         control = await db.get(ControlRow, 1, with_for_update=True)
         if decision == "approve" and control is not None:
             if (
@@ -173,13 +187,13 @@ async def decide_proposal(
                     or body.environment != Environment.LIVE
                     or live is None
                     or body.live_version != live.version
-                    or live.owner_id != user.id
+                    or live.owner_id != user_id
                 ):
                     raise HTTPException(
                         409, "Explicit LIVE approval with current limits is required"
                     )
         row = await db.get(TradeProposalRow, proposal_id, with_for_update=True)
-        if row is None or row.owner_id != user.id:
+        if row is None or row.owner_id != user_id:
             raise HTTPException(status_code=404, detail="Proposal not found")
         if row.decision_status != "PENDING":
             raise HTTPException(status_code=409, detail="Proposal was already decided")
@@ -189,25 +203,25 @@ async def decide_proposal(
         if decision == "approve":
             row.execution_environment = control.environment if control else Environment.OBSERVE
         row.decided_at = datetime.now(UTC)
-        audit(db, f"AI_PROPOSAL_{status}", user.id)
+        audit(db, f"AI_PROPOSAL_{status}", user_id)
 
     execution = None
     if decision == "approve":
-        execution = await _execute(row, request, user.id, body.live_version if body else None)
-        async with request.app.state.sessions.begin() as db:
+        execution = await _execute(row, state, user_id, body.live_version if body else None)
+        async with state.sessions.begin() as db:
             stored = await db.get(TradeProposalRow, proposal_id, with_for_update=True)
             if stored is not None:
                 stored.execution_status = execution.status
                 stored.execution_order_id = execution.client_order_id
                 stored.execution_reasons = list(execution.reasons)
-            audit(db, f"AI_PROPOSAL_EXECUTION_{execution.status}", user.id)
+            audit(db, f"AI_PROPOSAL_EXECUTION_{execution.status}", user_id)
 
     await dispatch_telegram_notification(
-        request.app.state.sessions,
-        request.app.state.auth.crypto,
-        request.app.state.telegram_transport,
+        state.sessions,
+        state.auth.crypto,
+        state.telegram_transport,
         _decision_notification(row, status, execution),
-        request.app.state.notification_throttle,
+        state.notification_throttle,
         datetime.now(UTC),
     )
     return {
@@ -215,6 +229,31 @@ async def decide_proposal(
         "status": status,
         "execution_status": execution.status if execution is not None else None,
     }
+
+
+async def decide_from_telegram(
+    state: State, user_id: str, proposal_id: str, decision: str, code: str
+) -> dict[str, str | None]:
+    """Telegram path: a fresh single-use TOTP code stands in for the web session's step-up MFA.
+
+    The decision binds to the mode and LIVE limits version current at this moment, exactly what
+    the web form would have displayed; every later check is the shared `record_decision`.
+    """
+    await state.throttle.check("telegram-mfa:" + user_id)
+    await state.auth.verify_totp(user_id, code)
+    body = None
+    if decision == "approve":
+        from wallybot.infrastructure.live_models import LiveControlRow
+
+        async with state.sessions() as db:
+            control = await db.get(ControlRow, 1)
+            live = await db.get(LiveControlRow, 1)
+        environment = control.environment if control is not None else None
+        body = ProposalDecisionInput(
+            environment=environment,
+            live_version=live.version if environment == Environment.LIVE and live else None,
+        )
+    return await record_decision(state, user_id, proposal_id, decision, body)
 
 
 @router.get("", response_model=TradeProposalListView)

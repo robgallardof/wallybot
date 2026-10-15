@@ -28,6 +28,7 @@ from apps.api.live_routes import router as live_router
 from apps.api.market_routes import router as market_router
 from apps.api.portfolio_routes import paper_account_id
 from apps.api.portfolio_routes import router as portfolio_router
+from apps.api.proposal_routes import decide_from_telegram
 from apps.api.proposal_routes import router as proposal_router
 from apps.api.research_routes import router as research_router
 from apps.api.risk_routes import router as risk_router
@@ -289,6 +290,7 @@ async def _telegram_command_loop(
     id_generator: UuidIdGenerator,
     logger,
     web_origin: str,
+    state=None,
 ) -> None:
     while True:
         try:
@@ -306,6 +308,11 @@ async def _telegram_command_loop(
                 clock.now(),
                 owner_id=admin_id,
                 web_origin=web_origin,
+                decide=(
+                    partial(decide_from_telegram, state, admin_id)
+                    if state is not None and admin_id is not None
+                    else None
+                ),
             )
             TELEGRAM_COMMAND_TICKS.labels("success").inc()
         except asyncio.CancelledError:
@@ -540,6 +547,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     UuidIdGenerator(),
                     logger,
                     config.origin,
+                    app.state,
                 )
             )
         )

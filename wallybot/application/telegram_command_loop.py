@@ -1,7 +1,10 @@
 """Long-polls Telegram's `getUpdates` for inbound commands from the operator's single allowlisted
 chat (SECURITY.md: "allowlisted numeric user/chat IDs"). Query commands (`/status`, `/breakers`,
-`/portfolio`, `/proposals`, `/withdrawal`) reply immediately with read-only evidence; sensitive
-commands (`/pause`, `/resume`) never
+`/portfolio`, `/proposals`, `/withdrawal`) reply immediately with read-only evidence.
+`/approve ID CODE` and `/reject ID CODE` record a proposal decision only through the injected
+`decide` callback, which verifies a fresh single-use TOTP code and runs the same path as the web
+(ADR-017); without a code they only return the web review link. Sensitive commands
+(`/pause`, `/resume`) never
 execute directly -- they create a `wallybot.domain.telegram_confirmation.TelegramConfirmation` the
 operator must confirm through the existing Admin+fresh-MFA web flow, and reply saying so.
 `/help`/`/commands` (also `/start`, once already paired -- Telegram's own convention for a bot's
@@ -25,6 +28,7 @@ ever replies.
 
 import hmac
 import re
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
 
@@ -49,6 +53,10 @@ from wallybot.security.crypto import Crypto, digest
 
 GET_UPDATES_TIMEOUT_SECONDS = 8
 
+# (proposal_id, "approve" | "reject", TOTP code) -> {"status", "execution_status"}. Raises on an
+# invalid code, throttling or a refused decision; the message is shown to the operator.
+ProposalDecider = Callable[[str, str, str], Awaitable[dict[str, str | None]]]
+
 
 async def run_telegram_command_tick(
     sessions: async_sessionmaker[AsyncSession],
@@ -59,6 +67,7 @@ async def run_telegram_command_tick(
     now: datetime,
     owner_id: str | None = None,
     web_origin: str | None = None,
+    decide: ProposalDecider | None = None,
 ) -> None:
     async with sessions() as db:
         config = await TelegramConfigRepository(db).get()
@@ -109,6 +118,7 @@ async def run_telegram_command_tick(
                 message["text"],
                 language,
                 web_origin,
+                decide,
             )
             if reply is not None:
                 await transport.post_form(
@@ -181,10 +191,20 @@ async def _handle_command(
     text: str,
     language: Language,
     web_origin: str | None = None,
+    decide: ProposalDecider | None = None,
 ) -> str | None:
     command = parse_command(text)
     if command is None:
         return None
+    parts = text.split()
+    if (
+        decide is not None
+        and command in {TelegramCommand.APPROVE, TelegramCommand.REJECT}
+        and len(parts) == 3
+        and re.fullmatch(r"[A-Za-z0-9:_-]{1,128}", parts[1])
+        and re.fullmatch(r"\d{6}", parts[2])
+    ):
+        return await _decision_reply(decide, parts[1], command, parts[2], language)
     if command in {TelegramCommand.APPROVE, TelegramCommand.REJECT, TelegramCommand.SIMULATE}:
         return await _proposal_review_reply(
             sessions, owner_id, now, text, command, language, web_origin
@@ -207,6 +227,29 @@ async def _handle_command(
     return await _confirmation_reply(sessions, id_generator, now, action, language)
 
 
+async def _decision_reply(
+    decide: ProposalDecider,
+    proposal_id: str,
+    command: TelegramCommand,
+    code: str,
+    language: Language,
+) -> str:
+    try:
+        result = await decide(proposal_id, command.value.lower(), code)
+    except Exception as exc:  # noqa: BLE001 -- every refusal is reported, nothing is retried
+        detail = getattr(exc, "detail", None) or getattr(exc, "message", None) or str(exc)
+        reason = str(detail) or type(exc).__name__
+        return f"Not recorded: {reason}" if language == "en" else f"No se registró: {reason}"
+    status, execution = result.get("status"), result.get("execution_status")
+    if language == "en":
+        reply = f"Proposal {status}."
+        return reply + (f" Execution: {execution}." if execution else "")
+    reply = {"APPROVED": "Propuesta aprobada.", "REJECTED": "Propuesta rechazada."}.get(
+        str(status), f"Propuesta {status}."
+    )
+    return reply + (f" Ejecución: {execution}." if execution else "")
+
+
 async def _proposal_review_reply(
     sessions: async_sessionmaker[AsyncSession],
     owner_id: str | None,
@@ -220,9 +263,11 @@ async def _proposal_review_reply(
     parts = text.split()
     if len(parts) != 2 or re.fullmatch(r"[A-Za-z0-9:_-]{1,128}", parts[1]) is None:
         return (
-            "Use /approve ID, /reject ID or /simulate ID from /proposals. Confirm in WallyBot."
+            "Use /approve ID CODE or /reject ID CODE with your 6-digit MFA code, or /simulate ID "
+            "from /proposals."
             if language == "en"
-            else "Usá /approve ID, /reject ID o /simulate ID de /proposals. Confirmá en WallyBot."
+            else "Usá /approve ID CÓDIGO o /reject ID CÓDIGO con tu código MFA de 6 dígitos, o "
+            "/simulate ID de /proposals."
         )
     async with sessions() as db:
         row = (
@@ -245,9 +290,11 @@ async def _proposal_review_reply(
     return (
         f"Review {command.value}: {row.base}/{row.quote} at {row.entry_price}. "
         f"Nothing was approved or executed. Open the link, review and confirm with MFA:\n{link}"
+        f"\nOr reply here: /{command.value.lower()} {row.proposal_id} CODE"
         if language == "en"
         else f"Revisar {command.value}: {row.base}/{row.quote} a {row.entry_price}. "
         f"No se aprobó ni ejecutó nada. Abrí el enlace, revisá y confirmá con MFA:\n{link}"
+        f"\nO respondé aquí: /{command.value.lower()} {row.proposal_id} CÓDIGO"
     )
 
 
@@ -281,6 +328,7 @@ def _help_reply(language: Language) -> str:
             "/breakers -- active circuit breakers\n"
             "/portfolio -- latest equity snapshot\n"
             "/proposals -- latest AI proposals (read-only)\n"
+            "/approve ID CODE /reject ID CODE -- decide here with your MFA code\n"
             "/approve ID /reject ID /simulate ID -- open a web review with MFA\n"
             "/init -- ask the analysts for a first conservative buy (approve with MFA)\n"
             "/withdrawal -- informational realized-result review (read-only)\n"
@@ -294,6 +342,7 @@ def _help_reply(language: Language) -> str:
         "/breakers -- circuit breakers activos\n"
         "/portfolio -- último snapshot de equity\n"
         "/proposals -- últimas propuestas de IA (solo lectura)\n"
+        "/approve ID CÓDIGO /reject ID CÓDIGO -- decidir aquí con tu código MFA\n"
         "/approve ID /reject ID /simulate ID -- abrir revisión web con MFA\n"
         "/init -- pide a los analistas una primera compra conservadora (aprobás con MFA)\n"
         "/withdrawal -- revisión informativa de resultado realizado (solo lectura)\n"

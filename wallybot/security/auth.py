@@ -246,6 +246,22 @@ class AuthService:
             session.mfa_at = now
             audit(db, "MFA_CONFIRMED", user.id)
 
+    async def verify_totp(self, user_id: str, code: str) -> None:
+        """Step-up for an out-of-band channel (the allowlisted Telegram chat): consumes one
+        TOTP step exactly like `confirm_mfa`, so a code is never accepted twice anywhere."""
+        now = int(time.time())
+        async with self.sessions.begin() as db:
+            user = await db.get(UserRow, user_id, with_for_update=True)
+            if user is None or not user.totp_encrypted:
+                raise AuthError()
+            step = matching_step(
+                self.crypto.decrypt(user.totp_encrypted), code, now, user.last_totp_step
+            )
+            if step is None:
+                raise AuthError("Invalid or expired verification code")
+            user.last_totp_step = step
+            audit(db, "MFA_CONFIRMED_TELEGRAM", user.id)
+
     async def logout(self, raw: str, actor: str) -> None:
         async with self.sessions.begin() as db:
             await db.execute(delete(SessionRow).where(SessionRow.token_hash == digest(raw)))
