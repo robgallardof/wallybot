@@ -187,24 +187,20 @@ test("setup, MFA, dashboard, controls, activity, logout and recovery login", asy
     page.getByRole("heading", { name: "Servicios y dependencias" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Configuración", exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: "Observando mercados reales (OBSERVE)" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Activar simulación PAPER" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Simulación PAPER activada" }),
-  ).toBeVisible();
+  const modeSwitch = page.getByRole("group", { name: "Modo de operación" });
+  const modeOption = (mode: string) =>
+    modeSwitch.getByRole("button", { name: new RegExp(`^${mode}\\b`) });
+  await expect(modeOption("OBSERVE")).toHaveAttribute("aria-pressed", "true");
+  await expect(modeOption("PAPER")).toHaveAttribute("aria-pressed", "false");
+  await modeOption("PAPER").click();
+  await expect(modeOption("PAPER")).toHaveAttribute("aria-pressed", "true");
+  await expect(modeOption("OBSERVE")).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator(".paper-pill")).toHaveText("PAPER");
   await page.reload();
-  await expect(
-    page.getByRole("heading", { name: "Simulación PAPER activada" }),
-  ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Desactivar simulación (volver a OBSERVE)" })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "Observando mercados reales (OBSERVE)" }),
-  ).toBeVisible();
+  await expect(modeOption("PAPER")).toHaveAttribute("aria-pressed", "true");
+  await modeOption("OBSERVE").click();
+  await expect(modeOption("OBSERVE")).toHaveAttribute("aria-pressed", "true");
+  await expect(modeOption("PAPER")).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator(".paper-pill")).toHaveText("OBSERVE");
   await page.getByRole("button", { name: "Documentación", exact: true }).click();
   await expect(

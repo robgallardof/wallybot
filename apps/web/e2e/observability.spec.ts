@@ -387,15 +387,38 @@ test("settings and first-steps pages keep actions aligned on desktop and mobile"
   });
   await page.goto("/settings");
   // shell()'s mocked /api/dashboard always returns environment: "PAPER" -- assert the settled
-  // PAPER-state text, not the pre-fetch OBSERVE default. Asserting the default was a race: the
-  // dashboard query resolves asynchronously, and `toBeVisible()` succeeds on first match rather
-  // than a settled one, so it could "pass" by catching the transient pre-hydration render.
-  await expect(page.getByRole("heading", { name: "Simulación PAPER activada" })).toBeVisible();
+  // PAPER selection, not the pre-fetch state. Before the dashboard query resolves no mode is
+  // pressed and every option is disabled, so waiting for aria-pressed="true" on PAPER (and
+  // enabled options) cannot "pass" by catching the transient pre-hydration render.
+  const modeSwitch = page.getByRole("group", { name: "Modo de operación" });
+  const modeOptions = modeSwitch.getByRole("button");
+  const modeOption = (mode: string) =>
+    modeSwitch.getByRole("button", { name: new RegExp(`^${mode}\\b`) });
   await expect(
-    page.getByRole("button", { name: "Desactivar simulación (volver a OBSERVE)" }),
+    page.getByRole("heading", { name: "¿Qué hace WallyBot con tus análisis?" }),
   ).toBeVisible();
+  await expect(modeOptions).toHaveCount(3);
+  await expect(modeOption("PAPER")).toHaveAttribute("aria-pressed", "true");
+  await expect(modeOption("OBSERVE")).toHaveAttribute("aria-pressed", "false");
+  await expect(modeOption("LIVE")).toHaveAttribute("aria-pressed", "false");
+  // An ADMIN can change the mode from here: every option is actionable once the state settled.
+  for (const mode of ["OBSERVE", "PAPER", "LIVE"]) await expect(modeOption(mode)).toBeEnabled();
+  // Desktop: the three options sit on one row with the same height (aligned actions).
+  const desktopBoxes = await modeOptions.evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const box = node.getBoundingClientRect();
+      return { top: box.top, left: box.left, height: box.height };
+    }),
+  );
+  expect(new Set(desktopBoxes.map((box) => Math.round(box.top))).size).toBe(1);
+  expect(new Set(desktopBoxes.map((box) => Math.round(box.height))).size).toBe(1);
+  expect(desktopBoxes[0].left).toBeLessThan(desktopBoxes[1].left);
+  expect(desktopBoxes[1].left).toBeLessThan(desktopBoxes[2].left);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+    await page.evaluate(() => window.innerWidth),
+  );
   // AI analysis (proposals only, never auto-executes -- ADR-017) is a toggle fully separate
-  // from the PAPER on/off switch above.
+  // from the OBSERVE/PAPER/LIVE mode switch above.
   await expect(
     page.getByRole("heading", { name: "Análisis de IA desactivado" }),
   ).toBeVisible();
@@ -444,6 +467,26 @@ test("settings and first-steps pages keep actions aligned on desktop and mobile"
   await page.getByRole("button", { name: "Abrir navegación" }).click();
   await expect(navigation).toBeVisible();
   await expect(navigation.getByRole("button", { name: "Mercados" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.getByRole("button", { name: "Cerrar navegación" }).click();
+  await expect(navigation).toBeHidden();
+  // Mobile: the mode options stack in a single column, left-aligned with the same width and
+  // fully inside the viewport, and PAPER is still the selected mode.
+  await expect(modeOption("PAPER")).toHaveAttribute("aria-pressed", "true");
+  const mobileBoxes = await modeOptions.evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const box = node.getBoundingClientRect();
+      return { top: box.top, bottom: box.bottom, left: box.left, right: box.right, width: box.width };
+    }),
+  );
+  expect(new Set(mobileBoxes.map((box) => Math.round(box.left))).size).toBe(1);
+  expect(new Set(mobileBoxes.map((box) => Math.round(box.width))).size).toBe(1);
+  for (let index = 1; index < mobileBoxes.length; index += 1)
+    expect(mobileBoxes[index].top).toBeGreaterThanOrEqual(mobileBoxes[index - 1].bottom);
+  for (const box of mobileBoxes) {
+    expect(box.left).toBeGreaterThanOrEqual(0);
+    expect(box.right).toBeLessThanOrEqual(390);
+  }
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 
   await page.goto("/docs");
