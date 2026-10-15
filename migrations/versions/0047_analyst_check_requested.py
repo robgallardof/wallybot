@@ -12,7 +12,9 @@ def upgrade():
     op.execute(
         "ALTER TABLE ai_autonomy_control ADD COLUMN check_requested BOOLEAN NOT NULL DEFAULT FALSE"
     )
+    op.execute("GRANT UPDATE (check_requested) ON ai_autonomy_control TO wally_ai")
 
 
 def downgrade():
+    op.execute("REVOKE UPDATE (check_requested) ON ai_autonomy_control FROM wally_ai")
     op.execute("ALTER TABLE ai_autonomy_control DROP COLUMN check_requested")
