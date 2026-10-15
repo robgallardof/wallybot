@@ -27,5 +27,10 @@ export function useAiAutonomyData(enabled: boolean) {
     mutationFn: () => api("/ai-autonomy/check-analysts", aiAutonomyControlSchema, {}),
     onSuccess: (data) => client.setQueryData(["ai-autonomy-control"], data),
   });
-  return { control, change, checkAnalysts };
+  const startAnalyst = useMutation({
+    mutationFn: (analyst: "codex" | "claude") =>
+      api(`/ai-autonomy/analysts/${analyst}/start`, aiAutonomyControlSchema, {}),
+    onSuccess: (data) => client.setQueryData(["ai-autonomy-control"], data),
+  });
+  return { control, change, checkAnalysts, startAnalyst };
 }

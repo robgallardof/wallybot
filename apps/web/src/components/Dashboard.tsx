@@ -93,7 +93,12 @@ export function Dashboard({
   const { portfolio: aiPortfolio, fund: fundAiPortfolio } = useAiPortfolioData(
     page === "portfolio",
   );
-  const { control: aiAutonomy, change: changeAiAutonomy, checkAnalysts } = useAiAutonomyData(
+  const {
+    control: aiAutonomy,
+    change: changeAiAutonomy,
+    checkAnalysts,
+    startAnalyst,
+  } = useAiAutonomyData(
     page === "settings",
   );
   const { breakers, clear: clearBreaker } = useBreakersData(page === "risk");
@@ -187,6 +192,7 @@ export function Dashboard({
           aiAutonomy={aiAutonomy}
           changeAiAutonomy={changeAiAutonomy}
           checkAnalysts={checkAnalysts}
+          startAnalyst={startAnalyst}
         />
       )}
       {page === "docs" && <DocsPage />}

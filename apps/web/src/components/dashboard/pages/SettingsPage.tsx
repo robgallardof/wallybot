@@ -42,6 +42,7 @@ export function SettingsPage({
   aiAutonomy,
   changeAiAutonomy,
   checkAnalysts,
+  startAnalyst,
 }: {
   dashboard: UseQueryResult<z.infer<typeof dashboardSchema>>;
   change: UseMutationResult<
@@ -94,6 +95,11 @@ export function SettingsPage({
     }
   >;
   checkAnalysts: UseMutationResult<z.infer<typeof aiAutonomyControlSchema>, Error, void>;
+  startAnalyst: UseMutationResult<
+    z.infer<typeof aiAutonomyControlSchema>,
+    Error,
+    "codex" | "claude"
+  >;
 }) {
   useTranslation();
   const environment = dashboard.data?.environment;
@@ -371,6 +377,16 @@ export function SettingsPage({
                   <span className={`analyst-state ${stale ? "stale" : item.available ? "ready" : "pending"}`}>
                     {stale ? i18n.t("Comprobación desactualizada") : state}
                   </span>
+                  {role === "ADMIN" && (
+                    <Button variant="outline"
+                      disabled={startAnalyst.isPending}
+                      aria-label={i18n.t("Iniciar {{name}}", { name })}
+                      onClick={() => void startAnalyst.mutateAsync(item.analyst)}>
+                      {startAnalyst.isPending && startAnalyst.variables === item.analyst
+                        ? i18n.t("Iniciando…")
+                        : i18n.t("Iniciar {{name}}", { name })}
+                    </Button>
+                  )}
                 </div>
                 {item.checked_at && (
                   <span className="muted">

@@ -1,4 +1,6 @@
 {
+  "Iniciar {{name}}": "Start {{name}}",
+  "Iniciando…": "Starting…",
   "Si exigís coincidencia, una recomendación sólo se guarda cuando ambos analistas responden y sus precios propuestos no difieren de forma material.": "When agreement is required, a recommendation is saved only when both analysts respond and their proposed prices do not differ materially.",
   "Secciones de configuración": "Settings sections",
   "Operación": "Trading",

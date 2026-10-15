@@ -188,3 +188,47 @@ def test_analyst_availability_is_reported_without_changing_consensus(client, set
     assert {k: v for k, v in after.items() if k != "analysts"} == {
         k: v for k, v in before.items() if k != "analysts"
     }
+
+
+def test_admin_can_start_an_analyst_and_request_a_fresh_check(client, settings, db) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+    setup = client.post(
+        "/api/ai-autonomy/control",
+        json={
+            "status": "DISABLED",
+            "codex_enabled": True,
+            "claude_enabled": False,
+            "require_consensus": False,
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert setup.status_code == 200, setup.text
+
+    result = client.post(
+        "/api/ai-autonomy/analysts/claude/start", json={}, headers={"X-CSRF-Token": csrf}
+    )
+
+    assert result.status_code == 200, result.text
+    assert result.json()["claude_enabled"] is True
+    row = db.execute(
+        "SELECT claude_enabled, check_requested FROM ai_autonomy_control WHERE id = 1"
+    ).fetchone()
+    assert tuple(row) == (True, True)
+    assert (
+        db.execute(
+            "SELECT count(*) FROM events WHERE event = 'AI_ANALYST_CLAUDE_ENABLED'"
+        ).fetchone()[0]
+        == 1
+    )
+
+
+def test_starting_an_unknown_analyst_is_rejected(client, settings) -> None:
+    enroll(client, settings)
+    csrf = client.get("/api/auth/me").json()["csrf"]
+
+    result = client.post(
+        "/api/ai-autonomy/analysts/gemini/start", json={}, headers={"X-CSRF-Token": csrf}
+    )
+
+    assert result.status_code == 404
