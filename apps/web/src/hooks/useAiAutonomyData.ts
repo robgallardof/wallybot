@@ -23,5 +23,9 @@ export function useAiAutonomyData(enabled: boolean) {
     }) => api("/ai-autonomy/control", aiAutonomyControlSchema, body),
     onSuccess: (data) => client.setQueryData(["ai-autonomy-control"], data),
   });
-  return { control, change };
+  const checkAnalysts = useMutation({
+    mutationFn: () => api("/ai-autonomy/check-analysts", aiAutonomyControlSchema, {}),
+    onSuccess: (data) => client.setQueryData(["ai-autonomy-control"], data),
+  });
+  return { control, change, checkAnalysts };
 }

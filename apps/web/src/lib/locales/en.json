@@ -10,6 +10,8 @@
   "Sin consenso obligatorio: una respuesta válida puede bastar. Si ambos proponen y discrepan, no hay propuesta.": "Without strict consensus: one valid response may suffice. If both propose and disagree, there is no proposal.",
   "Actualizar estado": "Refresh status",
   "Comprobación desactualizada": "Check out of date",
+  "Comprobar ahora": "Check now",
+  "{{name}} no disponible. Puede ser límite de uso, sesión cerrada o CLI no instalada. Usa «Comprobar ahora» para ejecutar una prueba nueva. Para iniciar sesión: {{command}}.": "{{name}} unavailable. This may be a usage limit, expired session or missing CLI. Use «Check now» to run a fresh test. To sign in: {{command}}.",
   "La última comprobación de {{name}} no confirma disponibilidad actual. Revisa el proceso de análisis, la instalación, la sesión y los límites del proveedor. Para iniciar sesión: {{command}}. Actualizar estado consulta el último registro; no ejecuta una prueba nueva de la CLI.": "The last {{name}} check does not confirm current availability. Check the analysis process, installation, sign-in and provider limits. To sign in: {{command}}. Refresh status retrieves the latest record; it does not run a new CLI test.",
   "Asignación y avisos": "Allocation and notifications",
   "Analistas y consenso": "Analysts and consensus",

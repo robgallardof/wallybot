@@ -52,6 +52,7 @@ class AiAutonomyControlRow(Base):
     codex_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     claude_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     require_consensus: Mapped[bool] = mapped_column(Boolean, default=True)
+    check_requested: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class AiProposalDigestRow(Base):

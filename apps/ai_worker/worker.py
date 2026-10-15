@@ -104,6 +104,8 @@ async def run_ai_worker() -> None:
     heartbeat = asyncio.create_task(_heartbeat_loop(sessions, stopping, logger))
     status_recorded_at: dict[str, int] = {}
     try:
+        # Immediate check on startup so the UI shows fresh state as soon as the worker is running.
+        await _check_analyst_availability(sessions, provider, settings, id_generator, clock, logger, status_recorded_at)
         while not stopping.is_set():
             try:
                 await _tick(
@@ -127,6 +129,31 @@ async def run_ai_worker() -> None:
         stopping.set()
         await heartbeat
         await engine.dispose()
+
+
+async def _check_analyst_availability(
+    sessions: async_sessionmaker[AsyncSession],
+    provider: dict[str, MarketDataProvider],
+    settings: AiWorkerSettings,
+    id_generator: UuidIdGenerator,
+    clock: SystemClock,
+    logger: logging.LoggerAdapter,
+    status_recorded_at: dict[str, int],
+) -> None:
+    """Run check_ready() for each configured analyst regardless of the normal refresh interval."""
+    async with sessions() as db:
+        control = await db.get(AiAutonomyControlRow, 1)
+    if control is None:
+        return
+    analysts = []
+    if control.codex_enabled:
+        analysts.append(CliAiProvider(cli="codex", model_id=settings.codex_model_id, prompt_version=settings.ai_prompt_version, id_generator=id_generator, clock=clock, timeout_seconds=settings.ai_timeout_seconds))
+    if control.claude_enabled:
+        analysts.append(CliAiProvider(cli="claude", model_id=settings.claude_model_id, prompt_version=settings.ai_prompt_version, id_generator=id_generator, clock=clock, timeout_seconds=settings.ai_timeout_seconds))
+    for analyst in analysts:
+        analyst._last_call_ok = None  # force check_ready() path in _report_analyst_status
+    status_recorded_at.clear()
+    await _report_analyst_status(sessions, analysts, status_recorded_at, logger)
 
 
 async def _tick(
@@ -159,7 +186,19 @@ async def _tick(
             admin_id = await db.scalar(
                 select(UserRow.id).where(UserRow.id == portfolio.owner_id, UserRow.role == "ADMIN")
             )
+    check_requested = control is not None and control.check_requested
+    if check_requested:
+        async with sessions.begin() as db:
+            row = await db.get(AiAutonomyControlRow, 1, with_for_update=True)
+            if row is not None:
+                row.check_requested = False
+
+    if check_requested:
+        status_recorded_at.clear()
+
     if control is None or control.status != "ENABLED" or admin_id is None:
+        if check_requested:
+            await _check_analyst_availability(sessions, provider, settings, id_generator, clock, logger, status_recorded_at)
         return
 
     analysts = []

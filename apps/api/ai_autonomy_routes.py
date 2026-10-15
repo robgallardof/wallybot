@@ -60,6 +60,28 @@ async def get_ai_autonomy_control(request: Request, user: SignedIn) -> AiAutonom
         )
 
 
+@router.post("/ai-autonomy/check-analysts", response_model=AiAutonomyControlView)
+async def request_analyst_check(request: Request, user: Admin) -> AiAutonomyControlView:
+    """Signal the native AI worker to run a fresh CLI availability check on its next tick."""
+    async with request.app.state.sessions.begin() as db:
+        row = await db.get(AiAutonomyControlRow, 1, with_for_update=True)
+        if row is None:
+            raise AuthError("System not initialized", 503)
+        row.check_requested = True
+        analysts = await _analyst_availability(db)
+    return AiAutonomyControlView(
+        status=AiAutonomyStatus(row.status),
+        target_core_pct=row.target_core_pct,
+        target_growth_pct=row.target_growth_pct,
+        target_speculative_pct=row.target_speculative_pct,
+        digest_interval_hours=row.digest_interval_hours,
+        codex_enabled=row.codex_enabled,
+        claude_enabled=row.claude_enabled,
+        require_consensus=row.require_consensus,
+        analysts=analysts,
+    )
+
+
 @router.post("/ai-autonomy/control", response_model=AiAutonomyControlView)
 async def change_ai_autonomy_control(
     body: AiAutonomyChange, request: Request, user: Admin

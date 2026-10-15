@@ -41,6 +41,7 @@ export function SettingsPage({
   security,
   aiAutonomy,
   changeAiAutonomy,
+  checkAnalysts,
 }: {
   dashboard: UseQueryResult<z.infer<typeof dashboardSchema>>;
   change: UseMutationResult<
@@ -92,6 +93,7 @@ export function SettingsPage({
       require_consensus?: boolean;
     }
   >;
+  checkAnalysts: UseMutationResult<z.infer<typeof aiAutonomyControlSchema>, Error, void>;
 }) {
   useTranslation();
   const environment = dashboard.data?.environment;
@@ -339,6 +341,13 @@ export function SettingsPage({
           <h3>{i18n.t("Disponibilidad de analistas")}</h3>
           <Button variant="outline" disabled={aiAutonomy.isFetching}
             onClick={() => void aiAutonomy.refetch()}>{i18n.t("Actualizar estado")}</Button>
+          {role === "ADMIN" && (
+            <Button variant="outline"
+              disabled={checkAnalysts.isPending}
+              onClick={() => void checkAnalysts.mutateAsync()}>
+              {checkAnalysts.isPending ? i18n.t("Comprobando…") : i18n.t("Comprobar ahora")}
+            </Button>
+          )}
         </div>
         <ul className="analyst-availability" aria-label={i18n.t("Disponibilidad de analistas")}>
           {(aiAutonomy.data?.analysts ?? []).map((item) => {
@@ -371,7 +380,7 @@ export function SettingsPage({
                 {enabled && (item.available === false || stale) && (
                   <p className="error" role="alert">
                     {i18n.t(
-                      "La última comprobación de {{name}} no confirma disponibilidad actual. Revisa el proceso de análisis, la instalación, la sesión y los límites del proveedor. Para iniciar sesión: {{command}}. Actualizar estado consulta el último registro; no ejecuta una prueba nueva de la CLI.",
+                      "{{name}} no disponible. Puede ser límite de uso, sesión cerrada o CLI no instalada. Usa «Comprobar ahora» para ejecutar una prueba nueva. Para iniciar sesión: {{command}}.",
                       {
                         name,
                         command: item.analyst === "codex" ? "codex login" : "claude auth login",

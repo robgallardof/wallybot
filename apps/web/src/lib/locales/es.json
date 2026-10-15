@@ -1,4 +1,6 @@
 {
+  "Comprobar ahora": "Comprobar ahora",
+  "{{name}} no disponible. Puede ser límite de uso, sesión cerrada o CLI no instalada. Usa «Comprobar ahora» para ejecutar una prueba nueva. Para iniciar sesión: {{command}}.": "{{name}} no disponible. Puede ser límite de uso, sesión cerrada o CLI no instalada. Usa «Comprobar ahora» para ejecutar una prueba nueva. Para iniciar sesión: {{command}}.",
   "Invalid credentials": "Usuario, contraseña o token incorrectos.",
   "Setup is disabled": "La configuración inicial ya está completada.",
   "Invalid enrollment": "La configuración ha caducado. Vuelve a iniciarla.",
