@@ -144,6 +144,7 @@
 :root :is(.market-filters, .activity-filters, .backtest-form, .connection-form) { padding: 20px; border-radius: 14px; gap: 16px; }
 :root .connection-form { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; }
 :root .connection-form .button { justify-self: start; }
+:root .limits-suggestion { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--surface-2, rgba(127,127,127,.08)); }
 :root :is(.connection-form, .settings-form, .backtest-form) label { font-size: 13px; line-height: 1.5; }
 :root :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { max-width: 100%; min-width: 0; }
 :root :is(.connection-form, .settings-form, .backtest-form, .market-filters, .activity-filters) :is(input:not([type="checkbox"]):not([type="radio"]), select) {

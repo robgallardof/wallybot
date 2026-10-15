@@ -5,6 +5,22 @@ import { useConnectionsData } from "../../../hooks/useConnectionsData";
 import { FaCircleCheck, FaShieldHalved } from "react-icons/fa6";
 import { formatDateTime, formatMoney, formatNumber, formatRelative } from "../../../lib/format";
 
+const cents = (value: number) => (Math.floor(value * 100) / 100).toFixed(2);
+
+/**
+ * Suggested limits to put the whole verified account to work: ~3% is kept free for fees and
+ * price moves, each order is a third of that so the money spreads over a few positions (and
+ * stays above Binance's ~5 USDT minimum), and the daily loss matches the built-in 2% breaker.
+ */
+export function recommendedLimits(equity: number) {
+  const total = Math.floor(equity * 0.97 * 100) / 100;
+  return {
+    total: cents(total),
+    order: cents(Math.max(total / 3, Math.min(6, total))),
+    dailyLoss: cents(Math.max(1, equity * 0.02)),
+  };
+}
+
 export function LiveTradingPanel({ role }: { role: string }) {
   const { t } = useTranslation();
   const { live, configure } = useLiveTrading();
@@ -14,7 +30,6 @@ export function LiveTradingPanel({ role }: { role: string }) {
   const [dailyLoss, setDailyLoss] = useState("");
   const [totalLimit, setTotalLimit] = useState("");
   const [slippage, setSlippage] = useState("");
-  const [confirmation, setConfirmation] = useState("");
   const [formError, setFormError] = useState("");
   useEffect(() => {
     if (!live.data?.configured) return;
@@ -43,6 +58,15 @@ export function LiveTradingPanel({ role }: { role: string }) {
     ) ?? [];
   const selectedProvider = candidates.find((row) => row.id === connectionId)?.provider;
   const currency = selectedProvider === "KRAKEN" ? "USD" : "USDT";
+  const equity = Number(live.data?.equity_usd ?? 0);
+  function applyRecommendation() {
+    const suggestion = recommendedLimits(equity);
+    setTotalLimit(suggestion.total);
+    setOrderLimit(suggestion.order);
+    setDailyLoss(suggestion.dailyLoss);
+    if (!slippage) setSlippage("0.5");
+    setFormError("");
+  }
   function limitsError() {
     // Mirrors the API's bounds so the operator sees which value to fix, not a generic 422.
     if (Number(orderLimit) > Number(totalLimit))
@@ -56,6 +80,13 @@ export function LiveTradingPanel({ role }: { role: string }) {
     const problem = limitsError();
     setFormError(problem);
     if (problem) return;
+    // Adjusting limits of an already armed account needs no extra step; switching real money
+    // on from OFF still asks once, with a click instead of typing LIVE.
+    if (
+      !live.data?.enabled &&
+      !window.confirm(t("¿Activar operaciones con dinero real en tu cuenta?"))
+    )
+      return;
     configure.mutate(
       {
         connection_id: connectionId,
@@ -66,7 +97,6 @@ export function LiveTradingPanel({ role }: { role: string }) {
         max_total_usd: totalLimit,
         slippage_pct: String(Number(slippage) / 100),
       },
-      { onSuccess: () => setConfirmation("") },
     );
   }
   return (
@@ -131,6 +161,23 @@ export function LiveTradingPanel({ role }: { role: string }) {
               ))}
             </select>
           </label>
+          {equity > 0 && (
+            <div className="limits-suggestion">
+              <p className="muted" style={{ margin: 0 }}>
+                {t(
+                  "Valor de tu cuenta: {{equity}}. La recomendación usa casi todo el saldo (deja 3% para comisiones), reparte cada compra en un tercio y corta el día al perder 2%.",
+                  { equity: formatMoney(String(equity), currency) },
+                )}
+              </p>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={applyRecommendation}
+              >
+                {t("Usar recomendación según mi saldo")}
+              </button>
+            </div>
+          )}
           <label>
             {t("Máximo por operación ({{currency}})", { currency })}
             <input
@@ -179,28 +226,16 @@ export function LiveTradingPanel({ role }: { role: string }) {
               onChange={(event) => setSlippage(event.target.value)}
             />
           </label>
-          <label>
-            {t("Escribe LIVE para activar dinero real")}
-            <input
-              autoComplete="off"
-              required
-              pattern="LIVE"
-              value={confirmation}
-              onChange={(event) => setConfirmation(event.target.value)}
-            />
-          </label>
           <div className="form-actions">
           <button
             className="danger-button button-lg"
             disabled={
-              configure.isPending ||
-              confirmation !== "LIVE" ||
-              !live.data?.capable
+              configure.isPending || !live.data?.capable
             }
           >
             {t(
               live.data?.enabled
-                ? "Verificar límites y rearmar LIVE"
+                ? "Guardar límites"
                 : "Verificar cuenta y activar LIVE",
             )}
           </button>

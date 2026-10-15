@@ -1,11 +1,11 @@
-"""Proposal history plus the MFA-protected operator decisions (ADR-017).
+"""Proposal history and authenticated web/private-Telegram operator decisions (ADR-017/021).
 
 An approval is single-use and committed first. Only then, and only while the operator has
 explicitly enabled PAPER or LIVE, the selected account service re-reads market data and re-runs
 the deterministic allocator/risk gate before an order can exist. LIVE additionally binds the
 displayed limits version and rechecks private balances. The allowlisted Telegram chat may record
-the same decision only with a fresh single-use TOTP code (`decide_from_telegram`); the AI worker
-never executes.
+the same decision without per-order MFA from the linked private operator chat
+(`decide_from_telegram`); the AI worker never executes.
 """
 
 from datetime import UTC, datetime
@@ -35,7 +35,7 @@ from wallybot.application.proposal_execution import (
 from wallybot.domain.control import Environment
 from wallybot.domain.market import MarketDataProvider
 from wallybot.domain.trade_proposal import TradeDirection
-from wallybot.infrastructure.models import ControlRow, ShadowDecisionRow, TradeProposalRow
+from wallybot.infrastructure.models import ControlRow, ShadowDecisionRow, TradeProposalRow, UserRow
 from wallybot.notifications.telegram import Notification, NotificationSeverity
 from wallybot.security.auth import audit
 
@@ -69,7 +69,7 @@ def _decision_notification(
         NotificationSeverity.INFO,
         title,
         f"{action} {row.base}/{row.quote} at {row.entry_price}.\n{outcome}.\n"
-        "Recorded with MFA / Registrada con MFA.",
+        "Recorded operator decision / Decisión del operador registrada.",
     )
 
 
@@ -166,6 +166,7 @@ async def record_decision(
     proposal_id: str,
     decision: str,
     body: ProposalDecisionInput | None,
+    source: str = "WEB",
 ) -> dict[str, str | None]:
     """Commit one approve/reject decision, then execute an approval under the bound mode."""
     status = {"approve": "APPROVED", "reject": "REJECTED"}[decision]
@@ -192,6 +193,14 @@ async def record_decision(
                     raise HTTPException(
                         409, "Explicit LIVE approval with current limits is required"
                     )
+                # Refuse before the single-use approval is spent: a paused account would only
+                # turn this decision into a BLOCKED execution the operator cannot retry.
+                if not live.enabled or live.state != "READY":
+                    raise HTTPException(
+                        409,
+                        f"LIVE is {live.state}: {live.reason or 'not ready'}. "
+                        "Rearm LIVE before approving",
+                    )
         row = await db.get(TradeProposalRow, proposal_id, with_for_update=True)
         if row is None or row.owner_id != user_id:
             raise HTTPException(status_code=404, detail="Proposal not found")
@@ -203,7 +212,7 @@ async def record_decision(
         if decision == "approve":
             row.execution_environment = control.environment if control else Environment.OBSERVE
         row.decided_at = datetime.now(UTC)
-        audit(db, f"AI_PROPOSAL_{status}", user_id)
+        audit(db, f"AI_PROPOSAL_{status}", user_id, message=f"source={source}")
 
     execution = None
     if decision == "approve":
@@ -228,19 +237,25 @@ async def record_decision(
         "proposal_id": proposal_id,
         "status": status,
         "execution_status": execution.status if execution is not None else None,
+        "execution_reason": "; ".join(execution.reasons)[:1000] if execution else None,
     }
 
 
 async def decide_from_telegram(
-    state: State, user_id: str, proposal_id: str, decision: str, code: str
+    state: State, user_id: str, proposal_id: str, decision: str, binding: str | None = None
 ) -> dict[str, str | None]:
-    """Telegram path: a fresh single-use TOTP code stands in for the web session's step-up MFA.
+    """Internal entry for the linked private Telegram operator, without per-order MFA.
 
-    The decision binds to the mode and LIVE limits version current at this moment, exactly what
-    the web form would have displayed; every later check is the shared `record_decision`.
+    Buttons bind their displayed mode/limits; typed commands bind current settings.
+    This is not an HTTP route. The command loop verifies chat and sender identity.
     """
-    await state.throttle.check("telegram-mfa:" + user_id)
-    await state.auth.verify_totp(user_id, code)
+    await state.throttle.check("telegram-decision:" + user_id)
+    async with state.sessions() as db:
+        user = await db.get(UserRow, user_id)
+    if user is None or user.role != "ADMIN":
+        raise HTTPException(403, "Administrator required")
+    if decision not in {"approve", "reject"}:
+        raise HTTPException(400, "Unknown decision")
     body = None
     if decision == "approve":
         from wallybot.infrastructure.live_models import LiveControlRow
@@ -249,11 +264,13 @@ async def decide_from_telegram(
             control = await db.get(ControlRow, 1)
             live = await db.get(LiveControlRow, 1)
         environment = control.environment if control is not None else None
-        body = ProposalDecisionInput(
-            environment=environment,
-            live_version=live.version if environment == Environment.LIVE and live else None,
-        )
-    return await record_decision(state, user_id, proposal_id, decision, body)
+        version = live.version if environment == Environment.LIVE and live else None
+        if binding is not None and binding != f"{environment or 'OBSERVE'}:{version or 0}":
+            raise HTTPException(409, "Mode or limits changed. Request /proposals again.")
+        body = ProposalDecisionInput(environment=environment, live_version=version)
+    return await record_decision(
+        state, user_id, proposal_id, decision, body, source="TELEGRAM_PRIVATE_CHAT"
+    )
 
 
 @router.get("", response_model=TradeProposalListView)

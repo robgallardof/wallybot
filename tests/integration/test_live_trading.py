@@ -289,6 +289,19 @@ def test_timeout_recovers_without_resubmission_and_requires_rearm(setup_live):
     assert client.get("/api/proposals").json()["rows"][0]["execution"]["status"] == "FILLED"
 
 
+def test_blocked_live_refuses_approval_without_spending_the_proposal(setup_live):
+    state = activate(setup_live)
+    client, db, _, _, private, _, _ = setup_live
+    db.execute("UPDATE live_control SET state = 'BLOCKED', reason = 'Real execution failed'")
+    db.commit()
+    pid = proposal(setup_live)
+    response = approve(setup_live, pid, state["version"])
+    assert response.status_code == 409
+    assert "BLOCKED" in response.json()["detail"]
+    assert client.get("/api/proposals").json()["rows"][0]["decision_status"] == "PENDING"
+    assert private.orders == {}
+
+
 def test_live_approval_requires_mode_and_current_policy_version(setup_live):
     state = activate(setup_live)
     client, _, csrf, _, private, _, _ = setup_live

@@ -8,6 +8,7 @@ import {
   FaClock,
   FaFlask,
   FaLightbulb,
+  FaShieldHalved,
   FaTriangleExclamation,
   FaXmark,
 } from "react-icons/fa6";
@@ -49,8 +50,9 @@ export function ProposalsSection({
   const { proposals: query, decide } = proposals;
   const rows = query.data?.rows ?? [];
   const isLive = environment === "LIVE";
-  const { live } = useLiveTrading(isLive);
+  const { live, configure } = useLiveTrading(isLive);
   const [confirmed, setConfirmed] = useState<string | null>(null);
+  const [rearmConfirmed, setRearmConfirmed] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
   const panel = useRef<HTMLElement>(null);
   // Open state is decided once per proposal (actionable ones start expanded); afterwards the
@@ -99,6 +101,25 @@ export function ProposalsSection({
   };
   const liveReady = live.data?.state === "READY" && Boolean(live.data?.enabled);
   const currency = live.data?.cash_currency ?? "USD";
+
+  // A blocked account is rearmed right here with the limits already saved; the API reconciles
+  // the exchange account and asks for MFA again, so no safety check is skipped.
+  function rearmLive() {
+    const data = live.data;
+    if (!data?.connection_id) return;
+    configure.mutate(
+      {
+        connection_id: data.connection_id,
+        enabled: true,
+        confirmation: "LIVE",
+        max_order_usd: data.max_order_usd ?? "",
+        max_daily_loss_usd: data.max_daily_loss_usd ?? "",
+        max_total_usd: data.max_total_usd ?? "",
+        slippage_pct: data.slippage_pct ?? "",
+      },
+      { onSuccess: () => setRearmConfirmed(false) },
+    );
+  }
 
   function statusBadge(row: Proposal) {
     const expired = Date.parse(row.expires_at) <= now;
@@ -419,8 +440,37 @@ export function ProposalsSection({
                       </button>
                     </div>
                     {isLive && !expired && !liveReady && (
-                      <p className="muted">
-                        {t("LIVE no está listo; revisa la cuenta real en Configuración.")}
+                      <div className="outcome bad" role="status">
+                        <FaTriangleExclamation size={14} />
+                        <span>
+                          {t("LIVE está en pausa ({{state}})", { state: live.data?.state ?? "—" })}
+                          {live.data?.reason ? ` · ${t(live.data.reason)}` : ""}
+                        </span>
+                      </div>
+                    )}
+                    {isLive && !expired && !liveReady && live.data?.configured && (
+                      <div className="action-bar">
+                        <label className="confirm-live">
+                          <input
+                            type="checkbox"
+                            checked={rearmConfirmed}
+                            onChange={(event) => setRearmConfirmed(event.target.checked)}
+                          />
+                          {t("Rearmar LIVE con los límites actuales")}
+                        </label>
+                        <button
+                          className="danger-button button-lg"
+                          disabled={configure.isPending || !rearmConfirmed || !live.data?.capable}
+                          onClick={rearmLive}
+                        >
+                          <FaShieldHalved size={13} />
+                          {t(configure.isPending ? "Verificando cuenta…" : "Verificar y rearmar LIVE")}
+                        </button>
+                      </div>
+                    )}
+                    {isLive && configure.isError && (
+                      <p className="error" role="alert">
+                        {t(configure.error.message)}
                       </p>
                     )}
                     {!canSimulate && !isLive && !expired && (

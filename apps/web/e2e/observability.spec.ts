@@ -1135,7 +1135,7 @@ test("LIVE proposals require explicit money confirmation and bind the limits ver
   await expect(action).toBeDisabled();
 });
 
-test("real account activation requires a connection, explicit limits and LIVE text", async ({ page }) => {
+test("real account activation requires a connection, explicit limits and one confirmation", async ({ page }) => {
   await shell(page, "ADMIN");
   await page.route("**/api/connections", route => route.fulfill({ json: { rows: [{ id: "00000000-0000-0000-0000-000000000007", provider: "KRAKEN", label: "Cuenta Kraken", mode: "TRADE_ONLY", status: "HEALTHY", has_credentials: true, created_at: 1 }] } }));
   let submitted = 0;
@@ -1148,13 +1148,13 @@ test("real account activation requires a connection, explicit limits and LIVE te
   await page.goto("/settings");
   const panel = page.locator("article").filter({ has: page.getByRole("heading", { name: "Operaciones con dinero real", exact: true }) });
   const activate = panel.getByRole("button", { name: "Verificar cuenta y activar LIVE", exact: true });
-  await expect(activate).toBeDisabled();
+  // Switching real money on from OFF asks once with a click; no typed confirmation.
+  page.on("dialog", (dialog) => dialog.accept());
   await panel.getByLabel("Cuenta real", { exact: true }).selectOption("00000000-0000-0000-0000-000000000007");
   await panel.getByLabel("Máximo por operación (USD)", { exact: true }).fill("150");
   await panel.getByLabel("Pérdida diaria máxima (USD)", { exact: true }).fill("5");
   await panel.getByLabel("Exposición total máxima (USD)", { exact: true }).fill("100");
   await panel.getByLabel("Cambio de precio máximo (%)", { exact: true }).fill("0.5");
-  await panel.getByLabel("Escribe LIVE para activar dinero real", { exact: true }).fill("LIVE");
   await activate.click();
   // Inconsistent limits are explained locally and never reach the API.
   await expect(panel.getByRole("alert")).toContainText("no puede superar la exposición total");

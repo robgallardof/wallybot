@@ -85,7 +85,7 @@
   "Real account synchronization failed; no new trades are allowed": "Falló la sincronización de la cuenta real; no se permiten nuevas operaciones.",
   "Cannot verify the real account; no new trades are allowed": "No se pudo verificar la cuenta real; no se permiten nuevas operaciones.",
   "Submitted order requires reconciliation before another trade": "La orden enviada debe conciliarse antes de otra operación.",
-  "Real execution failed; reconcile before rearming": "Falló la ejecución real; concilia antes de rearmar.",
+  "Real execution failed; reconcile before rearming": "Falló la ejecución real. Pulsa «Verificar y rearmar LIVE»: WallyBot concilia la cuenta con el exchange antes de volver a operar.",
   "Binance rejected the API key, its IP restriction or its permissions; check the key, allow this computer's public IP and enable spot trading": "Binance rechazó la clave API, su restricción de IP o sus permisos. Revisa la clave, permite la IP pública de esta PC y activa el trading spot.",
   "Binance rejected the signature; check that the Secret Key was copied completely": "Binance rechazó la firma. Comprueba que copiaste completa la Secret Key.",
   "Binance rejected the API key format; copy the API Key again completely": "Binance rechazó el formato de la clave. Vuelve a copiar la API Key completa.",
@@ -133,5 +133,9 @@
   "Simula órdenes con dinero ficticio sobre datos reales.": "Simula órdenes con dinero ficticio sobre datos reales.",
   "Opera tu cuenta real dentro de los límites que configures.": "Opera tu cuenta real dentro de los límites que configures.",
   "Salir de LIVE desactiva las operaciones con dinero real. ¿Continuar?": "Salir de LIVE desactiva las operaciones con dinero real. ¿Continuar?",
-  "Para pasar a LIVE: 1) en Conexiones, edita tu Binance y activa «Trading spot real»; 2) en «Operaciones con dinero real», elige esa conexión, define los límites, escribe LIVE y confirma con tu código TOTP.": "Para pasar a LIVE: 1) en Conexiones, edita tu Binance y activa «Trading spot real»; 2) en «Operaciones con dinero real», elige esa conexión, define los límites, escribe LIVE y confirma con tu código TOTP."
+  "Para pasar a LIVE: 1) en Conexiones, edita tu Binance y activa «Trading spot real»; 2) en «Operaciones con dinero real», elige esa conexión, define los límites, escribe LIVE y confirma con tu código TOTP.": "Para pasar a LIVE: 1) en Conexiones, edita tu Binance y activa «Trading spot real»; 2) en «Operaciones con dinero real», elige esa conexión, define los límites, escribe LIVE y confirma con tu código TOTP.",
+  "LIVE está en pausa ({{state}})": "LIVE está en pausa ({{state}})",
+  "Rearmar LIVE con los límites actuales": "Rearmar LIVE con los límites actuales",
+  "Verificando cuenta…": "Verificando cuenta…",
+  "Verificar y rearmar LIVE": "Verificar y rearmar LIVE"
 }

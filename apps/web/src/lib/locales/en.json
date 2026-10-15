@@ -781,8 +781,11 @@
   "Pérdida diaria máxima (USD)": "Maximum daily loss (USD)",
   "Exposición total máxima (USD)": "Maximum total exposure (USD)",
   "Cambio de precio máximo (%)": "Maximum price change (%)",
-  "Escribe LIVE para activar dinero real": "Type LIVE to activate real-money trading",
   "Verificar límites y rearmar LIVE": "Verify limits and rearm LIVE",
+  "Guardar límites": "Save limits",
+  "¿Activar operaciones con dinero real en tu cuenta?": "Turn on real-money trading for your account?",
+  "Usar recomendación según mi saldo": "Use recommendation for my balance",
+  "Valor de tu cuenta: {{equity}}. La recomendación usa casi todo el saldo (deja 3% para comisiones), reparte cada compra en un tercio y corta el día al perder 2%.": "Account value: {{equity}}. The recommendation uses almost the whole balance (keeps 3% for fees), splits each buy into a third and stops the day after a 2% loss.",
   "Verificar cuenta y activar LIVE": "Verify account and activate LIVE",
   "Desactivar operaciones reales": "Disable real trading",
   "Primero agrega en Conexiones una clave API Kraken con consulta de fondos y órdenes, crear y cancelar órdenes. Nunca habilites depósitos, retiros ni transferencias.": "First add a Kraken API key under Connections with balance/order queries, order creation and cancellation. Never enable deposits, withdrawals or transfers.",
@@ -897,5 +900,9 @@
   "Efectivo disponible": "Available cash",
   "Última verificación": "Last check",
   "Saldos": "Balances",
-  "Todavía no hay órdenes reales.": "No real orders yet."
+  "Todavía no hay órdenes reales.": "No real orders yet.",
+  "LIVE está en pausa ({{state}})": "LIVE is paused ({{state}})",
+  "Rearmar LIVE con los límites actuales": "Rearm LIVE with the current limits",
+  "Verificando cuenta…": "Verifying account…",
+  "Verificar y rearmar LIVE": "Verify and rearm LIVE"
 }
