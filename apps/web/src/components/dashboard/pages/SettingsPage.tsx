@@ -123,6 +123,7 @@ export function SettingsPage({
   const [claudeEnabled, setClaudeEnabled] = useState(true);
   const [requireConsensus, setRequireConsensus] = useState(true);
   const saved = aiAutonomy.data;
+  const checkPending = Boolean(aiAutonomy.data?.check_pending);
   const savedCore = saved?.target_core_pct;
   const savedGrowth = saved?.target_growth_pct;
   const savedSpeculative = saved?.target_speculative_pct;
@@ -292,9 +293,9 @@ export function SettingsPage({
             onClick={() => void aiAutonomy.refetch()}>{i18n.t("Actualizar estado")}</Button>
           {role === "ADMIN" && (
             <Button variant="outline"
-              disabled={checkAnalysts.isPending}
+              disabled={checkAnalysts.isPending || checkPending}
               onClick={() => void checkAnalysts.mutateAsync()}>
-              {checkAnalysts.isPending ? i18n.t("Comprobando…") : i18n.t("Comprobar ahora")}
+              {checkAnalysts.isPending || checkPending ? i18n.t("Comprobando…") : i18n.t("Comprobar ahora")}
             </Button>
           )}
         </div>
@@ -305,24 +306,26 @@ export function SettingsPage({
               item.analyst === "codex"
                 ? aiAutonomy.data?.codex_enabled
                 : aiAutonomy.data?.claude_enabled;
-            const state =
-              item.available === null
+            const state = checkPending && enabled
+              ? i18n.t("Comprobando…")
+              : item.available === null
                 ? i18n.t("Sin comprobar todavía")
                 : item.available
                   ? i18n.t("Disponible")
                   : i18n.t("No disponible");
             const checkedAt = item.checked_at ? Date.parse(item.checked_at) : NaN;
-            const stale = Number.isFinite(checkedAt) &&
-              (Date.now() - checkedAt > 15 * 60 * 1000 || checkedAt > Date.now() + 60_000);
+            // The worker re-checks idle CLIs hourly; only flag results clearly older than that.
+            const stale = !checkPending && Number.isFinite(checkedAt) &&
+              (Date.now() - checkedAt > 2 * 60 * 60 * 1000 || checkedAt > Date.now() + 60_000);
             return (
               <li key={item.analyst}>
                 <div className="analyst-status-title"><strong>{name}</strong>
-                  <span className={`analyst-state ${stale ? "stale" : item.available ? "ready" : "pending"}`}>
+                  <span className={`analyst-state ${stale ? "stale" : item.available && !checkPending ? "ready" : "pending"}`}>
                     {stale ? i18n.t("Comprobación desactualizada") : state}
                   </span>
                   {role === "ADMIN" && (
                     <Button variant="outline"
-                      disabled={startAnalyst.isPending}
+                      disabled={startAnalyst.isPending || checkPending}
                       aria-label={i18n.t("Iniciar {{name}}", { name })}
                       onClick={() => void startAnalyst.mutateAsync(item.analyst)}>
                       {startAnalyst.isPending && startAnalyst.variables === item.analyst
@@ -336,7 +339,7 @@ export function SettingsPage({
                     {i18n.t("comprobado")} {new Date(item.checked_at).toLocaleString(i18n.resolvedLanguage)}
                   </span>
                 )}
-                {enabled && (item.available === false || stale) && (
+                {enabled && !checkPending && item.available === false && (
                   <p className="error" role="alert">
                     {i18n.t(
                       "{{name}} no disponible. Puede ser límite de uso, sesión cerrada o CLI no instalada. Usa «Comprobar ahora» para ejecutar una prueba nueva. Para iniciar sesión: {{command}}.",

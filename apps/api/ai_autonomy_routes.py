@@ -57,6 +57,7 @@ async def get_ai_autonomy_control(request: Request, user: SignedIn) -> AiAutonom
             claude_enabled=row.claude_enabled,
             require_consensus=row.require_consensus,
             analysts=await _analyst_availability(db),
+            check_pending=bool(row.check_requested),
         )
 
 
@@ -71,6 +72,7 @@ def _control_view(row: AiAutonomyControlRow, analysts) -> AiAutonomyControlView:
         claude_enabled=row.claude_enabled,
         require_consensus=row.require_consensus,
         analysts=analysts,
+        check_pending=bool(row.check_requested),
     )
 
 

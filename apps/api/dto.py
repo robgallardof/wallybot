@@ -246,6 +246,8 @@ class AiAutonomyControlView(BaseModel):
     claude_enabled: bool
     require_consensus: bool
     analysts: list[AiAnalystAvailabilityView] = []
+    # True while the native worker has not yet run a check the operator asked for.
+    check_pending: bool = False
 
 
 class ProposalSimulationView(BaseModel):

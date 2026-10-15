@@ -170,6 +170,18 @@ async def _tick(
     status_recorded_at: dict[str, int],
     last_analysis: dict[str, float],
 ) -> None:
+    # An operator check ("Iniciar"/"Comprobar ahora") runs right away, before any gate that
+    # could skip this tick (stale portfolio context, analysis interval, AI paused).
+    async with sessions.begin() as db:
+        row = await db.get(AiAutonomyControlRow, 1, with_for_update=True)
+        check_requested = row is not None and row.check_requested
+        if check_requested:
+            row.check_requested = False
+    if check_requested:
+        await _check_analyst_availability(
+            sessions, provider, settings, id_generator, clock, logger, status_recorded_at
+        )
+
     async with sessions() as db:
         control = await db.get(AiAutonomyControlRow, 1)
         instance = await db.get(ControlRow, 1)
@@ -189,19 +201,7 @@ async def _tick(
             admin_id = await db.scalar(
                 select(UserRow.id).where(UserRow.id == portfolio.owner_id, UserRow.role == "ADMIN")
             )
-    check_requested = control is not None and control.check_requested
-    if check_requested:
-        async with sessions.begin() as db:
-            row = await db.get(AiAutonomyControlRow, 1, with_for_update=True)
-            if row is not None:
-                row.check_requested = False
-
-    if check_requested:
-        status_recorded_at.clear()
-
     if control is None or control.status != "ENABLED" or admin_id is None:
-        if check_requested:
-            await _check_analyst_availability(sessions, provider, settings, id_generator, clock, logger, status_recorded_at)
         return
 
     analysts = []
@@ -252,6 +252,8 @@ async def _tick(
         else settings.ai_flat_analysis_interval_seconds
     )
     if not starter and time.monotonic() - last_analysis.get("at", float("-inf")) < interval:
+        # Idle ticks still refresh availability (rate-limited) so the UI never goes stale.
+        await _report_analyst_status(sessions, analysts, status_recorded_at, logger)
         return
     last_analysis["at"] = time.monotonic()
 

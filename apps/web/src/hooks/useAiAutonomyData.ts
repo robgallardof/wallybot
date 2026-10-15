@@ -8,7 +8,8 @@ export function useAiAutonomyData(enabled: boolean) {
     queryKey: ["ai-autonomy-control"],
     enabled,
     queryFn: () => api("/ai-autonomy/control", aiAutonomyControlSchema),
-    refetchInterval: 30_000,
+    // Poll fast while the worker owes a requested check so the result shows within seconds.
+    refetchInterval: (query) => (query.state.data?.check_pending ? 3_000 : 30_000),
   });
   const change = useMutation({
     mutationFn: (body: {

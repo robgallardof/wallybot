@@ -324,6 +324,7 @@ export const aiAutonomyControlSchema = z.object({
         checked_at: z.string().nullable(),
       }),
     ),
+  check_pending: z.boolean().optional(),
 });
 
 export const telegramConfigSchema = z.object({

@@ -428,6 +428,8 @@ test("settings and first-steps pages keep actions aligned on desktop and mobile"
   await expect(analysts.getByRole("listitem").first()).toContainText("Codex");
   await expect(analysts.getByRole("listitem").nth(1)).toContainText("Claude");
   await expect(analysts.getByText("Comprobación desactualizada")).toHaveCount(2);
+  // An old but successful check is only labelled; the failure alert is reserved for a real failure.
+  await expect(analysts.getByRole("listitem").first().getByRole("alert")).toHaveCount(0);
   await expect(analysts.getByRole("listitem").nth(1).getByRole("alert")).toContainText("claude auth login");
   await expect(analysts.getByRole("listitem").nth(1).getByRole("alert")).toContainText("no cambia estos ajustes");
   await expect(page.getByLabel("Exigir coincidencia entre ambos")).toBeChecked();
