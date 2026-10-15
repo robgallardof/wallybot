@@ -4,6 +4,7 @@ No analyst holds this capability. Activation and approvals belong to the MFA-pro
 External account changes block execution instead of silently resetting accounting or losses.
 """
 
+import asyncio
 import hashlib
 from contextlib import asynccontextmanager
 from dataclasses import replace
@@ -111,11 +112,18 @@ class LiveTradingService:
         return self.transport_factory
 
     @asynccontextmanager
-    async def serialized(self):
-        # One configured real account. Try rather than queue stale approvals behind HTTP.
+    async def serialized(self, wait_seconds: float = 0):
+        # One configured real account. Try rather than queue stale approvals behind HTTP;
+        # operator configuration may wait out the 30 s monitor's short reconciliation window.
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + wait_seconds
         async with self.engine.connect() as connection:
-            locked = await connection.scalar(text("SELECT pg_try_advisory_lock(87321043)"))
-            await connection.commit()
+            while True:
+                locked = await connection.scalar(text("SELECT pg_try_advisory_lock(87321043)"))
+                await connection.commit()
+                if locked or loop.time() >= deadline:
+                    break
+                await asyncio.sleep(0.25)
             if not locked:
                 raise LiveBlocked("Real account is being reconciled; retry after it completes")
             try:

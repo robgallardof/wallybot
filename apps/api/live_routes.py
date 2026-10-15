@@ -24,6 +24,8 @@ from wallybot.infrastructure.portfolio_repository import PortfolioRepository
 from wallybot.security.auth import audit
 
 router = APIRouter(prefix="/api/live", tags=["real trading"])
+# The live monitor holds the account lock for a few seconds every 30 s; saving limits waits it out.
+LIMITS_LOCK_WAIT_SECONDS = 15
 
 
 class LiveChange(Input):
@@ -152,7 +154,7 @@ async def configure_live(body: LiveChange, request: Request, user: Admin):
         raise HTTPException(409, "This deployment has real trading capability disabled")
     service = request.app.state.live_trading
     try:
-        async with service.serialized():
+        async with service.serialized(wait_seconds=LIMITS_LOCK_WAIT_SECONDS):
             existing = await service.configuration(user.id)
             async with service.sessions() as db:
                 connection = await db.get(ProviderConnectionRow, body.connection_id)
