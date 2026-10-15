@@ -211,3 +211,51 @@
 @media (prefers-reduced-motion: reduce) {
   :root .nav-item, :root .metric { transition: none; }
 }
+
+/* Mobile navigation: sticky header whose menu drops down over the page. The sidebar must be the
+   containing block of the absolutely positioned menu; a static sidebar pushed it off-screen. */
+:root .mobile-nav-backdrop { display: none; }
+@media (max-width: 800px) {
+  :root .sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    padding: 10px 16px;
+    padding-top: max(10px, env(safe-area-inset-top));
+    border-bottom: 1px solid var(--border);
+  }
+  :root .sidebar-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  :root .mobile-menu-toggle { display: inline-flex; min-height: 44px; width: 44px; height: 44px; }
+  :root .sidebar-nav,
+  :root .sidebar-nav.mobile-open {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 12px;
+    right: 12px;
+    margin: 0;
+    padding: 8px;
+    max-height: calc(100dvh - 90px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 18px 40px rgb(0 0 0 / 22%);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+  }
+  :root .sidebar-nav { display: none; }
+  :root .sidebar-nav.mobile-open { display: grid; }
+  :root .sidebar .nav-item { min-height: 48px; }
+  :root .mobile-nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    background: rgb(0 0 0 / 35%);
+  }
+  :root body.mobile-nav-locked { overflow: hidden; }
+}
+@media (max-width: 380px) {
+  :root .sidebar-nav.mobile-open { grid-template-columns: 1fr; }
+}

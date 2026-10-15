@@ -11,4 +11,10 @@ const Application = dynamic(() => import("../Application"), {
     </div>
   ),
 });
+// Installable web app: the service worker never caches API data (see public/sw.js).
+if (typeof window !== "undefined" && "serviceWorker" in navigator && window.isSecureContext) {
+  navigator.serviceWorker.register("/sw.js").catch(() => {
+    /* The app keeps working without offline support. */
+  });
+}
 export default Application;

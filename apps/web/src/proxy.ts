@@ -10,6 +10,8 @@ export function proxy(request: NextRequest) {
     "img-src 'self' data:",
     `connect-src 'self'${development ? " ws: wss:" : ""}`,
     "font-src 'self'",
+    "worker-src 'self'",
+    "manifest-src 'self'",
     "object-src 'none'",
     "frame-ancestors 'none'",
     "base-uri 'self'",

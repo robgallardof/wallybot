@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FaArrowRightFromBracket,
@@ -14,6 +14,7 @@ import {
   FaSliders,
   FaTimeline,
   FaWallet,
+  FaXmark,
 } from "react-icons/fa6";
 import i18n from "../../lib/i18n";
 import type { meSchema } from "../../lib/dto";
@@ -108,6 +109,19 @@ export function DashboardShell({
   const meta = PAGE_META[page] ?? PAGE_META.dashboard;
   const showSafetyNotice = ["dashboard", "portfolio", "risk", "settings"].includes(page);
 
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileNavOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    document.body.classList.add("mobile-nav-locked");
+    return () => {
+      document.removeEventListener("keydown", closeOnEscape);
+      document.body.classList.remove("mobile-nav-locked");
+    };
+  }, [mobileNavOpen]);
+
   function selectPage(key: string) {
     setMobileNavOpen(false);
     navigate(key);
@@ -127,12 +141,13 @@ export function DashboardShell({
           <Button
             aria-controls="control-navigation"
             aria-expanded={mobileNavOpen}
-            aria-label={i18n.t("Abrir navegación")}
+            aria-label={i18n.t(mobileNavOpen ? "Cerrar navegación" : "Abrir navegación")}
             className="mobile-menu-toggle"
             onClick={() => setMobileNavOpen((open) => !open)}
+            type="button"
             variant="outline"
           >
-            <FaBars size={18} />
+            {mobileNavOpen ? <FaXmark size={18} /> : <FaBars size={18} />}
           </Button>
         </div>
         <div className="workspace">
@@ -185,6 +200,13 @@ export function DashboardShell({
           </button>
         </div>
       </aside>
+      {mobileNavOpen && (
+        <div
+          aria-hidden="true"
+          className="mobile-nav-backdrop"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
       <main className="main" id="main-content" tabIndex={-1}>
         <header className="topbar">
           <div className="appearance-controls">
