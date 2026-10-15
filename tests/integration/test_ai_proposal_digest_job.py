@@ -76,8 +76,13 @@ async def _configure_telegram(sessions, crypto) -> None:
         await TelegramConfigRepository(db).upsert(crypto.encrypt("bot-secret"), 42, True)
 
 
-async def _save_pending_proposal(sessions) -> None:
+async def _save_pending_proposal(
+    sessions, proposal_id: str = "digest-proposal", as_of: datetime = NOW
+) -> None:
     async with sessions.begin() as db:
+        if await db.get(UserRow, OWNER_ID) is not None:
+            await _save_proposal(db, proposal_id, as_of)
+            return
         db.add(
             UserRow(
                 id=OWNER_ID,
@@ -90,30 +95,34 @@ async def _save_pending_proposal(sessions) -> None:
             )
         )
         await db.flush()
-        await TradeProposalRepository(db).save(
-            TradeProposal(
-                proposal_id="digest-proposal",
-                instrument=INSTRUMENT,
-                direction=TradeDirection.LONG,
-                strategy_id="ai-consensus",
-                confidence=Decimal("0.8"),
-                suggested_allocation_pct=Decimal("0.05"),
-                entry_price=Decimal("50000"),
-                stop_price=Decimal("48000"),
-                take_profit_price=Decimal("55000"),
-                time_horizon=timedelta(days=1),
-                signal_ttl=timedelta(hours=1),
-                reasons=("analysts agree",),
-                risks=("volatility",),
-                supporting_signal_ids=(),
-                invalidating_conditions=(),
-                source_event_ids=(),
-                model_id="consensus:codex+claude",
-                prompt_version="consensus/v1+v1",
-                as_of=NOW,
-            ),
-            owner_id=OWNER_ID,
-        )
+        await _save_proposal(db, proposal_id, as_of)
+
+
+async def _save_proposal(db, proposal_id: str, as_of: datetime) -> None:
+    await TradeProposalRepository(db).save(
+        TradeProposal(
+            proposal_id=proposal_id,
+            instrument=INSTRUMENT,
+            direction=TradeDirection.LONG,
+            strategy_id="ai-consensus",
+            confidence=Decimal("0.8"),
+            suggested_allocation_pct=Decimal("0.05"),
+            entry_price=Decimal("50000"),
+            stop_price=Decimal("48000"),
+            take_profit_price=Decimal("55000"),
+            time_horizon=timedelta(days=1),
+            signal_ttl=timedelta(hours=1),
+            reasons=("analysts agree",),
+            risks=("volatility",),
+            supporting_signal_ids=(),
+            invalidating_conditions=(),
+            source_event_ids=(),
+            model_id="consensus:codex+claude",
+            prompt_version="consensus/v1+v1",
+            as_of=as_of,
+        ),
+        owner_id=OWNER_ID,
+    )
 
 
 async def test_new_pending_proposals_are_grouped_into_one_bilingual_digest(
@@ -131,7 +140,7 @@ async def test_new_pending_proposals_are_grouped_into_one_bilingual_digest(
     assert len(transport.calls) == 1
     assert "New WallyBot analysis proposals" in transport.calls[0][1]["text"]
     assert "Nuevas propuestas de análisis" in transport.calls[0][1]["text"]
-    assert "BUY BTC/USD" in transport.calls[0][1]["text"]
+    assert "BUY / Comprar BTC/USD" in transport.calls[0][1]["text"]
     async with sessions() as db:
         assert await AiProposalDigestRepository(db).last_sent_at(OWNER_ID) == NOW + timedelta(
             minutes=1
@@ -168,3 +177,34 @@ async def test_disabled_analysis_does_not_send_a_digest(sessions, crypto) -> Non
 
     assert sent is False
     assert transport.calls == []
+
+
+async def test_immediate_alert_ignores_the_digest_cadence_but_never_repeats(
+    sessions, crypto
+) -> None:
+    await _configure_telegram(sessions, crypto)
+    await _save_pending_proposal(sessions)
+    transport = FakeTransport()
+    throttle = NotificationThrottle()
+
+    await run_ai_proposal_digest_tick(sessions, crypto, transport, throttle, OWNER_ID, NOW)
+    await _save_pending_proposal(
+        sessions, proposal_id="proposal-2", as_of=NOW + timedelta(minutes=5)
+    )
+    sent = await run_ai_proposal_digest_tick(
+        sessions,
+        crypto,
+        transport,
+        throttle,
+        OWNER_ID,
+        NOW + timedelta(minutes=6),
+        immediate=True,
+        web_origin="https://wally.example",
+    )
+    repeated = await run_ai_proposal_digest_tick(
+        sessions, crypto, transport, throttle, OWNER_ID, NOW + timedelta(minutes=7), immediate=True
+    )
+
+    assert sent is True and repeated is False
+    assert len(transport.calls) == 2
+    assert "https://wally.example/intelligence?proposal=proposal-2" in transport.calls[1][1]["text"]

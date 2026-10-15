@@ -324,6 +324,8 @@ async def _telegram_command_loop(
 # (`run_telegram_report_tick`) lives in `wallybot.application.telegram_report_job`, same split
 # as every other loop in this module.
 TELEGRAM_REPORT_INTERVAL_SECONDS = 1800
+# New AI proposals expire within minutes, so they are pushed to Telegram as soon as they exist.
+PROPOSAL_ALERT_INTERVAL_SECONDS = 20
 
 
 async def _telegram_report_loop(
@@ -570,7 +572,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 await asyncio.sleep(30)
 
         live_task = None if config.environment == "test" else asyncio.create_task(monitor_live())
+
+        async def alert_new_proposals():
+            while True:
+                try:
+                    async with sessions() as db:
+                        admin_id = await db.scalar(
+                            select(UserRow.id)
+                            .where(UserRow.role == "ADMIN")
+                            .order_by(UserRow.created_at)
+                        )
+                    if admin_id is not None:
+                        await run_ai_proposal_digest_tick(
+                            sessions,
+                            app.state.auth.crypto,
+                            app.state.telegram_transport,
+                            app.state.notification_throttle,
+                            admin_id,
+                            clock.now(),
+                            immediate=True,
+                            web_origin=config.origin,
+                        )
+                except Exception:
+                    logger.warning("AI_PROPOSAL_ALERT_FAILED")
+                await asyncio.sleep(PROPOSAL_ALERT_INTERVAL_SECONDS)
+
+        alert_task = (
+            None if config.environment == "test" else asyncio.create_task(alert_new_proposals())
+        )
         yield
+        if alert_task is not None:
+            alert_task.cancel()
         if live_task is not None:
             live_task.cancel()
             try:
