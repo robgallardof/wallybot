@@ -213,6 +213,19 @@ def test_kraken_proposals_cannot_execute_on_a_binance_account(setup_binance):
     assert not any(method == "POST" for method, _, _ in account.calls)
 
 
+@pytest.mark.parametrize("base", ["OP", "BNB", "XYZ"])
+def test_untradeable_pairs_are_refused_without_freezing_live(setup_binance, base):
+    # OP: curated but missing from the venue listing; BNB: excluded asset; XYZ: unknown.
+    state = activate(setup_binance)
+    client, db, _, _, account, _ = setup_binance
+    pid = binance_proposal(setup_binance)
+    db.execute("UPDATE trade_proposals SET base=%s WHERE proposal_id=%s", (base, pid))
+    response = approve_live(setup_binance, pid, state["version"])
+    assert response.json()["execution_status"] == "BLOCKED", response.json()
+    assert client.get("/api/live").json()["state"] == "READY"
+    assert not any(method == "POST" for method, _, _ in account.calls)
+
+
 @pytest.mark.parametrize("failure", ["withdrawals_enabled", "external_open", "bnb", "mismatch"])
 def test_unhealthy_binance_accounts_never_submit(setup_binance, failure):
     state = activate(setup_binance)

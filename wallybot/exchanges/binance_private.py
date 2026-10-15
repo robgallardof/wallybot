@@ -15,6 +15,7 @@ from urllib.parse import urlencode
 
 import httpx
 
+from wallybot.exchanges.binance import CURATED_USDT_PAIRS
 from wallybot.exchanges.private_errors import ExchangePrivateError
 
 ALLOWED_CALLS = frozenset(
@@ -41,7 +42,11 @@ FORBIDDEN_PERMISSIONS = (
     "enablePortfolioMarginTrading",
     "enableFixApiTrade",
 )
-SUPPORTED_ASSETS = frozenset({"USDT", "BTC", "ETH"})
+# Spot assets the real account may hold: cash plus every curated pair's base. BNB stays out
+# because Binance can charge fees in BNB, which would desynchronise the ledger.
+SUPPORTED_ASSETS = frozenset({"USDT"}) | frozenset(
+    base for base, quote in CURATED_USDT_PAIRS if quote == "USDT" and base != "BNB"
+)
 
 
 class BinancePrivateError(ExchangePrivateError):

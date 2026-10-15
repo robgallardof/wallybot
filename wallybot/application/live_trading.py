@@ -401,6 +401,8 @@ class LiveTradingService:
                     raise LiveBlocked(
                         "This proposal was analysed for another exchange than the real account"
                     )
+                if row.base not in venue.assets or row.quote != venue.cash:
+                    raise LiveBlocked("The real account cannot trade this pair")
                 now = self.clock.now()
                 async with self.sessions() as db:
                     mandate = await db.get(AiAutonomyControlRow, 1)
@@ -414,9 +416,22 @@ class LiveTradingService:
                         Bucket.SPECULATIVE: mandate.target_speculative_pct,
                     },
                 )
-                outcome = await _revalidate(
-                    self.sessions, venue.market, row, account_id(config), now, True, equity, policy
-                )
+                try:
+                    outcome = await _revalidate(
+                        self.sessions,
+                        venue.market,
+                        row,
+                        account_id(config),
+                        now,
+                        True,
+                        equity,
+                        policy,
+                    )
+                except LookupError:
+                    # Nothing reached the exchange: refuse this proposal, keep LIVE armed.
+                    raise LiveBlocked(
+                        "Proposal instrument is not available for real trading"
+                    ) from None
                 async with self.sessions.begin() as db:
                     await ShadowDecisionRepository(db).save(outcome)
                 risk = outcome.risk_assessment

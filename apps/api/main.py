@@ -161,7 +161,6 @@ async def _market_ingestion_loop(
 PRICE_CONSENSUS_INTERVAL_SECONDS = 300
 
 
-
 async def _price_consensus_loop(
     sessions,
     crypto: Crypto,
@@ -398,7 +397,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         clock = SystemClock()
         kraken = KrakenExchange(clock=clock)
-        provider = binance = BinanceExchange(clock=clock)
+        provider = BinanceExchange(clock=clock)
+        # Real-account, valuation and report paths must cover every pair the analysts may
+        # propose, otherwise an approved proposal cannot even be revalidated.
+        binance = BinanceExchange(clock=clock, symbols=CURATED_USDT_PAIRS)
         app.state.paper_cash_currency = "USDT"
         app.state.portfolio_market_provider = VenueRoutedMarketData(
             {"kraken": kraken, "binance": binance}

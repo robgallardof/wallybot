@@ -130,7 +130,7 @@ class BinanceVenue:
     cash = "USDT"
     assets = BINANCE_ASSETS
     unsupported_assets_message = (
-        "This Binance adapter supports only USDT, BTC and ETH spot balances; move or convert "
+        "This Binance adapter supports USDT and the curated spot pairs only; move or convert "
         "other assets (including BNB) before activating"
     )
 
