@@ -1,3 +1,38 @@
+# Gross market references — 2026-10-14
+
+Final focused unit/integration run: 69 passed in 54.19s with disposable PostgreSQL/Redis. Includes
+hand-calculated BTC/ETH/50-50 returns, nominal cash, unavailable boundaries, source/quote/venue
+mismatch, duplicates, future evidence, overflow, UTC midnight, report context and line breaks,
+legacy USD/XBT compatibility and existing Binance/Telegram controls. Scoped Pyright zero errors;
+Ruff and diff whitespace clean. Public Binance and final deployed read-only report preview
+returned all 4 references available; no message dispatched. API rebuilt; eight services healthy,
+readiness 200, production OBSERVE with zero orders/fills. No frontend/schema changes.
+Net account outperformance/cash-flow-adjusted comparisons are not covered or claimed delivered.
+
+# Telegram report accuracy — 2026-10-14
+
+50 focused unit/integration tests passed in 29.23s using disposable PostgreSQL/Redis. Coverage:
+Spanish report text without internal phases, truthful reconciliation, actual OBSERVE/LIVE mode,
+Binance account/USDT/LIVE fees, foreign-owner isolation and existing Telegram commands. Pyright,
+Ruff and diff whitespace clean. API image rebuilt; no frontend/schema changes. No real trade or
+manual Telegram test delivery. Benchmark comparison remains unavailable, explicitly disclosed.
+
+# Binance migration verification — 2026-10-12
+
+Final backend run: 1046 passed in 201.46s, including unit/property/contract and real PostgreSQL/
+Redis integration. Production browser run: 21 passed (1.1m); final mocked browser run: 19 passed
+(41.3s). Pyright, frontend tsc and scoped ESLint, Ruff and git diff whitespace checks passed.
+Regression coverage: Binance USDT price/reliability calls without USD mixing; cash context labels;
+LIVE venue reporting; PAPER USDT funding/approval without private submission; cross-account fill
+identities; IOC/price/trade evidence and quote totals; cash excluded from LIVE positions.
+
+Real public API: 23 curated Binance instruments, valid BTC/USDT and ETH/USDT bid/ask and 29
+closed hourly candles in a 30-hour lookback. Backup isolated restore verified before applying
+0046; images rebuilt sequentially after Docker recovery. Eight services healthy, readiness 200,
+native heartbeat and first two-instrument analysis tick verified. Production OBSERVE, no LIVE
+account configured, zero orders/fills. Funded Binance key/order acceptance remains untested.
+Third-party deprecations and Windows pytest-cache permission warnings remain.
+
 # Operator-readiness fixes — 2026-10-12 (second pass)
 
 971 backend tests passed in 145.82s (unit/property/contract/integration, real PostgreSQL/Redis via
@@ -72,3 +107,20 @@ Container scan results are recorded separately in [security verification](securi
 2026-09-12 UI follow-up: enrollment now shows a locally generated QR with expandable manual key. Setup requires matching password confirmation, validated by React Hook Form/Zod; confirmation is never sent to the API. Spanish/English translations use i18next/react-i18next with a persistent language selector and localized dates and API errors. The Chromium workflow passed with mismatch rejection (zero setup requests), matching confirmation, QR/manual enrollment, language switching without losing form values, language persistence after reload and translated dashboard navigation. Lint, production build and pnpm audit passed. Mobile layout was visually inspected. Stored audit event codes/messages remain unchanged.
 
 2026-09-12 Phase 2/3 follow-up: `pytest tests/unit tests/integration tests/property tests/contract -q` reports 168 passed (135 unit, 17 integration, 4 property, 12 contract; up from the 23 recorded above), 0 failed, 0 skipped. New coverage since the entry above: Phase 2 (market domain values, `FakeExchange` and a real `KrakenExchange` sharing one contract-test suite replayed against recorded API responses, instrument universe filters, a stateful candle-series data-quality gate, a Redis-backed hot-tier cache with real Testcontainers Redis, a checksummed atomic Parquet writer, a dependency-free feature engine, and the market scanner) and Phase 3 (deterministic regime classification, a `Strategy` port with a trend-following implementation, a confidence-weighted `SignalAggregator`, a `PortfolioAllocator` implementing RISK.md's Initial Policy table exactly, and a `RiskEngine` implementing RISK.md's Approval contract). `ruff check` and `pyright` (standard mode) pass with zero findings on every new file; `pip-audit` was run immediately after adding the one new dependency this added (`pyarrow`) and again after pinning past a CVE found in the first resolved version. One Hypothesis property test (`tests/property/test_risk_invariants.py`) exercises `RiskEngine`'s core approval-shape invariant across generated losses, drawdown, bucket exposure, proposed notional and spread â€” short of TESTING.md's full â‰¥95%-branch-coverage target for risk code, which remains future work alongside the rest of Phase 4. RiskEngine's own scope is intentionally partial: volatility/correlation limits and any AI-related check are not implemented (no volatility feature or AI provider exists yet), and reconciliation/breaker *state* is received as an input rather than computed (that mechanism is Phase 4 infrastructure). See `docs/PHASE_2.md` and `docs/PHASE_3.md` for the full per-slice acceptance evidence.
+## Workspace layout refresh — 2026-10-14
+
+Frontend intercepted suite: 20 passed (46.1s). Final mobile menu/checkbox CSS adjustment:
+2 affected tests passed (26.0s), covering all 11 workspace routes at 1440, 1024 and 390px,
+mobile navigation and light/dark screenshots. TypeScript and scoped ESLint clean.
+Production web image built and deployed; 8 Compose services healthy, readiness HTTP 200.
+Playwright MCP inspected deployed styles with synthetic intercepted API data, no real login:
+375px document width, system font, 18px menu icon and checkbox. No funded-trading acceptance.
+## Settings switches and analyst status — 2026-10-14
+
+21 intercepted browser tests passed (41.4s), including native switch keyboard interactions,
+44x28 tracks on desktop/mobile, drafts preserved on status refresh, explicit-only preference
+saves, stale availability and all eleven route layouts. TypeScript and scoped ESLint clean.
+Production web built/deployed; eight services healthy and readiness 200. Authenticated in-app
+browser verified four switches and the original strict consensus unchanged. Explicit local
+CLI probe returned Codex READY / Claude UNAVAILABLE; missing native worker started and status
+timestamps refreshed. Operator had activated LIVE/READY; zero orders/fills at verification.

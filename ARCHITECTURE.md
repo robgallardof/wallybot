@@ -140,3 +140,14 @@ Emit versioned events with correlation/causation IDs. Structured logs include ti
 | 15 | Additional venues/providers, broader speculative research, robust optimization |
 
 Each feature needs typing, validation, tests, error behavior, telemetry and documentation. No phase silently promotes a strategy or grants autonomous withdrawals. See [architecture diagram](docs/diagrams/architecture.md).
+
+
+## Current spot venue (ADR-019, 2026-10-12)
+
+[ADR-019](docs/adr/019-binance-spot-venue.md) supersedes the earlier Kraken-only roadmap above:
+Binance is the default public-data and operator-approved spot venue for BTC/USDT and ETH/USDT.
+USDT is the account unit for funding, sizing, limits, fees and equity; it is never relabelled as
+USD or merged with USD price consensus. Historical Kraken data retains its venue and quote.
+The analyst prompt labels cash with the instrument quote currency. Internal legacy `_usd`
+column names remain compatibility storage names, interpreted in the selected account unit.
+No adapter exposes withdrawals, transfers, margin or derivatives execution.

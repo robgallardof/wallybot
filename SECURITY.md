@@ -1,7 +1,8 @@
 # Security design
 
 Update 2026-10-12: [ADR-018](docs/adr/018-real-spot-objective.md) implements explicit, per-operation
-approved Kraken spot LIVE activation. This supersedes the older Phase 1/PAPER-only status below;
+approved spot LIVE activation; [ADR-019](docs/adr/019-binance-spot-venue.md) selects Binance
+as the default venue. This supersedes the older Phase 1/PAPER-only status below;
 unattended strategy promotion and external tamper-evident export remain separate work.
 
 Status: password/TOTP setup, recovery-code login, hashed sessions, CSRF/origin checks, shared throttling, role checks, scoped database grants and isolated research credentials are implemented. Provider secrets, strategy promotion, LIVE activation, MFA replacement and external tamper-evident audit export remain later work. Application authentication remains mandatory behind Cloudflare Zero Trust.

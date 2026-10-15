@@ -71,9 +71,10 @@ reasons and no order. The approval never acts as a bypass, and SELL only reduces
 ## Operator-approved real spot (ADR-018)
 
 The operator explicitly requested real-money operation. The implemented manual-approval path is
-documented in [ADR-018](docs/adr/018-real-spot-objective.md). It adds verified private Kraken
+documented in [ADR-018](docs/adr/018-real-spot-objective.md) and
+[ADR-019](docs/adr/019-binance-spot-venue.md). It adds verified private Binance/legacy Kraken
 permissions, observed opening balances, per-account serialization, bounded IOC limits, real fee
-and book checks, policy binding and restart reconciliation. The stricter USD daily budget or 2%
+and book checks, policy binding and restart reconciliation. The stricter account-currency daily budget (USDT on Binance) or 2%
 loss applies, alongside 5% weekly loss and 10% drawdown. An individual human approval is not
 unattended strategy promotion; automatic LIVE strategies still require the evidence below.
 

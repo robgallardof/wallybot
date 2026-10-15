@@ -1,0 +1,237 @@
+"""Binance spot private transport. Only account queries and spot order management are reachable.
+
+No wallet, transfer, margin, futures or withdrawal endpoint exists in the allowlist below, and
+exceptions never carry keys, signatures or raw provider payloads. Requests are HMAC-SHA256 signed
+with a millisecond timestamp; Binance has no nonce, so no cross-process sequencing is needed.
+"""
+
+import hashlib
+import hmac
+import time
+from collections.abc import Callable
+from decimal import Decimal, InvalidOperation
+from typing import Any, Protocol
+from urllib.parse import urlencode
+
+import httpx
+
+from wallybot.exchanges.private_errors import ExchangePrivateError
+
+ALLOWED_CALLS = frozenset(
+    {
+        ("GET", "/sapi/v1/account/apiRestrictions"),
+        ("GET", "/api/v3/account"),
+        ("GET", "/api/v3/account/commission"),
+        ("GET", "/api/v3/openOrders"),
+        ("GET", "/api/v3/order"),
+        ("GET", "/api/v3/myTrades"),
+        ("POST", "/api/v3/order"),
+        ("DELETE", "/api/v3/order"),
+    }
+)
+# Every capability beyond reading and spot trading must be off. Withdrawals are checked even
+# though no withdrawal endpoint is reachable: a leaked key must be useless for moving funds.
+FORBIDDEN_PERMISSIONS = (
+    "enableWithdrawals",
+    "enableInternalTransfer",
+    "permitsUniversalTransfer",
+    "enableMargin",
+    "enableFutures",
+    "enableVanillaOptions",
+    "enablePortfolioMarginTrading",
+    "enableFixApiTrade",
+)
+SUPPORTED_ASSETS = frozenset({"USDT", "BTC", "ETH"})
+
+
+class BinancePrivateError(ExchangePrivateError):
+    """Sanitized Binance failure; messages are safe to show the operator."""
+
+
+class BinanceOrderNotFound(BinancePrivateError):
+    """Binance reports no order for the requested client identity (code -2013)."""
+
+
+class BinancePrivateTransport(Protocol):
+    async def call(self, method: str, path: str, params: dict[str, str]) -> Any: ...
+
+
+_ERROR_EXPLANATIONS = {
+    -1003: "Binance is temporarily limiting requests; wait a few minutes and retry",
+    -1013: "The order does not meet Binance's price or quantity rules",
+    -1021: (
+        "This computer's clock is out of sync with Binance; enable automatic time "
+        "synchronization in Windows and retry"
+    ),
+    -1022: "Binance rejected the signature; check that the Secret Key was copied completely",
+    -2008: "Binance does not recognize this API key; copy the API Key again or create a new one",
+    -2014: "Binance rejected the API key format; copy the API Key again completely",
+    -2015: (
+        "Binance rejected the API key, its IP restriction or its permissions; check the key, "
+        "allow this computer's public IP and enable spot trading"
+    ),
+}
+
+
+def explain_binance_error(status: int, payload: Any) -> BinancePrivateError:
+    code = payload.get("code") if isinstance(payload, dict) else None
+    message = str(payload.get("msg", "")) if isinstance(payload, dict) else ""
+    if code == -2013:
+        return BinanceOrderNotFound("Binance has no order with this identity")
+    if code == -2010 and "insufficient balance" in message.lower():
+        return BinancePrivateError("Binance reports insufficient funds for this order")
+    if code in _ERROR_EXPLANATIONS:
+        return BinancePrivateError(_ERROR_EXPLANATIONS[code])
+    if status in {418, 429}:
+        return BinancePrivateError(_ERROR_EXPLANATIONS[-1003])
+    if status == 451:
+        return BinancePrivateError("Binance is not available from this location")
+    return BinancePrivateError("Binance rejected the private request")
+
+
+_SERVER_OFFSET: dict[str, float] = {}
+
+
+def sign(query: str, secret: str) -> str:
+    return hmac.new(secret.encode(), query.encode(), hashlib.sha256).hexdigest()
+
+
+class SignedBinanceTransport:
+    def __init__(
+        self,
+        key: str,
+        secret: str,
+        client: httpx.AsyncClient,
+        clock_ms: Callable[[], int] | None = None,
+        base_url: str = "https://api.binance.com",
+    ) -> None:
+        self._key = key
+        self._secret = secret
+        self._client = client
+        self._clock_ms = clock_ms
+        self._base_url = base_url
+
+    async def _timestamp(self) -> int:
+        """Binance rejects requests >5s off its clock; container clocks drift after host sleep."""
+        if self._clock_ms is not None:
+            return self._clock_ms()
+        now = time.monotonic()
+        if _SERVER_OFFSET.get("checked", -1e9) < now - 60:
+            try:
+                started = time.time_ns() // 1_000_000
+                response = await self._client.get(f"{self._base_url}/api/v3/time", timeout=5)
+                finished = time.time_ns() // 1_000_000
+                server = int(response.json()["serverTime"])
+                _SERVER_OFFSET["offset"] = server - (started + finished) // 2
+                _SERVER_OFFSET["checked"] = now
+            except (httpx.HTTPError, ValueError, KeyError, TypeError):
+                pass  # Fall back to the local clock; Binance explains a skew as -1021.
+        return time.time_ns() // 1_000_000 + int(_SERVER_OFFSET.get("offset", 0))
+
+    async def call(self, method: str, path: str, params: dict[str, str]) -> Any:
+        if (method, path) not in ALLOWED_CALLS:
+            raise BinancePrivateError("Unsupported private operation")
+        timestamp = str(await self._timestamp())
+        query = urlencode({**params, "recvWindow": "5000", "timestamp": timestamp})
+        url = f"{self._base_url}{path}?{query}&signature={sign(query, self._secret)}"
+        try:
+            response = await self._client.request(
+                method,
+                url,
+                headers={"X-MBX-APIKEY": self._key},
+                timeout=10,
+                follow_redirects=False,
+            )
+        except httpx.HTTPError:
+            raise BinancePrivateError(
+                "Binance could not be reached; check the connection and retry. An order's "
+                "outcome may be unknown until reconciliation"
+            ) from None
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = None
+        if response.status_code >= 500:
+            raise BinancePrivateError(
+                "Binance is temporarily unavailable; an order's outcome may be unknown until "
+                "reconciliation"
+            )
+        if response.status_code >= 400:
+            raise explain_binance_error(response.status_code, payload)
+        if payload is None:
+            raise BinancePrivateError("Invalid Binance response")
+        return payload
+
+
+def validate_restrictions(info: Any) -> None:
+    if not isinstance(info, dict) or not isinstance(info.get("enableWithdrawals"), bool):
+        raise BinancePrivateError("Cannot verify API key permissions")
+    enabled = [name for name in FORBIDDEN_PERMISSIONS if info.get(name, False) is not False]
+    if enabled:
+        raise BinancePrivateError(
+            "Binance API key has excessive permissions; enable only reading and spot trading"
+        )
+    if info.get("enableReading") is not True or info.get("enableSpotAndMarginTrading") is not True:
+        raise BinancePrivateError("Binance API key needs reading and spot trading permissions")
+    if info.get("ipRestrict") is not True:
+        raise BinancePrivateError(
+            "Restrict the Binance API key to trusted IPs (this computer's public IP)"
+        )
+
+
+def _amount(value: Any) -> Decimal:
+    try:
+        amount = Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        raise BinancePrivateError("Invalid balance response") from None
+    if not amount.is_finite() or amount < 0:
+        raise BinancePrivateError("Invalid balance response")
+    return amount
+
+
+def spot_balances(account: Any) -> dict[str, tuple[Decimal, Decimal]]:
+    """Total and available spot balances; non-zero assets are preserved for valuation checks."""
+    if (
+        not isinstance(account, dict)
+        or account.get("accountType") != "SPOT"
+        or account.get("canTrade") is not True
+        or not isinstance(account.get("balances"), list)
+    ):
+        raise BinancePrivateError("The Binance account cannot trade spot right now")
+    balances = {}
+    for item in account["balances"]:
+        if not isinstance(item, dict) or not isinstance(item.get("asset"), str):
+            raise BinancePrivateError("Invalid balance response")
+        free, locked = _amount(item.get("free")), _amount(item.get("locked"))
+        if not free and not locked:
+            continue
+        if item["asset"] in balances:
+            raise BinancePrivateError("Ambiguous asset balance")
+        balances[item["asset"]] = (free + locked, free)
+    return balances
+
+
+def taker_fee_rate(commission: Any) -> Decimal:
+    """Conservative taker rate: standard + special + tax, ignoring any BNB discount."""
+    try:
+        rate = sum(
+            (
+                Decimal(str(commission[group]["taker"]))
+                + max(
+                    Decimal(str(commission[group]["buyer"])),
+                    Decimal(str(commission[group]["seller"])),
+                )
+                for group in ("standardCommission", "specialCommission", "taxCommission")
+                if group in commission
+            ),
+            Decimal(0),
+        )
+    except (KeyError, TypeError, InvalidOperation, ValueError):
+        raise BinancePrivateError("Trading fee cannot be verified") from None
+    if (
+        "standardCommission" not in commission
+        or not rate.is_finite()
+        or not Decimal(0) <= rate <= Decimal("0.10")
+    ):
+        raise BinancePrivateError("Trading fee cannot be verified")
+    return rate

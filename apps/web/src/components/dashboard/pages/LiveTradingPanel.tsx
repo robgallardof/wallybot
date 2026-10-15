@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useLiveTrading } from "../../../hooks/useLiveTrading";
+import { liveVenueLabel, useLiveTrading } from "../../../hooks/useLiveTrading";
 import { useConnectionsData } from "../../../hooks/useConnectionsData";
 
 export function LiveTradingPanel({ role }: { role: string }) {
@@ -35,8 +35,12 @@ export function LiveTradingPanel({ role }: { role: string }) {
   ]);
   const candidates =
     connections.data?.rows.filter(
-      (row) => row.provider === "KRAKEN" && row.mode === "TRADE_ONLY",
+      (row) =>
+        (row.provider === "KRAKEN" || row.provider === "BINANCE") &&
+        row.mode === "TRADE_ONLY",
     ) ?? [];
+  const selectedProvider = candidates.find((row) => row.id === connectionId)?.provider;
+  const currency = selectedProvider === "KRAKEN" ? "USD" : "USDT";
   function limitsError() {
     // Mirrors the API's bounds so the operator sees which value to fix, not a generic 422.
     if (Number(orderLimit) > Number(totalLimit))
@@ -77,7 +81,7 @@ export function LiveTradingPanel({ role }: { role: string }) {
       </p>
       <p className="muted">
         {t(
-          "Kraken spot: USD, BTC y ETH. Sin deuda ni apalancamiento. Las órdenes usan precio límite y cancelan la cantidad que no se llena inmediatamente. Los stops y objetivos son avisos de revisión.",
+          "Binance spot: USDT, BTC y ETH; límites en USDT. Sin deuda ni apalancamiento. Las órdenes usan precio límite y cancelan la cantidad que no se llena inmediatamente. Los stops y objetivos son avisos de revisión.",
         )}
       </p>
       <p className="muted">
@@ -96,17 +100,17 @@ export function LiveTradingPanel({ role }: { role: string }) {
               onChange={(event) => setConnectionId(event.target.value)}
             >
               <option value="">
-                {t("Selecciona una conexión Kraken de trading")}
+                {t("Selecciona una conexión de trading")}
               </option>
               {candidates.map((row) => (
                 <option key={row.id} value={row.id}>
-                  {row.label}
+                  {row.label} · {liveVenueLabel(row.provider.toLowerCase())}
                 </option>
               ))}
             </select>
           </label>
           <label>
-            {t("Máximo por operación (USD)")}
+            {t("Máximo por operación ({{currency}})", { currency })}
             <input
               type="number"
               min="0.01"
@@ -118,7 +122,7 @@ export function LiveTradingPanel({ role }: { role: string }) {
             />
           </label>
           <label>
-            {t("Pérdida diaria máxima (USD)")}
+            {t("Pérdida diaria máxima ({{currency}})", { currency })}
             <input
               type="number"
               min="0.01"
@@ -130,7 +134,7 @@ export function LiveTradingPanel({ role }: { role: string }) {
             />
           </label>
           <label>
-            {t("Exposición total máxima (USD)")}
+            {t("Exposición total máxima ({{currency}})", { currency })}
             <input
               type="number"
               min="0.01"
@@ -201,7 +205,7 @@ export function LiveTradingPanel({ role }: { role: string }) {
       {candidates.length === 0 && (
         <p>
           {t(
-            "Primero agrega en Conexiones una clave API Kraken con consulta de fondos y órdenes, crear y cancelar órdenes. Nunca habilites depósitos, retiros ni transferencias.",
+            "Primero agrega en Conexiones una clave API de Binance con permisos de consulta y trading spot. Nunca habilites retiros ni transferencias.",
           )}
         </p>
       )}
@@ -252,12 +256,15 @@ export function LivePortfolioPanel() {
     );
   return (
     <article className="panel wide-panel">
-      <h2>{t("Cuenta real Kraken")}</h2>
+      <h2>
+        {t("Cuenta real {{venue}}", { venue: liveVenueLabel(live.data.venue) })}
+      </h2>
       <p>
         <strong>LIVE · {live.data.state}</strong> {t(live.data.reason)}
       </p>
       <p>
-        {t("Valor verificado")}: {live.data.equity_usd ?? "—"} USD ·{" "}
+        {t("Valor verificado")}: {live.data.equity_usd ?? "—"}{" "}
+        {live.data.cash_currency ?? "USD"} ·{" "}
         {live.data.as_of
           ? new Date(live.data.as_of).toLocaleString(i18n.language)
           : "—"}

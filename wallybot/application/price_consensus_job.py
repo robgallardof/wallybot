@@ -12,9 +12,10 @@ own module docstring), so every provider here is queried the same way: the most 
 provider against a stale candle close from another would make staleness/outlier filtering
 meaningless, so both sides of the comparison are held to the same standard.
 
-Only two logical pairs are tracked (BTC/USD, ETH/USD) -- the same pairs `KrakenExchange`'s own
-default `pairs` already limits ingestion to, and small enough to stay well inside a free-tier rate
-limit even polled every few minutes. The saved `instrument_id` is the provider-agnostic pair
+Binance tracks BTC/USDT and ETH/USDT. Legacy Kraken and optional Tiingo quotes track
+BTC/USD and ETH/USD separately. Only pairs with a configured source are queried; no USD/USDT
+conversion or consensus between distinct quote currencies is inferred.
+The saved `instrument_id` is the provider-agnostic pair
 string ("BTC/USD"), never one provider's own `Instrument.id` -- a consensus row is about the asset
 pair, not any single venue.
 
@@ -86,6 +87,13 @@ TRACKED_PAIRS: tuple[tuple[str, dict[str, Instrument]], ...] = (
 )
 
 
+# USD and USDT are distinct units. Never combine Tiingo USD quotes with Binance USDT.
+BINANCE_TRACKED_PAIRS: tuple[tuple[str, dict[str, Instrument]], ...] = tuple(
+    (f"{base}/USDT", {"binance": Instrument("binance", MarketType.SPOT, base, "USDT")})
+    for base in ("BTC", "ETH")
+)
+
+
 async def _fetch_quote(
     source: ProviderSource, instrument: Instrument, now: datetime, outcomes: OutcomeWindow
 ) -> PriceQuote | None:
@@ -122,7 +130,9 @@ async def compute_price_consensus_and_reliability(
         that has made at least one call so far, across this and prior invocations).
     """
     results: list[PriceConsensusResult] = []
-    for canonical_id, per_source_instrument in TRACKED_PAIRS:
+    for canonical_id, per_source_instrument in (*BINANCE_TRACKED_PAIRS, *TRACKED_PAIRS):
+        if not any(source.name in per_source_instrument for source in sources):
+            continue
         quotes: list[PriceQuote] = []
         for source in sources:
             instrument = per_source_instrument.get(source.name)

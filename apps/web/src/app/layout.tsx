@@ -1,12 +1,9 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { ThemeProvider } from "next-themes";
-import "@fontsource/poppins/400.css";
-import "@fontsource/poppins/500.css";
-import "@fontsource/poppins/600.css";
-import "@fontsource/poppins/700.css";
 import "../style.css";
 import "../theme.css";
+import "../workspace.css";
 
 export const metadata: Metadata = {
   title: "WallyBot",

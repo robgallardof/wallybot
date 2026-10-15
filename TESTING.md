@@ -9,7 +9,7 @@ Status: executable foundation tests exist. See [recorded results](docs/stats/tes
 | Unit | pytest, pytest-asyncio, pytest-cov | Allocation, sizing, fees, PnL, indicators, scoring, regimes, signal aggregation, order transitions, AI schemas and settings |
 | Property | Hypothesis | Risk/ledger/idempotency invariants across bounded valid and malformed inputs |
 | Integration | Testcontainers, real PostgreSQL and Redis | Migrations, transactions, concurrency, outbox recovery, auth, jobs and paper pipeline |
-| Contract | Shared pytest suites | Fake, Kraken and later adapters honor capability, precision, deduplication and lookup semantics |
+| Contract | Shared pytest suites | Fake, Binance and legacy Kraken adapters honor capability, precision, deduplication and lookup semantics |
 | End-to-end | Playwright | Browser setup/login/MFA, dashboard, paper trade, decisions, pause/resume, configuration, logs/events |
 | Failure | Controlled fault injection | Recovery after DB/Redis/network/process failures and ambiguous exchange results |
 | Static/security | Ruff, Pyright, ESLint, Prettier, Bandit, pip-audit, frontend audit, Trivy | Typed boundaries, dependency/container findings and forbidden capabilities |

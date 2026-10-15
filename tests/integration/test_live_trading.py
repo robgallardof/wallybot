@@ -320,7 +320,9 @@ def test_real_sell_cannot_exceed_confirmed_spot_inventory(setup_live):
     )
     held = setup_live[4].balances["XXBT"]
     result = approve(setup_live, proposal(setup_live, "SHORT"), state["version"])
-    assert result.json()["execution_status"] == "FILLED"
+    assert result.json()["execution_status"] == "FILLED", setup_live[1].execute(
+        "SELECT execution_reasons FROM trade_proposals ORDER BY as_of DESC"
+    ).fetchall()
     sales = [
         body
         for method, body in setup_live[4].calls
@@ -532,3 +534,20 @@ def test_activation_explains_a_revoked_or_invalid_key_and_stays_blocked(setup_li
     assert state["reason"].startswith("Kraken rejected the API key")
     assert db.execute("SELECT environment FROM control").fetchone()[0] != "LIVE"
     assert not any(method == "AddOrder" for method, _ in private.calls)
+
+
+def test_held_assets_value_with_quotes_stamped_on_arrival(setup_live):
+    """Regression: freshness was judged against a time taken before the quote was fetched."""
+    client, db, csrf, _, private, service, body = setup_live
+    private.balances["XXBT"] = Decimal("0.001")
+    fixed = service.provider.snapshot
+
+    async def stamped_on_arrival(instrument):
+        return replace(fixed, timestamp=datetime.now(UTC))
+
+    service.provider.fetch_snapshot = stamped_on_arrival
+    response = client.post("/api/live/control", json=body, headers={"X-CSRF-Token": csrf})
+    assert response.status_code == 200, response.text
+    assert response.json()["state"] == "READY"
+    client.portal.call(service.refresh)
+    assert client.get("/api/live").json()["state"] == "READY"

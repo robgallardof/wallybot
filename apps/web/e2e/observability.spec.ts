@@ -1,5 +1,87 @@
 import { expect, test, type Page } from "@playwright/test";
 
+test("analyst switches stay visible, keep drafts during status refresh and save only explicit choices", async ({ page }) => {
+  await shell(page, "ADMIN");
+  let writes = 0;
+  let refreshed = false;
+  const saved = { status: "ENABLED", target_core_pct: "0.70", target_growth_pct: "0.20",
+    target_speculative_pct: "0.10", digest_interval_hours: 6,
+    codex_enabled: true, claude_enabled: true, require_consensus: true };
+  await page.route("**/api/ai-autonomy/control", async route => {
+    if (route.request().method() === "POST") {
+      writes++;
+      Object.assign(saved, route.request().postDataJSON());
+    }
+    await route.fulfill({ json: { ...saved, analysts: [
+      { analyst: "codex", available: true, checked_at: refreshed ? new Date().toISOString() : "2026-01-01T00:00:00Z" },
+      { analyst: "claude", available: false, checked_at: refreshed ? new Date().toISOString() : "2026-01-01T00:00:00Z" },
+    ] } });
+  });
+  await page.goto("/settings");
+  await expect(page.getByRole("navigation", { name: "Secciones de configuración" }).getByRole("link")).toHaveCount(4);
+  const codex = page.getByRole("switch", { name: "Usar Codex como analista" });
+  const claude = page.getByRole("switch", { name: "Usar Claude como analista" });
+  const consensus = page.getByRole("switch", { name: "Exigir coincidencia entre ambos" });
+  await expect(codex).toBeChecked();
+  await claude.uncheck();
+  await expect(page.getByRole("button", { name: "Guardar preferencias", exact: true })).toBeDisabled();
+  await consensus.focus();
+  await page.keyboard.press("Space");
+  refreshed = true;
+  await page.getByRole("button", { name: "Actualizar estado" }).click();
+  await expect(page.locator(".analyst-state.ready")).toContainText("Disponible");
+  await expect(claude).not.toBeChecked();
+  await expect(consensus).not.toBeChecked();
+  expect(writes).toBe(0);
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const tracks = page.locator(".settings-switch-track");
+    for (const track of await tracks.all()) {
+      const box = await track.boundingBox();
+      expect(box?.width).toBe(44);
+      expect(box?.height).toBe(28);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    await page.locator("#settings-analysts").screenshot({ path: `test-results/settings-analysts-${width}.png` });
+    if (width === 390) {
+      await page.getByRole("button", { name: "Cambiar a modo oscuro" }).click();
+      await page.locator("#settings-analysts").screenshot({ path: "test-results/settings-analysts-dark-mobile.png" });
+    }
+  }
+  await page.getByRole("button", { name: "Guardar preferencias", exact: true }).click();
+  await expect.poll(() => writes).toBe(1);
+  expect(saved.codex_enabled).toBe(true);
+  expect(saved.claude_enabled).toBe(false);
+  expect(saved.require_consensus).toBe(false);
+});
+
+test("workspace layouts fit every section on desktop and mobile in both appearances", async ({ page }) => {
+  test.setTimeout(120000);
+  await shell(page, "ADMIN");
+  const routes = ["dashboard", "portfolio", "connections", "markets", "intelligence", "research", "risk", "events", "system", "settings", "docs"];
+  for (const width of [1440, 1024, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const route of routes) {
+      await page.goto(`/${route}`);
+      await expect(page.locator(".page-heading h1")).toBeVisible();
+      await expect(page.locator(".page-skeleton")).toHaveCount(0);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth), `${route} at ${width}px`).toBeLessThanOrEqual(width);
+      if (["dashboard", "connections", "settings"].includes(route) && width !== 1024) {
+        await page.screenshot({ path: `test-results/workspace-${route}-${width}.png`, fullPage: true });
+      }
+    }
+  }
+  await page.getByRole("button", { name: "Abrir navegación" }).click();
+  await expect(page.getByRole("button", { name: "Resumen", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Resumen", exact: true }).click();
+  await expect(page.locator(".sidebar-nav")).toBeHidden();
+  await page.getByRole("button", { name: "Cambiar a modo oscuro" }).click();
+  await expect(page.locator("html")).toHaveClass(/dark/);
+  await page.screenshot({ path: "test-results/workspace-dark-mobile.png", fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.screenshot({ path: "test-results/workspace-dark-desktop.png", fullPage: true });
+});
+
 test("intelligence index supports keyboard jumps, return links, locale and query failure", async ({ page }) => {
   await shell(page);
   let failed = false;
@@ -213,6 +295,13 @@ async function shell(page: Page, role: "ADMIN" | "VIEWER" = "VIEWER") {
       },
       "/api/system": system,
       "/api/events": { rows: [], next_before: null },
+      "/api/markets": { as_of: "2026-10-14T12:00:00Z", rows: [] },
+      "/api/risk/breakers": { rows: [] },
+      "/api/risk/limits": {
+        policy_version: 1, max_daily_loss: "0.02", max_weekly_loss: "0.05", max_drawdown: "0.10",
+        as_of: null, equity: null, high_water_mark: null, daily_loss: null, weekly_loss: null,
+        drawdown: null, daily_loss_breached: false, weekly_loss_breached: false, drawdown_breached: false,
+      },
       "/api/connections": { rows: [] },
       "/api/live": { capable: true, configured: false, enabled: false, state: "NOT_CONFIGURED", reason: "", version: null, connection_id: null, max_order_usd: null, max_daily_loss_usd: null, max_total_usd: null, slippage_pct: null, equity_usd: null, as_of: null, balances: [], orders: [] },
       "/api/intelligence/smart-money": { rows: [] },
@@ -313,10 +402,11 @@ test("settings and first-steps pages keep actions aligned on desktop and mobile"
   // A signed-out analyst is explained with its exact login command; the page never silently
   // disables it or weakens the consensus requirement.
   const analysts = page.getByRole("list", { name: "Disponibilidad de analistas" });
-  await expect(analysts.getByRole("listitem").first()).toContainText("Codex: Disponible");
-  await expect(analysts.getByRole("listitem").nth(1)).toContainText("Claude: No disponible");
-  await expect(analysts.getByRole("alert")).toContainText("claude auth login");
-  await expect(analysts.getByRole("alert")).toContainText("no cambia estos ajustes");
+  await expect(analysts.getByRole("listitem").first()).toContainText("Codex");
+  await expect(analysts.getByRole("listitem").nth(1)).toContainText("Claude");
+  await expect(analysts.getByText("Comprobación desactualizada")).toHaveCount(2);
+  await expect(analysts.getByRole("listitem").nth(1).getByRole("alert")).toContainText("claude auth login");
+  await expect(analysts.getByRole("listitem").nth(1).getByRole("alert")).toContainText("no cambia estos ajustes");
   await expect(page.getByLabel("Exigir coincidencia entre ambos")).toBeChecked();
   await expect(page.getByLabel("Usar Claude como analista")).toBeChecked();
   await page.getByRole("button", { name: "Activar análisis de IA" }).click();
@@ -1108,4 +1198,83 @@ test("AI position monitoring shows quote provenance, PnL and review levels on mo
   await expect(row).toContainText("24,75 USD");
   await expect(page.getByText(/Stop y objetivo son avisos de revisión/)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test("Binance spot connection explains safe key settings and shows the USDT real account", async ({ page }) => {
+  await shell(page, "ADMIN");
+  let submitted: Record<string, unknown> | undefined;
+  await page.route("**/api/connections", async (route) => {
+    if (route.request().method() === "POST") {
+      submitted = route.request().postDataJSON();
+      await route.fulfill({
+        status: 409,
+        json: { detail: "Restrict the Binance API key to trusted IPs (this computer's public IP)" },
+      });
+      return;
+    }
+    await route.fulfill({ json: { rows: [] } });
+  });
+  await page.goto("/connections");
+  await page.getByRole("combobox", { name: "Proveedor", exact: true }).selectOption("BINANCE");
+  await expect(page.getByText("restringe la clave a la IP pública de esta PC")).toBeVisible();
+  await page.getByLabel("Conectar cuenta para trading spot real").check();
+  await page.getByLabel("Nombre", { exact: true }).fill("Binance real");
+  await page.getByLabel("Clave API").fill("synthetic-key");
+  await page.getByLabel("Secreto API").fill("synthetic-secret");
+  await page.getByRole("button", { name: "Agregar conexión" }).click();
+  await expect(page.locator("p.error[role=alert]")).toContainText("añade la IP pública de esta PC");
+  expect(submitted).toMatchObject({ provider: "BINANCE", mode: "TRADE_ONLY" });
+
+  await page.route("**/api/live", (route) =>
+    route.fulfill({
+      json: {
+        capable: true, configured: true, enabled: true, state: "READY", reason: "", version: 2,
+        connection_id: "00000000-0000-0000-0000-000000000008", venue: "binance",
+        cash_currency: "USDT", max_order_usd: "25", max_daily_loss_usd: "5",
+        max_total_usd: "100", slippage_pct: "0.005", equity_usd: "1000",
+        as_of: "2026-10-12T09:00:00Z", balances: [{ asset: "USDT", amount: "1000" }], orders: [],
+      },
+    }),
+  );
+  await page.goto("/portfolio");
+  await expect(page.getByRole("heading", { name: "Cuenta real Binance" })).toBeVisible();
+  await expect(page.getByText(/1000\s+USDT/)).toBeVisible();
+});
+
+
+test("overview keeps USDT and historical USD separate and excludes Binance cash from positions", async ({ page }) => {
+  await shell(page);
+  await page.route("**/api/portfolio", route => route.fulfill({ json: {
+    environment: "PAPER", connection_count: 0,
+    balances: [
+      { currency: "USDT", purpose: "CASH", amount: "1000" },
+      { currency: "USD", purpose: "CASH", amount: "200" },
+    ],
+    activity: [], orders: [], proposal_history: [],
+    performance: [
+      { quote: "USDT", realized_pnl: "12.5", open_cost_basis: "0" },
+      { quote: "USD", realized_pnl: "3", open_cost_basis: "0" },
+    ],
+  } }));
+  await page.goto("/");
+  const metrics = page.locator(".metrics-grid");
+  await expect(metrics).toContainText("USDT");
+  await expect(metrics).toContainText("USD");
+  await expect(metrics.locator("article").filter({ hasText: "Efectivo PAPER" })).toContainText("1000,00 USDT");
+  await expect(metrics.locator("article").filter({ hasText: "Resultado realizado" })).toContainText("12,50 USDT");
+
+  await page.route("**/api/dashboard", route => route.fulfill({ json: {
+    environment: "LIVE", status: "RUNNING", trading_available: true, equity: null,
+    exchange: "BINANCE_SPOT_REAL", positions: [], phase: 1,
+  } }));
+  await page.route("**/api/live", route => route.fulfill({ json: {
+    capable: true, configured: true, enabled: true, state: "READY", reason: "", version: 1,
+    connection_id: "00000000-0000-0000-0000-000000000008", venue: "binance",
+    cash_currency: "USDT", max_order_usd: "25", max_daily_loss_usd: "5", max_total_usd: "100",
+    slippage_pct: "0.005", equity_usd: "1050", as_of: "2026-10-12T09:00:00Z",
+    balances: [{ asset: "USDT", amount: "1000" }, { asset: "BTC", amount: "0.001" }], orders: [],
+  } }));
+  await page.reload();
+  await expect(metrics.locator("article").filter({ hasText: "Posiciones abiertas" }).locator("strong")).toHaveText("1");
+  await expect(metrics.locator("article").filter({ hasText: "Efectivo real" })).toContainText("1000 USDT");
 });

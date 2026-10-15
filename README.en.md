@@ -31,6 +31,7 @@
   <img alt="Redis" src="https://img.shields.io/badge/Redis-DC382D?logo=redis&logoColor=white">
   <img alt="Docker" src="https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white">
   <img alt="Kraken" src="https://img.shields.io/badge/Kraken-Spot-5741D9?logo=kraken&logoColor=white">
+  <img alt="Binance" src="https://img.shields.io/badge/Binance-Spot-F0B90B?logo=binance&logoColor=black">
   <img alt="Tests" src="https://img.shields.io/badge/tests-971%20backend%20%C2%B7%2019%20browser-2ea44f">
 </p>
 
@@ -48,7 +49,7 @@
 WallyBot brings together markets, AI-assisted analysis, portfolio tracking and controlled execution in one application that you host yourself. Analysts prepare **BUY, HOLD, SELL or REDUCE** proposals with an explanation and an expiry. **You decide what to approve**; deterministic controls re-check every trade before it is sent to the exchange.
 
 > [!IMPORTANT]
-> **Real trading is available on Kraken spot with USD, BTC/XBT and ETH.** Every trade requires administrator approval with MFA. The AI never executes orders, and there are no withdrawals, transfers or leverage.
+> **Real trading is available on Kraken spot (USD, BTC/XBT, ETH) or Binance spot (USDT, BTC, ETH).** Every trade requires administrator approval with MFA. The AI never executes orders, and there are no withdrawals, transfers or leverage.
 
 > [!NOTE]
 > The application UI is available in Spanish and English. Some in-app labels referenced below are shown with their Spanish name in parentheses.
@@ -59,7 +60,7 @@ WallyBot brings together markets, AI-assisted analysis, portfolio tracking and c
   <tr>
     <td width="50%" valign="top">
       <h4>📈 Markets</h4>
-      Public Kraken quotes with source, age and spread validation.
+      Public Binance quotes with source, age and spread validation.
     </td>
     <td width="50%" valign="top">
       <h4>🧠 AI analysts</h4>
@@ -73,7 +74,7 @@ WallyBot brings together markets, AI-assisted analysis, portfolio tracking and c
     </td>
     <td valign="top">
       <h4>💼 Real account</h4>
-      Encrypted credentials, verified balances and Kraken spot IOC orders.
+      Encrypted credentials, verified balances and Kraken or Binance spot IOC orders.
     </td>
   </tr>
   <tr>
@@ -145,11 +146,11 @@ This starts the Docker services and the native analyst. See the [local analyst g
 
 | Step | Where | What to do |
 | :---: | --- | --- |
-| **1** | Kraken | Create an API key **dedicated to WallyBot**: query funds, query open/closed orders, create/modify and cancel/close orders. No deposit, withdrawal, transfer or earn permissions; no date restriction and no key-specific 2FA. |
-| **2** | **Connections** (Conexiones) | Choose KRAKEN, real spot trading mode, and paste the key and private key. If anything fails, the message explains what to fix. Linking never sends an order. |
+| **1** | Kraken or Binance | Create an API key **dedicated to WallyBot**. **Kraken:** query funds, query open/closed orders, create/modify and cancel/close orders; no deposit, withdrawal, transfer or earn. **Binance:** "System generated", only *Enable Reading* and *Enable Spot & Margin Trading*, restricted to your PC's public IP; no withdrawals, transfers, margin or futures, and no BNB fee payment. |
+| **2** | **Connections** (Conexiones) | Choose BINANCE, tick real spot trading, and paste the key and private key. If anything fails, the message explains what to fix. Linking never sends an order. |
 | **3** | **Settings → AI analysis** (Configuración → Análisis de IA) | Check that Codex and Claude show as available. |
-| **4** | **Settings → Real-money trading** (Operaciones con dinero real) | Set the per-trade maximum, total exposure and daily loss (USD) plus the price change limit (0.01–2%). Type `LIVE` and confirm with MFA. |
-| **5** | **Portfolio** (Portafolio) | Review the real Kraken account: verified balances, orders and filled quantities. |
+| **4** | **Settings → Real-money trading** (Operaciones con dinero real) | Set the per-trade maximum, total exposure and daily loss (USDT on Binance) plus the price change limit (0.01–2%). Type `LIVE` and confirm with MFA. |
+| **5** | **Portfolio** (Portafolio) | Review the real Binance account: verified balances, orders and filled quantities. Binance amounts are in USDT. |
 | **6** | **Intelligence → Proposals** (Inteligencia → Propuestas) | Review each proposal, confirm "real money" and approve. Every approval is individual and single-use. |
 
 > [!TIP]
@@ -168,7 +169,7 @@ flowchart LR
     A --> P[Explained proposal]
     P --> U[Your review and MFA]
     U --> R[Mandate and deterministic risk]
-    R --> K[Kraken spot]
+    R --> K[Kraken or Binance spot]
     R --> S[Simulation]
     K --> C[Reconciliation and portfolio]
     S --> C
@@ -189,7 +190,7 @@ flowchart LR
 
 ## 📌 Current scope
 
-- Real execution supports **Kraken spot USD/BTC/ETH** with IOC limit orders and per-trade approval.
+- Real execution supports **Kraken spot USD/BTC/ETH** and **Binance spot USDT/BTC/ETH** with IOC limit orders and per-trade approval. The analyst studies the market of your real account's exchange.
 - Stops and targets are **review notices**; they do not create automatic protective orders.
 - External account changes that do not match the ledger **block** execution until reviewed. The historical cost of imported holdings is never invented.
 - Local tests do not replace validation with a funded account and do not demonstrate profitability.
@@ -246,7 +247,7 @@ Backups are encrypted into `backups/` (excluded from the repository), and `verif
 
 | Guide | Contents |
 | --- | --- |
-| 💱 [Real trading](docs/runbooks/real-spot-trading.md) | Kraken, limits, approval, errors and reconciliation |
+| 💱 [Real trading](docs/runbooks/real-spot-trading.md) | Kraken, Binance, limits, approval, errors and reconciliation |
 | 🧠 [Local analysts](docs/runbooks/native-ai-worker.md) | CLIs, availability, startup and diagnostics (Spanish) |
 | 🎯 [Product mandate](docs/PRODUCT-MANDATE.md) | Goals, allocation and operator decisions |
 | 🏗️ [Architecture](ARCHITECTURE.md) | Process boundaries and contracts |

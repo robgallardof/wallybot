@@ -1,4 +1,4 @@
-"""Approved, bounded Kraken spot execution against a reconciled real account.
+"""Approved, bounded spot execution against a reconciled real account.
 
 No analyst holds this capability. Activation and approvals belong to the MFA-protected API.
 External account changes block execution instead of silently resetting accounting or losses.
@@ -7,8 +7,9 @@ External account changes block execution instead of silently resetting accountin
 import hashlib
 from contextlib import asynccontextmanager
 from dataclasses import replace
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from decimal import ROUND_DOWN, ROUND_UP, Decimal
+from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import select, text
@@ -16,6 +17,12 @@ from sqlalchemy import select, text
 from wallybot.application.decision_loop import BUCKET, PORTFOLIO_POLICY
 from wallybot.application.equity_tracker import EquityAssessment
 from wallybot.application.execution_service import ExecutionService
+from wallybot.application.live_venues import (
+    BinanceVenue,
+    InvalidBookEvidence,
+    KrakenVenue,
+    LiveVenue,
+)
 from wallybot.application.position_monitoring import trustworthy_mark
 from wallybot.application.proposal_execution import (
     ProposalExecutionResult,
@@ -38,12 +45,7 @@ from wallybot.domain.order import TERMINAL_STATUSES, OrderIntent, OrderKind, Ord
 from wallybot.domain.portfolio import Bucket, PortfolioState
 from wallybot.domain.risk import RiskDecision
 from wallybot.domain.trade_proposal import TradeDirection
-from wallybot.exchanges.kraken_gateway import KrakenSpotGateway
-from wallybot.exchanges.kraken_private import (
-    KrakenPrivateError,
-    spot_balances,
-    validate_permissions,
-)
+from wallybot.exchanges.private_errors import ExchangePrivateError
 from wallybot.infrastructure.equity_snapshot_repository import EquitySnapshotRepository
 from wallybot.infrastructure.live_models import AnalystPortfolioRow, LiveControlRow
 from wallybot.infrastructure.models import (
@@ -74,15 +76,39 @@ def mandate_version(row):
 
 class LiveTradingService:
     def __init__(
-        self, engine, sessions, crypto, transport_factory, provider, clock, capable=lambda: False
+        self,
+        engine,
+        sessions,
+        crypto,
+        transport_factory,
+        provider,
+        clock,
+        capable=lambda: False,
+        binance_transport_factory=None,
+        binance_provider=None,
     ):
         self.engine = engine
         self.sessions = sessions
         self.crypto = crypto
+        # Kraken attributes keep their original names; Binance is a second, separate venue.
         self.transport_factory = transport_factory
         self.provider = provider
+        self.binance_transport_factory = binance_transport_factory
+        self.binance_provider = binance_provider
         self.clock = clock
         self.capable = capable
+
+    def venue(self, connection_provider: str) -> LiveVenue:
+        if connection_provider == "KRAKEN":
+            return KrakenVenue(self.provider)
+        if connection_provider == "BINANCE" and self.binance_provider is not None:
+            return BinanceVenue(self.binance_provider)
+        raise LiveBlocked("Select a verified spot trading connection")
+
+    def _factory(self, connection_provider: str):
+        if connection_provider == "BINANCE":
+            return self.binance_transport_factory
+        return self.transport_factory
 
     @asynccontextmanager
     async def serialized(self):
@@ -107,19 +133,23 @@ class LiveTradingService:
             raise LiveBlocked("Real account belongs to another operator")
         return config
 
-    async def transport(self, config):
+    async def account(self, config) -> tuple[LiveVenue, Any]:
+        """The configured connection's venue and an authenticated transport for it."""
         async with self.sessions() as db:
             connection = await db.get(ProviderConnectionRow, config.connection_id)
         if (
             connection is None
             or connection.user_id != config.owner_id
-            or connection.provider != "KRAKEN"
+            or connection.provider not in {"KRAKEN", "BINANCE"}
             or connection.mode != "TRADE_ONLY"
             or not connection.encrypted_key
             or not connection.encrypted_secret
         ):
-            raise LiveBlocked("Select a verified Kraken spot trading connection")
-        return self.transport_factory(
+            raise LiveBlocked("Select a verified spot trading connection")
+        factory = self._factory(connection.provider)
+        if factory is None:
+            raise LiveBlocked("Select a verified spot trading connection")
+        return self.venue(connection.provider), factory(
             self.crypto.decrypt(connection.encrypted_key),
             self.crypto.decrypt(connection.encrypted_secret),
         )
@@ -168,9 +198,9 @@ class LiveTradingService:
         )
 
     async def _sync(self, config, *, initialize=False):
-        transport = await self.transport(config)
-        validate_permissions(await transport.call("GetApiKeyInfo", {}))
-        gateway = KrakenSpotGateway(transport, self.load_intent, self.clock.now, self.authorize)
+        venue, transport = await self.account(config)
+        await venue.verify_key(transport)
+        gateway = venue.gateway(transport, self.load_intent, self.clock.now, self.authorize)
         execution = ExecutionService(gateway, self.sessions, self.clock)
         outcomes = await ReconciliationService(execution, self.sessions).sweep(
             "LIVE", account_id(config)
@@ -196,16 +226,13 @@ class LiveTradingService:
                     audit(db, "LIVE_ORDER_RECONCILED", config.owner_id)
         if any(item.error or item.resolved_status not in TERMINAL_STATUSES for item in outcomes):
             raise LiveBlocked("An outstanding order needs reconciliation before another trade")
-        opened = await transport.call("OpenOrders", {})
-        if opened.get("open") != {}:
+        if await venue.has_open_orders(transport):
             raise LiveBlocked("Open exchange orders must be resolved before activating or trading")
-        balances = spot_balances(await transport.call("BalanceEx", {}))
+        balances = await venue.balances(transport)
         if any(total != available for total, available in balances.values()):
             raise LiveBlocked("Exchange funds are reserved; reconciliation is incomplete")
-        if any(
-            asset not in {"USD", "XBT", "ETH"} and total for asset, (total, _) in balances.items()
-        ):
-            raise LiveBlocked("This adapter currently supports a USD/XBT/ETH spot account only")
+        if any(asset not in venue.assets and total for asset, (total, _) in balances.items()):
+            raise LiveBlocked(venue.unsupported_assets_message)
         now = self.clock.now()
         async with self.sessions() as db:
             ledger = await PortfolioRepository(db).list_balances(account_id(config))
@@ -216,7 +243,7 @@ class LiveTradingService:
                 raise LiveBlocked("Real opening balances require explicit activation")
             postings = []
             for asset, total in actual.items():
-                purpose = AccountPurpose.CASH if asset == "USD" else AccountPurpose.POSITION
+                purpose = AccountPurpose.CASH if asset == venue.cash else AccountPurpose.POSITION
                 postings.extend(
                     (
                         LedgerPosting(LedgerAccount(account_id(config), asset, purpose), total),
@@ -250,26 +277,27 @@ class LiveTradingService:
             raise LiveBlocked(
                 "Exchange balances differ from the ledger; review external account activity"
             )
-        instruments = await self.provider.discover_instruments()
+        instruments = await venue.market.discover_instruments()
         exposures = {}
         for asset, total in actual.items():
-            if asset == "USD":
+            if asset == venue.cash:
                 continue
             instrument = next(
                 (
                     i
                     for i in instruments
-                    if i.base == asset and i.quote == "USD" and i.venue == "kraken"
+                    if i.base == asset and i.quote == venue.cash and i.venue == venue.name
                 ),
                 None,
             )
             if instrument is None:
                 raise LiveBlocked("A held asset has no supported USD valuation")
-            quote = await self.provider.fetch_snapshot(instrument)
-            if not trustworthy_mark(quote, instrument, now):
+            quote = await venue.market.fetch_snapshot(instrument)
+            # Judge freshness when the quote is used; providers stamp quotes on arrival.
+            if not trustworthy_mark(quote, instrument, self.clock.now()):
                 raise LiveBlocked("A held asset has no trustworthy current valuation")
             exposures[instrument.id] = total * quote.bid
-        equity = actual.get("USD", Decimal(0)) + sum(exposures.values(), Decimal(0))
+        equity = actual.get(venue.cash, Decimal(0)) + sum(exposures.values(), Decimal(0))
         if equity <= 0:
             raise LiveBlocked("Real equity is not positive")
         async with self.sessions() as db:
@@ -288,10 +316,11 @@ class LiveTradingService:
             if context is None:
                 context = AnalystPortfolioRow(owner_id=config.owner_id)
                 db.add(context)
-            context.cash_usd = actual.get("USD", Decimal(0))
+            context.cash_usd = actual.get(venue.cash, Decimal(0))
             context.holdings = {
-                asset: str(total) for asset, total in actual.items() if asset != "USD"
+                asset: str(total) for asset, total in actual.items() if asset != venue.cash
             }
+            context.venue = venue.name
             context.as_of = now
         # Daily absolute budget uses the actual UTC-day baseline, not current-equity * ratio.
         daily_usd = equity * daily / (1 - daily) if daily < 1 else equity
@@ -311,7 +340,7 @@ class LiveTradingService:
             exposures,
             len(exposures),
         )
-        return execution, balances, EquityAssessment(state, daily, weekly, drawdown)
+        return venue, execution, balances, EquityAssessment(state, daily, weekly, drawdown)
 
     async def latch(self, reason):
         async with self.sessions.begin() as db:
@@ -333,7 +362,7 @@ class LiveTradingService:
         except LiveBlocked as exc:
             if "being reconciled" not in str(exc):
                 await self.latch(str(exc))
-        except KrakenPrivateError as exc:
+        except ExchangePrivateError as exc:
             await self.latch(str(exc))
         except Exception:
             await self.latch("Real account synchronization failed; no new trades are allowed")
@@ -359,7 +388,11 @@ class LiveTradingService:
                     return ProposalExecutionResult(
                         ProposalExecutionStatus.EXPIRED, None, ("Proposal expired",)
                     )
-                execution, balances, equity = await self._sync(config)
+                venue, execution, balances, equity = await self._sync(config)
+                if row.venue != venue.name:
+                    raise LiveBlocked(
+                        "This proposal was analysed for another exchange than the real account"
+                    )
                 now = self.clock.now()
                 async with self.sessions() as db:
                     mandate = await db.get(AiAutonomyControlRow, 1)
@@ -374,7 +407,7 @@ class LiveTradingService:
                     },
                 )
                 outcome = await _revalidate(
-                    self.sessions, self.provider, row, account_id(config), now, True, equity, policy
+                    self.sessions, venue.market, row, account_id(config), now, True, equity, policy
                 )
                 async with self.sessions.begin() as db:
                     await ShadowDecisionRepository(db).save(outcome)
@@ -388,7 +421,7 @@ class LiveTradingService:
                         "BLOCKED", None, risk.reasons if risk else outcome.allocation_reasons
                     )
                 instrument = outcome.proposal.instrument
-                snapshot = await self.provider.fetch_snapshot(instrument)
+                snapshot = await venue.market.fetch_snapshot(instrument)
                 if (
                     not trustworthy_mark(snapshot, instrument, self.clock.now())
                     or instrument.price_increment is None
@@ -405,21 +438,12 @@ class LiveTradingService:
                 price = (bound / increment).to_integral_value(
                     rounding=ROUND_DOWN if buy else ROUND_UP
                 ) * increment
-                raw_pairs = await self.provider.transport.get(
-                    "/0/public/AssetPairs", {"pair": instrument.base + instrument.quote}
-                )
-                details = next(iter(raw_pairs["result"].values()))
-                minimum_cost = Decimal(str(details["costmin"]))
-                fee_transport = await self.transport(config)
-                fee_data = await fee_transport.call(
-                    "TradeVolume", {"pair": instrument.base + instrument.quote}
-                )
-                fee_rate = (
-                    max(Decimal(str(item["fee"])) for item in fee_data["fees"].values()) / 100
-                )
+                minimum_cost = await venue.minimum_notional(instrument)
+                _, fee_transport = await self.account(config)
+                fee_rate = await venue.fee_rate(fee_transport, instrument)
                 if not fee_rate.is_finite() or not 0 <= fee_rate <= Decimal("0.10"):
                     raise LiveBlocked("Trading fee cannot be verified")
-                cash = balances.get("USD", (Decimal(0), Decimal(0)))[1]
+                cash = balances.get(venue.cash, (Decimal(0), Decimal(0)))[1]
                 held = balances.get(instrument.base, (Decimal(0), Decimal(0)))[1]
                 quantity = min(
                     risk.final_quantity,
@@ -442,25 +466,12 @@ class LiveTradingService:
                     raise LiveBlocked(
                         "Approved quantity is below venue minimums or available account limits"
                     )
-                depth = await self.provider.transport.get(
-                    "/0/public/Depth", {"pair": instrument.base + instrument.quote, "count": "100"}
-                )
-                book = next(iter(depth["result"].values()))
-                levels = book["asks" if buy else "bids"]
+                try:
+                    levels = await venue.book(instrument, buy, self.clock.now())
+                except InvalidBookEvidence:
+                    raise LiveBlocked("Invalid order book evidence") from None
                 available_at_limit = Decimal(0)
-                for level in levels:
-                    level_price, level_quantity = Decimal(str(level[0])), Decimal(str(level[1]))
-                    timestamp = datetime(1970, 1, 1, tzinfo=UTC) + timedelta(
-                        microseconds=int(Decimal(str(level[2])) * 1_000_000)
-                    )
-                    if (
-                        not level_price.is_finite()
-                        or level_price <= 0
-                        or not level_quantity.is_finite()
-                        or level_quantity < 0
-                        or timestamp > self.clock.now()
-                    ):
-                        raise LiveBlocked("Invalid order book evidence")
+                for level_price, level_quantity in levels:
                     if level_price <= price if buy else level_price >= price:
                         available_at_limit += level_quantity
                 if available_at_limit < quantity:

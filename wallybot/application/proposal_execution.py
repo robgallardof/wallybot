@@ -24,7 +24,7 @@ from enum import StrEnum
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from wallybot.application.decision_loop import BUCKET, CASH_CURRENCY, PORTFOLIO_POLICY, RISK_POLICY
+from wallybot.application.decision_loop import BUCKET, PORTFOLIO_POLICY, RISK_POLICY
 from wallybot.application.equity_tracker import EquityAssessment, assess_equity
 from wallybot.application.execution_service import ExecutionService
 from wallybot.application.reconciliation_service import ReconciliationService
@@ -201,7 +201,7 @@ async def _revalidate(
     quality = evaluate_series_quality(candles, QUALITY_POLICY, now)
     snapshot = await provider.fetch_snapshot(instrument)
     assessment = equity or await assess_equity(
-        sessions, provider, account_id, ENVIRONMENT, CASH_CURRENCY, BUCKET, now, persist=False
+        sessions, provider, account_id, ENVIRONMENT, row.quote, BUCKET, now, persist=False
     )
     async with sessions() as db:
         active_breakers = await BreakerRepository(db).list_active()

@@ -111,9 +111,9 @@ class ProviderConnectionCreate(Input):
     @model_validator(mode="after")
     def supported_trading_connection(self) -> "ProviderConnectionCreate":
         if self.mode == "TRADE_ONLY" and (
-            self.provider != "KRAKEN" or not self.api_key or not self.api_secret
+            self.provider not in {"KRAKEN", "BINANCE"} or not self.api_key or not self.api_secret
         ):
-            raise ValueError("Spot trading connections require Kraken API key and secret")
+            raise ValueError("Spot trading connections require a Kraken or Binance key and secret")
         return self
 
 

@@ -105,6 +105,7 @@ async def run_decision_tick(
     universe_config: UniverseFilterConfig,
     account_id: str,
     now: datetime,
+    cash_currency: str = CASH_CURRENCY,
 ) -> DecisionTickResult:
     async with sessions() as db:
         balances = await PortfolioRepository(db).list_balances(account_id)
@@ -122,7 +123,7 @@ async def run_decision_tick(
     )
 
     assessment = await assess_equity(
-        sessions, provider, account_id, "PAPER", CASH_CURRENCY, BUCKET, now
+        sessions, provider, account_id, "PAPER", cash_currency, BUCKET, now
     )
 
     trips = breakers_to_trip(

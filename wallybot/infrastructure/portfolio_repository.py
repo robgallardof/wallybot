@@ -58,14 +58,21 @@ class PortfolioRepository:
         ).all()
         return tuple(rows)
 
-    async def sum_fees_since(self, account_id: str, since: datetime) -> Decimal:
+    async def sum_fees_since(
+        self,
+        account_id: str,
+        since: datetime,
+        environment: str = "PAPER",
+        currency: str | None = None,
+    ) -> Decimal:
         """Total fees paid on fills at or after `since` -- bounded by the date range (not the
         full table), for the Telegram report's costs section (PENDING.md Fase 8)."""
-        total = await self.session.scalar(
-            select(func.coalesce(func.sum(FillRow.fee), 0)).where(
-                FillRow.account_id == account_id,
-                FillRow.environment == "PAPER",
-                FillRow.filled_at >= since,
-            )
+        statement = select(func.coalesce(func.sum(FillRow.fee), 0)).where(
+            FillRow.account_id == account_id,
+            FillRow.environment == environment,
+            FillRow.filled_at >= since,
         )
+        if currency is not None:
+            statement = statement.where(FillRow.fee_currency == currency)
+        total = await self.session.scalar(statement)
         return Decimal(total) if total is not None else Decimal(0)

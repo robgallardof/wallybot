@@ -1,8 +1,8 @@
 # WallyBot: tu gestor de cartera asistido
 
 Actualización 2026-10-12: el objetivo solicitado es operar con dinero real. La implementación
-LIVE de Kraken spot, con conexión/límites configurados en la UI, MFA y aprobación por operación,
-está definida en [ADR-018](adr/018-real-spot-objective.md) y la [guía de activación](runbooks/real-spot-trading.md).
+LIVE de Binance spot (BTC/USDT y ETH/USDT), con conexión/límites configurados en la UI, MFA y aprobación por operación,
+está definida en [ADR-019](adr/019-binance-spot-venue.md), que amplía [ADR-018](adr/018-real-spot-objective.md) y la [guía de activación](runbooks/real-spot-trading.md).
 Esto reemplaza las limitaciones PAPER de la implementación anterior descrita más abajo.
 
 Estado: dirección de producto aprobada. Esta guía explica el producto en lenguaje normal; no es
@@ -26,7 +26,7 @@ mandato. Desde Configuración podrá elegir, por ejemplo:
 | Distribución | 70 / 20 / 10 | 70% CORE (más estable), 20% GROWTH (riesgo medio), 10% SPECULATIVE (alto riesgo). Debe sumar 100%. |
 | Frecuencia | cada 6 horas | Cada cuánto se revisa mercado, cartera y contexto. No implica mensajes cada vez. |
 | Avisos | resumen diario + cambios importantes | Telegram recibe un digest de propuestas nuevas —como máximo cinco por envío— y sólo alertas excepcionales. |
-| Fuentes permitidas | Kraken, Bitso, wallet pública, broker | Dónde puede observar datos y preparar propuestas. |
+| Fuentes permitidas | Binance, Bitso, wallet pública, broker | Dónde puede observar datos y preparar propuestas. |
 | Analistas | Codex + Claude, con consenso estricto | Ambos reciben el mismo contexto; si difieren, WallyBot no crea una propuesta. |
 | Aprobación | siempre antes de operar | La IA nunca salta tu aprobación para una orden. |
 
@@ -183,3 +183,19 @@ privadas ni promete que un actor famoso sea una fuente fiable.
   preceden a cualquier operación PAPER.
 - LIVE exige conexión verificada, límites, conciliación, MFA y confirmación explícita. PAPER no
   representa dinero real. La IA sigue sin aprobar ni ejecutar operaciones.
+
+
+## Informes de Telegram
+
+Los informes programados diarios y semanales se muestran en español y resuelven el modo actual
+OBSERVE/PAPER/LIVE y la cuenta propia del operador. En LIVE usan la conexión real seleccionada,
+con moneda explícita (USDT en Binance), comisiones del mismo modo/moneda y fecha de valoración.
+La conciliación sólo se describe como verificada si la cuenta real está READY con una valoración
+reciente; la ausencia de un bloqueo no demuestra conciliación. La variación del valor se distingue
+de una rentabilidad ajustada por movimientos de fondos. Las referencias de mercado incluyen BTC, ETH, efectivo nominal sin intereses y una cartera
+hipotética BTC/ETH 50/50 sin rebalanceo. Usan cierres horarios exactos de un mismo exchange y
+moneda, con sus fechas visibles; no interpolan precios ni mezclan USD/USDT. Son variaciones
+brutas, sin comisiones, deslizamiento, intereses ni conversión, y no se presentan como
+rentabilidad neta de la cuenta ni como clasificación frente a ella. Si aún no cerró una hora del
+periodo nuevo se usa el periodo anterior completo, mostrando sus fechas propias. Un cierre
+faltante/inválido deja la referencia no disponible y bloquea la mezcla que depende de él. El informe no concede aprobación ni crea órdenes.

@@ -271,7 +271,7 @@ class CliAiProvider:
             "Operator allocation guidance (context only, never permission to trade): "
             f"{allocation_guidance}\n"
             "Sanitized real portfolio context (advisory only, never execution authority): "
-            "cash USD="
+            f"cash {instrument.quote}="
             f"{context.portfolio_cash_usd}"
             f"; cash available={context.portfolio_cash_usd is not None}; "
             f"holdings={context.portfolio_holdings or 'unavailable/empty'}; "

@@ -196,3 +196,7 @@ type being imported is itself pure, move it into `domain/` instead of importing 
 The explicit user instruction supersedes the earlier PAPER-only delivery target. Product
 constraints and rationale are recorded in docs/adr/018-real-spot-objective.md; this file does
 not duplicate the ADR. Publication includes WallyBot only, excluding unrelated Rust work.
+
+- 2026-10-12: Binance is the default spot venue. See [ADR-019](../docs/adr/019-binance-spot-venue.md) for account units, compatibility and approval boundaries.
+
+- 2026-10-14: Market references are gross, date-labelled and informational; 50/50 is a reference only, never the operator mandate. See [ADR-020](../docs/adr/020-market-references.md).

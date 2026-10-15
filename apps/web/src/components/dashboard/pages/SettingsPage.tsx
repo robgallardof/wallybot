@@ -16,6 +16,7 @@ import type { z } from "zod";
 import { Button } from "../../ui/button";
 import { MfaForm } from "../../auth/MfaForm";
 import { LiveTradingPanel } from "./LiveTradingPanel";
+import { SettingsSwitch } from "../../ui/SettingsSwitch";
 
 const TELEGRAM_ACTION_LABELS: Record<string, string> = {
   PAUSE: "Pausar instancia",
@@ -113,6 +114,14 @@ export function SettingsPage({
   const [codexEnabled, setCodexEnabled] = useState(true);
   const [claudeEnabled, setClaudeEnabled] = useState(true);
   const [requireConsensus, setRequireConsensus] = useState(true);
+  const saved = aiAutonomy.data;
+  const savedCore = saved?.target_core_pct;
+  const savedGrowth = saved?.target_growth_pct;
+  const savedSpeculative = saved?.target_speculative_pct;
+  const savedHours = saved?.digest_interval_hours;
+  const savedCodex = saved?.codex_enabled;
+  const savedClaude = saved?.claude_enabled;
+  const savedConsensus = saved?.require_consensus;
 
   useEffect(() => {
     if (telegram.data) {
@@ -121,16 +130,16 @@ export function SettingsPage({
   }, [telegram.data]);
 
   useEffect(() => {
-    if (aiAutonomy.data) {
-      setCorePct(aiAutonomy.data.target_core_pct);
-      setGrowthPct(aiAutonomy.data.target_growth_pct);
-      setSpeculativePct(aiAutonomy.data.target_speculative_pct);
-      setDigestHours(String(aiAutonomy.data.digest_interval_hours));
-      setCodexEnabled(aiAutonomy.data.codex_enabled);
-      setClaudeEnabled(aiAutonomy.data.claude_enabled);
-      setRequireConsensus(aiAutonomy.data.require_consensus);
+    if (savedCore !== undefined && savedGrowth !== undefined && savedSpeculative !== undefined && savedHours !== undefined && savedCodex !== undefined && savedClaude !== undefined && savedConsensus !== undefined) {
+      setCorePct(savedCore);
+      setGrowthPct(savedGrowth);
+      setSpeculativePct(savedSpeculative);
+      setDigestHours(String(savedHours));
+      setCodexEnabled(savedCodex);
+      setClaudeEnabled(savedClaude);
+      setRequireConsensus(savedConsensus);
     }
-  }, [aiAutonomy.data]);
+  }, [savedCore, savedGrowth, savedSpeculative, savedHours, savedCodex, savedClaude, savedConsensus]);
 
   function submitTelegram(event: React.FormEvent) {
     event.preventDefault();
@@ -205,7 +214,13 @@ export function SettingsPage({
 
   return (
     <section className="settings-stack" aria-label={i18n.t("Configuración")}>
-      <LiveTradingPanel role={role} />
+      <nav className="settings-index" aria-label={i18n.t("Secciones de configuración")}>
+        <a href="#settings-trading"><FlaskConical size={18} />{i18n.t("Operación")}</a>
+        <a href="#settings-analysts"><Bot size={18} />{i18n.t("Analistas")}</a>
+        <a href="#settings-telegram"><Send size={18} />Telegram</a>
+        {role === "ADMIN" && <a href="#settings-security"><Lock size={18} />{i18n.t("Seguridad")}</a>}
+      </nav>
+      <div id="settings-trading" className="settings-anchor"><LiveTradingPanel role={role} /></div>
       {environment !== "LIVE" && <article className="panel wide-panel settings-panel">
         <div className="settings-heading">
           <span className="settings-heading-icon">
@@ -273,7 +288,7 @@ export function SettingsPage({
         )}
       </article>}
 
-      <article className="panel wide-panel settings-panel">
+      <article className="panel wide-panel settings-panel settings-anchor" id="settings-analysts">
         <div className="settings-heading">
           <span className="settings-heading-icon">
             <Bot size={19} />
@@ -298,7 +313,7 @@ export function SettingsPage({
         </div>
         <p className="muted settings-description">
           {i18n.t(
-            "Codex y Claude revisan el mismo contexto y crean propuestas sólo cuando coinciden. No compran, venden, transfieren ni retiran fondos. La simulación permanece desactivada hasta que la habilites explícitamente arriba.",
+            "Elige Codex, Claude o ambos. Los analistas preparan propuestas; cada operación requiere tu aprobación y la validación de riesgo. Antigravity todavía no está integrado.",
           )}
         </p>
         <div className="settings-action-row">
@@ -314,6 +329,17 @@ export function SettingsPage({
             </p>
           )}
         </div>
+        <p className="analyst-policy-summary">
+          <strong>{i18n.t("Regla guardada")}: </strong>
+          {i18n.t(aiAutonomy.data?.require_consensus
+            ? "Consenso obligatorio: Codex y Claude deben responder y coincidir. Si uno falla, no hay propuesta."
+            : "Sin consenso obligatorio: una respuesta válida puede bastar. Si ambos proponen y discrepan, no hay propuesta.")}
+        </p>
+        <div className="analyst-status-heading">
+          <h3>{i18n.t("Disponibilidad de analistas")}</h3>
+          <Button variant="outline" disabled={aiAutonomy.isFetching}
+            onClick={() => void aiAutonomy.refetch()}>{i18n.t("Actualizar estado")}</Button>
+        </div>
         <ul className="analyst-availability" aria-label={i18n.t("Disponibilidad de analistas")}>
           {(aiAutonomy.data?.analysts ?? []).map((item) => {
             const name = item.analyst === "codex" ? "Codex" : "Claude";
@@ -327,19 +353,25 @@ export function SettingsPage({
                 : item.available
                   ? i18n.t("Disponible")
                   : i18n.t("No disponible");
+            const checkedAt = item.checked_at ? Date.parse(item.checked_at) : NaN;
+            const stale = Number.isFinite(checkedAt) &&
+              (Date.now() - checkedAt > 15 * 60 * 1000 || checkedAt > Date.now() + 60_000);
             return (
               <li key={item.analyst}>
-                <strong>{name}</strong>: {state}
+                <div className="analyst-status-title"><strong>{name}</strong>
+                  <span className={`analyst-state ${stale ? "stale" : item.available ? "ready" : "pending"}`}>
+                    {stale ? i18n.t("Comprobación desactualizada") : state}
+                  </span>
+                </div>
                 {item.checked_at && (
                   <span className="muted">
-                    {" · "}
-                    {i18n.t("comprobado")} {new Date(item.checked_at).toLocaleString()}
+                    {i18n.t("comprobado")} {new Date(item.checked_at).toLocaleString(i18n.resolvedLanguage)}
                   </span>
                 )}
-                {enabled && item.available === false && (
+                {enabled && (item.available === false || stale) && (
                   <p className="error" role="alert">
                     {i18n.t(
-                      "{{name}} no respondió en esta PC: la sesión de su CLI está cerrada o el programa no está instalado. Abre una terminal y ejecuta {{command}}; la siguiente comprobación lo detectará sin reiniciar WallyBot.",
+                      "La última comprobación de {{name}} no confirma disponibilidad actual. Revisa el proceso de análisis, la instalación, la sesión y los límites del proveedor. Para iniciar sesión: {{command}}. Actualizar estado consulta el último registro; no ejecuta una prueba nueva de la CLI.",
                       {
                         name,
                         command: item.analyst === "codex" ? "codex login" : "claude auth login",
@@ -357,7 +389,8 @@ export function SettingsPage({
           })}
         </ul>
         {role === "ADMIN" && (
-          <form className="settings-form" onSubmit={submitAiAutonomyTargets}>
+          <form className="settings-form analyst-preferences" onSubmit={submitAiAutonomyTargets}>
+            <fieldset className="settings-fields"><legend>{i18n.t("Asignación y avisos")}</legend>
             <label>
               {i18n.t("Objetivo tier seguro (CORE)")}
               <input
@@ -386,37 +419,18 @@ export function SettingsPage({
                 value={digestHours} onChange={(event) => setDigestHours(event.target.value)}
               />
             </label>
-            <label className="settings-toggle">
-              <input
-                type="checkbox"
-                checked={codexEnabled}
-                onChange={(event) => setCodexEnabled(event.target.checked)}
-              />
-              <span aria-hidden="true" />
-              {i18n.t("Usar Codex como analista")}
-            </label>
-            <label className="settings-toggle">
-              <input
-                type="checkbox"
-                checked={claudeEnabled}
-                onChange={(event) => setClaudeEnabled(event.target.checked)}
-              />
-              <span aria-hidden="true" />
-              {i18n.t("Usar Claude como analista")}
-            </label>
-            <label className="settings-toggle">
-              <input
-                type="checkbox"
-                checked={requireConsensus}
-                onChange={(event) => setRequireConsensus(event.target.checked)}
-              />
-              <span aria-hidden="true" />
-              {i18n.t("Exigir coincidencia entre ambos")}
-            </label>
+            </fieldset>
+            <fieldset className="settings-switches"><legend>{i18n.t("Analistas y consenso")}</legend>
+              <SettingsSwitch label={i18n.t("Usar Codex como analista")} checked={codexEnabled} onChange={setCodexEnabled} />
+              <SettingsSwitch label={i18n.t("Usar Claude como analista")} checked={claudeEnabled} onChange={setClaudeEnabled} />
+              <SettingsSwitch label={i18n.t("Exigir coincidencia entre ambos")} checked={requireConsensus} onChange={setRequireConsensus}
+                description={i18n.t("Requiere ambos analistas activados. No se desactiva automáticamente si uno falla.")} />
+            </fieldset>
             <p className="muted settings-description">
               {i18n.t("Si exigís coincidencia, una recomendación sólo se guarda cuando ambos analistas responden y sus precios propuestos no difieren de forma material.")}
             </p>
-            <button className="button button-secondary" disabled={changeAiAutonomy.isPending}>
+            {requireConsensus && (!codexEnabled || !claudeEnabled) && <p className="error" role="alert">{i18n.t("El consenso requiere activar Codex y Claude, o desmarcar explícitamente la coincidencia.")}</p>}
+            <button className="button button-primary settings-save" disabled={changeAiAutonomy.isPending || (requireConsensus && (!codexEnabled || !claudeEnabled)) || (!codexEnabled && !claudeEnabled)}>
               {i18n.t("Guardar preferencias")}
             </button>
           </form>
@@ -428,7 +442,7 @@ export function SettingsPage({
         )}
       </article>
 
-      <article className="panel wide-panel settings-panel">
+      <article className="panel wide-panel settings-panel settings-anchor" id="settings-telegram">
         <div className="settings-heading">
           <span className="settings-heading-icon">
             <Send size={19} />
@@ -485,15 +499,7 @@ export function SettingsPage({
                 maxLength={4096}
               />
             </label>
-            <label className="settings-toggle">
-              <input
-                type="checkbox"
-                checked={telegramEnabled}
-                onChange={(event) => setTelegramEnabled(event.target.checked)}
-              />
-              <span aria-hidden="true" />
-              {i18n.t("Habilitado")}
-            </label>
+            <SettingsSwitch label={i18n.t("Habilitado")} checked={telegramEnabled} onChange={setTelegramEnabled} />
             <button
               className="button button-primary"
               disabled={saveTelegram.isPending}
@@ -573,7 +579,7 @@ export function SettingsPage({
       )}
 
       {role === "ADMIN" && (
-        <article className="panel wide-panel settings-panel">
+        <article className="panel wide-panel settings-panel settings-anchor" id="settings-security">
           <div className="settings-heading">
             <span className="settings-heading-icon">
               <KeyRound size={19} />

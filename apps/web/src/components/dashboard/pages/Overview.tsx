@@ -12,7 +12,7 @@ import type { UseQueryResult } from "@tanstack/react-query";
 import type { z } from "zod";
 import { Service } from "../Service";
 import { EventList } from "../EventList";
-import { useLiveTrading } from "../../../hooks/useLiveTrading";
+import { liveVenueLabel, useLiveTrading } from "../../../hooks/useLiveTrading";
 
 export function Overview({
   system,
@@ -35,11 +35,10 @@ export function Overview({
     Object.values(system.data.services).every((s) => s.status === "HEALTHY");
   const balances = portfolio.data?.balances ?? [];
   const positions = balances.filter((balance) => balance.purpose === "POSITION");
-  const cashUsd = balances
-    .filter((balance) => balance.purpose === "CASH" && balance.currency === "USD")
-    .reduce((total, balance) => total + Number(balance.amount), 0);
-  const pnlUsd = portfolio.data?.performance.find((item) => item.quote === "USD");
-  const formatUsd = (value: number) =>
+  const cashBalances = balances.filter((balance) => balance.purpose === "CASH");
+  const performance = portfolio.data?.performance ?? [];
+  const cashCurrency = live.data?.cash_currency ?? "USDT";
+  const formatAmount = (value: number) =>
     new Intl.NumberFormat(i18n.resolvedLanguage, {
       maximumFractionDigits: 2,
       minimumFractionDigits: 2,
@@ -50,19 +49,19 @@ export function Overview({
         {[
           [
             i18n.t(environment === "LIVE" ? "Efectivo real" : "Efectivo PAPER"),
-            environment === "LIVE" ? `${live.data?.balances.find(row => row.asset === "USD")?.amount ?? "—"} USD` : portfolio.data ? `${formatUsd(cashUsd)} USD` : "—",
-            environment === "LIVE" ? i18n.t("Saldo reconciliado con Kraken") : portfolio.data
+            environment === "LIVE" ? `${live.data?.balances.find(row => row.asset === cashCurrency)?.amount ?? "—"} ${cashCurrency}` : portfolio.data ? cashBalances.length ? cashBalances.map(balance => `${formatAmount(Number(balance.amount))} ${balance.currency}`).join(" · ") : "—" : "—",
+            environment === "LIVE" ? i18n.t("Saldo reconciliado con {{venue}}", { venue: liveVenueLabel(live.data?.venue) }) : portfolio.data
               ? i18n.t("Saldo de simulación disponible")
               : i18n.t("Cargando saldo de simulación"),
           ],
           [
             i18n.t(environment === "LIVE" ? "Valor de la cuenta real" : "Resultado realizado"),
-            environment === "LIVE" ? `${live.data?.equity_usd ?? "—"} USD` : pnlUsd ? `${formatUsd(Number(pnlUsd.realized_pnl))} USD` : "—",
-            environment === "LIVE" ? live.data?.as_of ?? i18n.t("Sin valoración verificada") : pnlUsd ? i18n.t("Calculado con lotes FIFO") : i18n.t("Sin cierres registrados"),
+            environment === "LIVE" ? `${live.data?.equity_usd ?? "—"} ${cashCurrency}` : performance.length ? performance.map(item => `${formatAmount(Number(item.realized_pnl))} ${item.quote}`).join(" · ") : "—",
+            environment === "LIVE" ? live.data?.as_of ?? i18n.t("Sin valoración verificada") : performance.length ? i18n.t("Calculado con lotes FIFO") : i18n.t("Sin cierres registrados"),
           ],
           [
             i18n.t("Posiciones abiertas"),
-            environment === "LIVE" ? String(live.data?.balances.filter(row => row.asset !== "USD" && Number(row.amount) > 0).length ?? 0) : portfolio.data ? String(positions.length) : "—",
+            environment === "LIVE" ? String(live.data?.balances.filter(row => row.asset !== cashCurrency && Number(row.amount) > 0).length ?? 0) : portfolio.data ? String(positions.length) : "—",
             environment === "LIVE" ? i18n.t("Posiciones reales reconciliadas") : portfolio.data ? i18n.t("Posiciones registradas en PAPER") : i18n.t("Cargando actividad"),
           ],
           [
@@ -174,13 +173,16 @@ export function Overview({
         <article className="next-step">
           <span className="eyebrow">{i18n.t("EL SIGUIENTE PASO")}</span>
           <FaFlask size={24} />
-          <h2>{i18n.t("Observar antes de actuar.")}</h2>
+          <h2>{i18n.t("Revisa antes de operar.")}</h2>
           <p>
             {i18n.t(
-              "La siguiente fase incorpora mercados, datos validados y un explorador de oportunidades.",
+              "Comprueba tu conexión, el entorno y los límites de tu cuenta. Conectar Binance no activa operaciones reales.",
             )}
           </p>
-          <span>{i18n.t("FASE 02 · DATOS DE MERCADO")}</span>
+          <button className="text-button" onClick={() => navigate("portfolio")}>
+            {i18n.t("Revisar mi cuenta")}
+            <FaArrowUpRightFromSquare size={14} />
+          </button>
         </article>
       </section>
     </>

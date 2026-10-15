@@ -304,6 +304,7 @@ async def _portfolio_reply(
     language: Language,
 ) -> str:
     from wallybot.infrastructure.live_models import LiveControlRow
+    from wallybot.infrastructure.models import ProviderConnectionRow
 
     async with sessions() as db:
         live = await db.get(LiveControlRow, 1)
@@ -312,8 +313,11 @@ async def _portfolio_reply(
                 "live:" + live.connection_id, "LIVE"
             )
             if snapshot is not None:
+                connection = await db.get(ProviderConnectionRow, live.connection_id)
+                venue = connection.provider.title() if connection is not None else "Unknown"
+                currency = "USDT" if venue == "Binance" else "USD"
                 return (
-                    f"LIVE · Kraken spot · {live.state}\nEquity: {snapshot.equity} USD "
+                    f"LIVE · {venue} spot · {live.state}\nEquity: {snapshot.equity} {currency} "
                     f"({snapshot.recorded_at.isoformat()})\n{live.reason}\n"
                     + (
                         "Initial holdings have unknown historical cost. No withdrawal capability."

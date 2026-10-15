@@ -14,6 +14,8 @@ from urllib.parse import urlencode
 
 import httpx
 
+from wallybot.exchanges.private_errors import ExchangePrivateError
+
 READ_METHODS = frozenset(
     {
         "GetApiKeyInfo",
@@ -32,7 +34,7 @@ REQUIRED_PERMISSIONS = frozenset(
 ALLOWED_PERMISSIONS = REQUIRED_PERMISSIONS | {"query-ledger"}
 
 
-class KrakenPrivateError(Exception):
+class KrakenPrivateError(ExchangePrivateError):
     """Sanitized provider failure; raw response may contain account or key information."""
 
 

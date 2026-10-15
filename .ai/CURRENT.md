@@ -1,3 +1,175 @@
+## Settings controls and analyst status UX — 2026-10-14
+
+User requested usable Settings switches/buttons/layouts and clarification of analyst selection.
+Current operator-owned production account is LIVE/READY (user activated in browser), limits
+unchanged, zero orders/fills at verification. Codex and Claude enabled with strict consensus;
+no automatic fallback or policy weakening. Antigravity is not integrated. Fresh explicit local
+readiness script: Codex READY, Claude UNAVAILABLE. No claim about the underlying Claude cause.
+Native AI worker was absent; started via existing hidden-window launcher, new status rows recorded.
+
+Added native accessible SettingsSwitch with role=switch, 44x28 nonshrinking visual track,
+keyboard/focus/disabled states. Replaced all four analyst/Telegram toggles. Settings has jump
+navigation for trading/analysts/Telegram/security, fieldsets for allocations and analyst selection,
+responsive layouts and a primary save action with invalid-consensus/no-analyst disable guards.
+Availability cards label checks older than 15min (or future >1min) as out of date rather than
+currently available. Removed unsupported claim that a failed CLI must be signed out/uninstalled;
+help names process/install/session/provider limits. Refresh reads records only, never invokes CLI.
+30s polling and scalar effect dependencies preserve unsaved selection during timestamp refresh.
+Saved policy summary distinguishes strict consensus from optional single valid response; conflicting
+responses still block. English translations completed. No backend/API/schema or order logic changed.
+
+Verification: 21 intercepted browser tests passed (41.4s), including explicit switch keyboard/save,
+no mutation on status refresh, preserved draft, all 11 routes at desktop/tablet/mobile and screenshots
+in both appearances; TypeScript and scoped ESLint passed; production web image built. Deployment
+completed: eight services healthy, readiness 200. Authenticated in-app browser reloaded and
+verified four role=switch controls, English copy, current analyst check dates, and strict saved
+consensus. Graphify refreshed: 4860 nodes,13967 edges. No login credentials inspected,
+manual Telegram dispatch or financial transaction. Existing unrelated dirty work preserved.
+
+## Workspace layout refresh and Binance connection verified — 2026-10-14
+
+User added Binance credentials and requested an Apple-inspired refresh across all layouts.
+Read-only production query confirms BINANCE / TRADE_ONLY / HEALTHY; OBSERVE / RUNNING,
+Codex available, Claude unavailable, no live_control row. No credential contents inspected,
+no LIVE activation, settings change or real order. Strict consensus still needs Claude readiness.
+
+Shared workspace.css now owns layout refinements across eleven sections: system font instead of
+Poppins font downloads, consistent navigation, responsive gutters/cards/forms/tables, visible LIVE
+badge, desktop/tablet/mobile behavior, focus and reduced-motion support. Documentation moved to
+end of navigation. Connection checkbox and mobile menu icon sizes corrected after visual review.
+Overview's stale FASE 02 roadmap replaced with an account-review action; English translations added.
+
+Evidence: full intercepted browser suite 20 passed (46.1s); after final control-size correction,
+2 affected tests passed (26.0s), including 11 routes at 1440/1024/390 and dark/light screenshots.
+TypeScript and scoped ESLint passed. Production web image built successfully and deployed;
+gateway restarted. Eight services healthy, readiness 200. Playwright MCP inspected deployed web
+with synthetic intercepted API responses (not real login): shared stylesheet loaded, system font,
+no horizontal overflow at 375px, menu icon and checkbox each 18px. No authenticated LIVE acceptance.
+Graphify refreshed (4857 nodes,13962 edges); historical community labels remain stale.
+Preserved all existing unrelated dirty changes. Gross benchmark/net account comparison limits
+from the previous handoff remain. Next operator step: resolve Claude, then explicitly configure
+LIVE and limits with fresh MFA only when desired; connection alone never activates trading.
+
+## Gross market references implemented and deployed — 2026-10-14
+
+User resumed adaptation; completed the missing informational benchmark portion of Telegram
+reports. Supersedes the previous blanket "benchmarks unavailable" note: actual account net
+performance/outperformance comparison remains separate, and is not claimed implemented.
+
+New domain benchmarks and bounded public-data collector provide BTC, ETH, nominal zero-interest
+cash and hypothetical BTC/ETH 50/50 buy-and-hold references. Exact hourly closes, same venue and
+quote, explicit dates; Decimal only. Missing/duplicate/wrong-source/quote/future evidence or
+arithmetic overflow withholds the asset and dependent passive mix. Never zero-fill a missing
+asset. At UTC rollover, use the previous completed day/week when no new-period hour has closed.
+Two public requests per window, 5s timeout each, max 8 days/194 requested rows. No private API.
+
+API injects public Binance/Kraken providers into the daily/weekly report loop. Reports label
+references gross and exclude fees/slippage/interest/FX; there is no account ranking or mandate
+change. Formatter suppresses currency, venue or future-date mismatches. Fixed literal backslash-n
+formatting introduced in the earlier report rewrite; reports now contain actual line breaks.
+ADR-020 records method and limitations; product mandate updated. No frontend or schema changes.
+
+Evidence: final focused run 69 passed (54.19s), real disposable PostgreSQL/Redis; Pyright 0 errors;
+Ruff and git diff whitespace clean. Public Binance preflight returned all 4 references available.
+Final API image rebuilt and API/gateway restarted; eight services healthy, readiness 200.
+Deployed read-only preview (no dispatch) verified 4 available values, gross-reference text and
+real line breaks against current public Binance data. Production OBSERVE/RUNNING, 0 orders/fills.
+No manual Telegram message, LIVE activation, credential inspection or funded trade.
+Graphify AST refreshed: 4856 nodes; historical community labels still need future refresh.
+
+Remaining: net account performance adjusted for external flows with aligned valuation dates and
+cost assumptions; funded Binance acceptance through the operator's own MFA approval flow. UI
+benchmark charts were not added in this report-focused change. Preserve all pre-existing dirty
+changes and unrelated work. Existing report markers/cadence unchanged; historical Telegram
+messages are not edited. New scheduled reports use the references when evidence is available.
+
+## Telegram report accuracy fixes — 2026-10-14
+
+User reported Telegram still mentioning "Fase 5". Found exact live-facing text in
+wallybot/domain/telegram_report.py. Removed internal roadmap labels while retaining explicit
+benchmark unavailability; benchmark computation was not implemented or fabricated.
+
+Fixed real report behavior: API passes operator context and Spanish language; report job resolves
+current OBSERVE/PAPER/LIVE and owner-bound real account instead of always reading PAPER. LIVE
+uses connection venue/currency, fee queries filter environment and currency, and reports show
+valuation timestamp. Value change is not labelled investment return. Missing reconciliation is
+not "healthy": real verification requires READY and fresh valuation; stale/blocked evidence
+warns. API liveness comes from this successful read, and enabled native AI heartbeat is included.
+Reports remain read-only; configured cadence/delivery markers and approval controls unchanged.
+
+Verified: 50 focused unit/integration tests passed (29.23s), real disposable PostgreSQL/Redis,
+including commands, LIVE Binance fees/report identity, OBSERVE mode and foreign-owner isolation.
+Scoped Pyright 0 errors; Ruff and git diff whitespace clean. No frontend changes and no new
+schema migration. Graphify AST updated (4816 nodes; community labels need future refresh).
+API image rebuilt and API/gateway updated. Production remains OBSERVE/RUNNING with 0 orders/fills.
+No manual Telegram test message or real trade was sent. Older messages in Telegram remain
+historical; new scheduled reports use the corrected text. Passive benchmark comparison and
+funded Binance acceptance remain open capabilities, not claimed complete.
+
+## Binance migration completed and deployed — 2026-10-12
+
+Supersedes the Docker-blocked adaptation note below. User explicitly resumed the Binance
+migration. Preserved the pre-existing dirty integration and unrelated work. Binance is the
+default public exchange for the scanner, ingestion, backtests, OBSERVE/PAPER analysts, simulated
+funding and PAPER execution; spot LIVE is BTC/USDT and ETH/USDT only, activated by the operator.
+
+Further fixes: price/reliability job now actually queries Binance USDT pairs and never merges
+USD/USDT; Dashboard/System identify Binance, Overview displays each cash/P&L currency separately
+and excludes USDT from LIVE positions; analyst prompt labels cash in the instrument quote.
+Connections/Docs/LIVE guidance focuses on Binance, with proper read-only guidance for other
+sources. Native field names ending in _usd are retained compatibility names in account units.
+Public instrument reads reject other venues and mismatched/halted rules. Private reconciliation
+checks exact approved price and IOC terms, symbol, duplicate trade IDs, execution quantity and
+quote total. Binance fill IDs are deterministic account/symbol/native-ID scoped UUIDs, fitting
+ledger keys and avoiding collisions between accounts/markets.
+
+Evidence: final full backend 1046 passed (201.46s), real disposable PostgreSQL/Redis; production
+browser suite 21 passed (1.1m); final mocked UI suite 19 passed (41.3s). Scoped Pyright zero errors;
+frontend tsc/ESLint, Ruff and diff whitespace clean. Real public Binance discovered 23 scanner
+instruments and 29 closed hourly candles for BTC/USDT and ETH/USDT in a 30-hour lookback.
+Tests exercise Binance LIVE fee accounting, lost-response recovery, cross-venue blocking, unsafe
+permissions/balances, and PAPER approval/funding in USDT without private submission.
+
+Encrypted backup created and isolated restore verified before migration. Docker Desktop was
+started; a parallel rebuild crashed it, so it was recovered and production app services paused
+while repeating tests. All final images rebuilt sequentially; migration 0046 applied; eight
+Compose services healthy; readiness HTTP 200. Native analyst restarted and heartbeat verified;
+first deployed tick evaluated 2 instruments, no proposal (HOLD/disagreement is valid).
+Production stayed OBSERVE/RUNNING: zero configured LIVE accounts, zero orders and zero fills.
+No exchange credential read or requested in chat, no LIVE activation and no real trade performed.
+Graphify AST refreshed (4804 nodes); historical community labels need future refresh.
+
+Remaining operator acceptance: link a dedicated Binance key through Connections with fresh MFA,
+verify actual permissions/balances/fees, explicitly configure LIVE limits and approve a funded
+spot order only if desired. No funded-venue acceptance claim. Existing USD PAPER funds are
+never relabelled or converted to USDT; preserve their ledger history. Legacy Kraken adapters and
+historical records remain for compatibility, not the default Binance workflows.
+
+## Binance default venue adaptation — 2026-10-12
+
+User selected Binance instead of Kraken. Continued the pre-existing dirty Binance integration;
+no unrelated changes discarded. Binance now supplies default market overview (curated USDT
+pairs), ingestion, price source, backtests, native AI analysis in OBSERVE/PAPER, and PAPER
+execution pricing. New simulated funding uses USDT; proposal equity uses the proposal quote
+currency; deterministic runtime supplies USDT explicitly. Historical Kraken records keep their
+venue/currency and marks route per venue. Connections default to Binance; backtests BTC/USDT;
+funding and LIVE limit labels reflect USDT; Telegram LIVE summary resolves account venue/currency.
+ADR-019 and the real spot runbook describe Binance as default.
+
+Evidence: 689 unit/contract/property tests passed (11.66s), including 42 Binance adapter tests;
+18 mocked browser tests passed (51.2s); final activation/Binance browser rerun 2 passed (8.4s).
+Backend Pyright zero errors; frontend tsc and focused ESLint clean; Ruff and diff whitespace clean.
+Public Binance BTC/USDT and ETH/USDT discovery and valid bid/ask quotes verified without keys.
+Graphify AST update succeeded (4776 nodes); community labels need refresh after topology change.
+
+NOT deployed: Docker daemon unavailable (named pipe); real PostgreSQL/Redis integration failed
+at container setup, and full suite was interrupted after repeated setup errors. Migration 0046
+is pending deployment. No private credentials read, no real account linked, no LIVE activated,
+no order placed. Next: restore Docker access, run full backend and production browser suites,
+apply 0046 and rebuild services plus restart native worker; verify OBSERVE and heartbeat.
+Existing PAPER USD balances are not converted/relabelled into USDT; they cannot finance USDT
+orders. Preserve their ledger history and resolve any funded legacy account explicitly.
+
 ## Verified operator-readiness fixes — 2026-10-12 (second pass)
 
 Supersedes the "Claude is not logged in" note below. No real account configured, no real or

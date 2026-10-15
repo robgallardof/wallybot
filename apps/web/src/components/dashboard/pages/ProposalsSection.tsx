@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useEffect, useRef, useState } from "react";
 import type { useProposalsData } from "../../../hooks/useProposalsData";
-import { useLiveTrading } from "../../../hooks/useLiveTrading";
+import { liveVenueLabel, useLiveTrading } from "../../../hooks/useLiveTrading";
 
 export function ProposalsSection({
   proposals,
@@ -54,7 +54,8 @@ export function ProposalsSection({
           <p>
             {isLive
               ? t(
-                  "LIVE: al aprobar, se podrá enviar una orden con dinero real a tu cuenta Kraken, después de verificar saldos, precios, límites y riesgo.",
+                  "LIVE: al aprobar, se podrá enviar una orden con dinero real a tu cuenta {{venue}}, después de verificar saldos, precios, límites y riesgo.",
+                  { venue: liveVenueLabel(live.data?.venue) },
                 )
               : t(
                   "La IA explica una idea; no compra por sí sola. Al aprobarla con PAPER activo, WallyBot revalida datos y riesgo antes de crear una orden simulada. En OBSERVE solo se registra tu decisión.",
@@ -64,8 +65,8 @@ export function ProposalsSection({
             <p>
               <strong>
                 {t("Máximo por operación")}: {live.data?.max_order_usd ?? "—"}{" "}
-                USD · {t("Pérdida diaria máxima")}:{" "}
-                {live.data?.max_daily_loss_usd ?? "—"} USD
+                {live.data?.cash_currency ?? "USD"} · {t("Pérdida diaria máxima")}:{" "}
+                {live.data?.max_daily_loss_usd ?? "—"} {live.data?.cash_currency ?? "USD"}
               </strong>
             </p>
           )}

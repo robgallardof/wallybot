@@ -10,17 +10,16 @@ importing `wallybot.notifications.telegram`: domain code depends on nothing outw
 (ARCHITECTURE.md's Ports & Adapters), so `ReportSeverity` mirrors `NotificationSeverity`'s values
 instead of importing it, and the application layer converts one to the other.
 
-"Benchmarks" (BTC/ETH/cash passive comparison) is explicitly **not** implemented anywhere in this
-codebase yet -- that is PENDING.md Fase 5's still-unchecked "Comparar BTC, ETH, efectivo y
-portafolio pasivo." This module states that plainly in the report body rather than fabricating a
-number; never remove that line without actually implementing the comparison first.
+Unavailable comparisons are stated without invented values or internal roadmap labels.
 """
 
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
+from typing import Literal
 
+from wallybot.domain.benchmarks import MarketBenchmarks
 from wallybot.domain.breaker import Breaker, BreakerType
 
 
@@ -80,6 +79,12 @@ class ReportInputs:
     total_fees: Decimal
     active_breakers: tuple[Breaker, ...]
     heartbeats: tuple[ServiceHeartbeat, ...]
+    currency: str = "USD"
+    venue: str | None = None
+    language: Literal["en", "es"] = "en"
+    reconciliation_state: str | None = None
+    equity_as_of: datetime | None = None
+    benchmarks: MarketBenchmarks | None = None
 
 
 @dataclass(frozen=True)
@@ -93,69 +98,161 @@ _PERIOD_LABEL = {ReportPeriod.DAILY: "Daily", ReportPeriod.WEEKLY: "Weekly"}
 
 
 def build_report_content(inputs: ReportInputs) -> ReportContent:
-    """Turn `inputs` into the report's title/body/severity. Pure function of its argument."""
+    """Build an account-unit report without treating missing evidence as verified health."""
+    spanish = inputs.language == "es"
+
+    def label(en: str, es: str) -> str:
+        return es if spanish else en
+
     lines = [
-        f"Window: {inputs.period_start.isoformat()} to {inputs.now.isoformat()} "
-        f"({inputs.environment})",
-        "",
-        "Equity/PnL:",
+        label("Window", "Periodo")
+        + f": {inputs.period_start.isoformat()} → {inputs.now.isoformat()}",
+        label("Mode", "Modo") + f": {inputs.environment}",
+        label("Currency", "Moneda") + f": {inputs.currency}",
     ]
+    if inputs.venue is not None:
+        lines.append(label("Exchange", "Exchange") + f": {inputs.venue.title()}")
+    lines += ["", label("Account value:", "Valor de la cuenta:")]
     if inputs.equity.starting_equity is None or inputs.equity.current_equity is None:
-        lines.append("  No equity snapshot recorded for this period yet.")
+        lines.append(
+            label(
+                "  No equity snapshot recorded for this period yet.",
+                "  No hay una valoración registrada para este periodo.",
+            )
+        )
     else:
         pct = inputs.equity.return_pct
-        pct_suffix = f" ({pct:+.2f}%)" if pct is not None else ""
+        suffix = f" ({pct:+.2f}%)" if pct is not None else ""
         lines.append(
-            f"  Start {inputs.equity.starting_equity} -> "
-            f"Current {inputs.equity.current_equity}{pct_suffix}"
+            label("  Start", "  Inicial")
+            + f" {inputs.equity.starting_equity} → "
+            + label("Current", "Actual")
+            + f" {inputs.equity.current_equity} {inputs.currency}{suffix}"
         )
-
-    lines += ["", f"Costs: {inputs.total_fees} in fees this period."]
-
-    lines += ["", "Risk:"]
-    if inputs.active_breakers:
-        for breaker in inputs.active_breakers:
-            lines.append(f"  {breaker.breaker_type.value}: {breaker.reason}")
+        lines.append(
+            label(
+                "  Value change; not a cash-flow-adjusted investment return.",
+                "  Variación de valor; no es rentabilidad ajustada por movimientos de fondos.",
+            )
+        )
+    if inputs.equity_as_of is not None:
+        lines.append(
+            label("  Last valuation", "  Última valoración")
+            + f": {inputs.equity_as_of.isoformat()}"
+        )
+    lines += [
+        "",
+        label("Costs", "Costes")
+        + f": {inputs.total_fees} {inputs.currency} "
+        + label("in fees this period.", "en comisiones del periodo."),
+    ]
+    lines += ["", label("Risk:", "Riesgo:")]
+    for breaker in inputs.active_breakers:
+        lines.append(f"  {breaker.breaker_type.value}: {breaker.reason}")
+    if not inputs.active_breakers:
+        lines.append(label("  No active breakers.", "  Sin bloqueos de riesgo activos."))
+    reconciliation = next(
+        (b for b in inputs.active_breakers if b.breaker_type is BreakerType.RECONCILIATION), None
+    )
+    if reconciliation is not None:
+        state = f"DEGRADED -- {reconciliation.reason}"
     else:
-        lines.append("  No active breakers.")
-    reconciliation_breaker = next(
-        (b for b in inputs.active_breakers if b.breaker_type is BreakerType.RECONCILIATION),
-        None,
-    )
-    lines.append(
-        "  Reconciliation: "
-        + (
-            f"DEGRADED -- {reconciliation_breaker.reason}"
-            if reconciliation_breaker is not None
-            else "healthy"
+        states = {
+            "READY": label("verified", "verificada"),
+            "BLOCKED": label("blocked", "bloqueada"),
+            "STALE": label("stale; verification required", "desactualizada; requiere verificación"),
+        }
+        state = states.get(inputs.reconciliation_state or "") or label(
+            "not verified; no exchange reconciliation evidence",
+            "no verificada; sin evidencia de conciliación del exchange",
         )
-    )
-
-    lines += ["", "Service health:"]
+    lines.append(label("  Reconciliation: ", "  Conciliación: ") + state)
+    lines += ["", label("Service health:", "Servicios:")]
     stale_services = []
     for heartbeat in inputs.heartbeats:
-        status = "STALE" if heartbeat.stale else "HEALTHY"
+        status = label("STALE", "DESACTUALIZADO") if heartbeat.stale else label("HEALTHY", "ACTIVO")
         age = (
-            "no heartbeat received"
+            label("no heartbeat received", "sin señal de actividad")
             if heartbeat.age_seconds is None
-            else f"{heartbeat.age_seconds}s ago"
+            else f"{heartbeat.age_seconds}s"
         )
         lines.append(f"  {heartbeat.service}: {status} ({age})")
         if heartbeat.stale:
             stale_services.append(heartbeat.service)
-
-    lines += [
-        "",
-        "Benchmarks: not available -- BTC/ETH/cash passive comparison is not implemented yet "
-        "(PENDING.md Fase 5).",
-    ]
-
-    if reconciliation_breaker is not None:
+    benchmarks = inputs.benchmarks
+    if (
+        benchmarks is None
+        or benchmarks.currency != inputs.currency
+        or benchmarks.end > inputs.now
+        or (inputs.venue is not None and benchmarks.venue != inputs.venue)
+    ):
+        lines += [
+            "",
+            label(
+                "Benchmarks: not available for BTC/ETH/cash; "
+                "matching closed-price evidence is missing.",
+                "Referencias BTC/ETH/efectivo: no disponibles; faltan cierres comparables.",
+            ),
+        ]
+    else:
+        lines += [
+            "",
+            label("Gross market references", "Referencias de mercado brutas")
+            + f" ({benchmarks.venue.title()}, {benchmarks.currency}):",
+            f"  {benchmarks.start.isoformat()} → {benchmarks.end.isoformat()}",
+        ]
+        names = {
+            "BTC": "BTC",
+            "ETH": "ETH",
+            "CASH": label("Cash (no interest)", "Efectivo (sin intereses)"),
+            "BTC_ETH_50_50": label(
+                "BTC/ETH 50/50 (buy and hold)", "BTC/ETH 50/50 (sin rebalanceo)"
+            ),
+        }
+        for item in benchmarks.returns:
+            value = (
+                f"{item.return_pct:+.2f}%"
+                if item.return_pct is not None
+                else label(
+                    "unavailable; missing or invalid closes",
+                    "no disponible; faltan cierres válidos",
+                )
+            )
+            lines.append(f"  {names[item.name]}: {value}")
+        lines.append(
+            label(
+                "  Same hourly closes; no fees, slippage, interest or currency conversion. "
+                "These references are not net account returns or a performance ranking.",
+                "  Mismos cierres horarios; sin comisiones, deslizamiento, "
+                "intereses ni conversión. "
+                "Son referencias, no rentabilidad neta de la cuenta "
+                "ni una clasificación de resultados.",
+            )
+        )
+    lines.append(
+        label(
+            "Review details and proposals in WallyBot. "
+            "Each real order requires your approval with MFA.",
+            "Revisa el detalle y las propuestas en WallyBot. "
+            "Cada orden real requiere tu aprobación con MFA.",
+        )
+    )
+    if reconciliation is not None:
         severity = ReportSeverity.CRITICAL
-    elif inputs.active_breakers or stale_services:
+    elif (
+        inputs.active_breakers
+        or stale_services
+        or inputs.reconciliation_state in {"BLOCKED", "STALE"}
+    ):
         severity = ReportSeverity.WARNING
     else:
         severity = ReportSeverity.INFO
-
-    title = f"{_PERIOD_LABEL[inputs.period]} report -- {inputs.now.date().isoformat()}"
+    period = (
+        ("diario" if inputs.period is ReportPeriod.DAILY else "semanal")
+        if spanish
+        else _PERIOD_LABEL[inputs.period]
+    )
+    title = (
+        f"Informe {period}" if spanish else f"{period} report"
+    ) + f" -- {inputs.now.date().isoformat()}"
     return ReportContent(severity=severity, title=title, body="\n".join(lines))

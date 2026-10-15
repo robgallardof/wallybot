@@ -162,6 +162,8 @@ def test_a_paper_approval_revalidates_and_fills_on_the_ai_account(client, settin
         (INSTRUMENT.venue,),
     )
     db.execute("UPDATE control SET environment = 'PAPER'")
+    # This existing fixture deliberately models a historical USD instrument.
+    client.app.state.paper_cash_currency = "USD"
     funded = client.post(
         "/api/portfolio/ai/fund", json={"amount": "100000"}, headers={"X-CSRF-Token": csrf}
     )

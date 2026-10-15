@@ -42,7 +42,7 @@ def test_ai_fund_credits_the_ai_account_only(client, settings) -> None:
     )
     assert funded.status_code == 201
     balances = funded.json()["balances"]
-    assert any(b["currency"] == "USD" and b["amount"] == "5000" for b in balances)
+    assert any(b["currency"] == "USDT" and b["amount"] == "5000" for b in balances)
 
     ai_view = client.get("/api/portfolio/ai").json()
     assert any(b["amount"] == "5000" for b in ai_view["balances"])

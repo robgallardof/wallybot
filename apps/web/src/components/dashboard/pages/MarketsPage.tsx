@@ -96,7 +96,7 @@ export function MarketsPage({
       </div>
       <p className="muted">
         {i18n.t(
-          "Datos públicos de Kraken. Sin claves de trading. Los fallos del proveedor se muestran como fallo, nunca como cotización válida.",
+          "Datos públicos de Binance. Sin claves de trading. Los fallos del proveedor se muestran como fallo, nunca como cotización válida.",
         )}
       </p>
       <p className="footnote">

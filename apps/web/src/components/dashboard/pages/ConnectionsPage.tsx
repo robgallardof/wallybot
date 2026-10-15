@@ -13,10 +13,11 @@ const PROVIDERS = [
   "WALLET",
   "TIINGO",
 ] as const;
+// Real spot trading is supported only through these reviewed exchange adapters.
+const TRADING_PROVIDERS = new Set<string>(["KRAKEN", "BINANCE"]);
 
 /**
- * Lets the operator store their own broker/exchange/wallet credentials, read-only or PAPER only
- * -- TRADE_ONLY/LIVE are not offered here (a separate, reviewed capability). Credentials are
+ * Lets the operator store query credentials or a verified spot trading connection. Credentials are
  * sent once and never redisplayed; the form always starts blank, and the table only shows
  * whether a connection already has credentials stored (`has_credentials`), never the values.
  */
@@ -39,7 +40,7 @@ export function ConnectionsPage({
 }) {
   useTranslation();
   const [provider, setProvider] =
-    useState<(typeof PROVIDERS)[number]>("KRAKEN");
+    useState<(typeof PROVIDERS)[number]>("BINANCE");
   const [label, setLabel] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
@@ -54,7 +55,7 @@ export function ConnectionsPage({
       {
         provider,
         label: label.trim(),
-        mode: provider === "KRAKEN" && trading ? "TRADE_ONLY" : "READ_ONLY",
+        mode: TRADING_PROVIDERS.has(provider) && trading ? "TRADE_ONLY" : "READ_ONLY",
         api_key: apiKey.trim() || undefined,
         api_secret: singleCredential
           ? undefined
@@ -83,7 +84,7 @@ export function ConnectionsPage({
       </div>
       <p className="muted">
         {i18n.t(
-          "Conecta tus fuentes o una cuenta Kraken spot con permisos de trading. Las credenciales se cifran y nunca se vuelven a mostrar. Conectar una cuenta no activa operaciones reales.",
+          "Conecta tus fuentes o una cuenta spot de Binance con permisos de trading. Las credenciales se cifran y nunca se vuelven a mostrar. Conectar una cuenta no activa operaciones reales.",
         )}
       </p>
       <section className="connection-setup" aria-labelledby="new-connection-title">
@@ -92,7 +93,21 @@ export function ConnectionsPage({
             <span className="eyebrow">{i18n.t("NUEVA CONEXIÓN")}</span>
             <h3 id="new-connection-title">{i18n.t("Elegí un proveedor")}</h3>
           </div>
-          <p>{isWallet ? i18n.t("Solo se guarda una dirección pública; nunca una clave privada.") : i18n.t("Para Kraken spot: consulta de fondos, órdenes abiertas/cerradas, crear y cancelar órdenes. Sin permisos de depósito, retiro ni transferencia.")}</p>
+          <p>
+            {isWallet
+              ? i18n.t("Solo se guarda una dirección pública; nunca una clave privada.")
+              : provider === "BINANCE"
+                ? i18n.t(
+                    "Para Binance spot: activa solo «Enable Reading» y «Enable Spot & Margin Trading», restringe la clave a la IP pública de esta PC y deja desactivados retiros, transferencias, margen y futuros. No pagues comisiones con BNB.",
+                  )
+                : provider === "KRAKEN"
+                  ? i18n.t(
+                      "Para Kraken spot: consulta de fondos, órdenes abiertas/cerradas, crear y cancelar órdenes. Sin permisos de depósito, retiro ni transferencia.",
+                    )
+                  : i18n.t(
+                      "Para otras fuentes, agrega únicamente credenciales de consulta. Vincular una fuente no habilita operaciones.",
+                    )}
+          </p>
         </div>
         <form className="connection-form" onSubmit={submit}>
           <label>
@@ -108,7 +123,7 @@ export function ConnectionsPage({
               ))}
             </select>
           </label>
-          {provider === "KRAKEN" && (
+          {TRADING_PROVIDERS.has(provider) && (
             <label>
               <input type="checkbox" checked={trading} onChange={(event) => setTrading(event.target.checked)} />
               {i18n.t("Conectar cuenta para trading spot real")}

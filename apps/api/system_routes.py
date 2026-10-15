@@ -23,7 +23,13 @@ from wallybot.application.notification_dispatch import dispatch_telegram_notific
 from wallybot.domain.control import Control, Environment, Role, Status
 from wallybot.infrastructure.live_models import LiveControlRow
 from wallybot.infrastructure.metrics import SERVICE_HEARTBEAT_AGE
-from wallybot.infrastructure.models import AiAutonomyControlRow, ControlRow, EventRow, HeartbeatRow
+from wallybot.infrastructure.models import (
+    AiAutonomyControlRow,
+    ControlRow,
+    EventRow,
+    HeartbeatRow,
+    ProviderConnectionRow,
+)
 from wallybot.infrastructure.telegram_config_repository import TelegramConfigRepository
 from wallybot.notifications.telegram import Notification, NotificationSeverity
 from wallybot.security.auth import AuthError, audit
@@ -47,11 +53,15 @@ async def dashboard(request: Request, user: SignedIn) -> DashboardView:
             and state.environment == "LIVE"
             and state.status == "RUNNING"
         )
+        connection = (
+            await db.get(ProviderConnectionRow, live.connection_id) if ready and live else None
+        )
+        venue = connection.provider if connection is not None else "BINANCE"
         return DashboardView(
             environment=Environment(state.environment),
             status=Status(state.status),
             trading_available=ready,
-            exchange="KRAKEN_SPOT_REAL" if ready else "KRAKEN_PUBLIC_DATA",
+            exchange=f"{venue}_SPOT_REAL" if ready else "BINANCE_PUBLIC_DATA",
             equity=None,
             positions=[],
             phase=1,
@@ -94,7 +104,7 @@ async def system(request: Request, user: SignedIn) -> SystemView:
         database="HEALTHY",
         redis=redis_status,
         services=services,
-        exchange="KRAKEN_PUBLIC_DATA",
+        exchange="BINANCE_PUBLIC_DATA",
         ai=(
             "DISABLED"
             if not ai_autonomy or ai_autonomy.status != "ENABLED"

@@ -50,10 +50,14 @@ from wallybot.data.historical_query import DEFAULT_QUERY_LIMITS
 from wallybot.data.quality import QualityPolicy
 from wallybot.domain.breaker import BreakerType
 from wallybot.domain.control import Environment, Status
+from wallybot.domain.market import MarketDataProvider
 from wallybot.domain.notification_throttle import NotificationThrottle
 from wallybot.domain.provider_reliability import ProviderCallOutcome
+from wallybot.exchanges.binance import BinanceExchange
+from wallybot.exchanges.binance_private import SignedBinanceTransport
 from wallybot.exchanges.fake import FakeExchange
 from wallybot.exchanges.kraken import KrakenExchange
+from wallybot.exchanges.venue_routing import VenueRoutedMarketData
 from wallybot.infrastructure.database import database
 from wallybot.infrastructure.historical_ingestion_cursor_repository import (
     HistoricalIngestionCursorRepository,
@@ -86,7 +90,7 @@ REQUESTS = Counter("wallybot_http_requests_total", "Requests by status class", [
 
 # `worker`/`scheduler` sit on the `operational` Docker network, which is internal-only (no
 # internet egress) by design -- `api` is the only backend process on `edge`, so the ingestion job
-# that persists Kraken candles to Parquet has to live here, next to the KrakenExchange instance
+# that persists Binance candles to Parquet has to live here, next to the BinanceExchange instance
 # `build_market_overview` already uses. Same timeframe/thresholds as that overview, since this job
 # persists what that endpoint only ever showed ephemerally.
 MARKET_INGESTION_TIMEFRAME = "1h"
@@ -116,7 +120,7 @@ async def _heartbeat_metrics_loop(sessions, logger) -> None:
 
 
 async def _market_ingestion_loop(
-    provider: KrakenExchange,
+    provider: MarketDataProvider,
     store: HistoricalStore,
     clock: SystemClock,
     quality_policy: QualityPolicy,
@@ -156,38 +160,34 @@ async def _market_ingestion_loop(
 # considered stale purely because this loop's own cadence is too slow.
 PRICE_CONSENSUS_INTERVAL_SECONDS = 300
 
-# The Markets page's own KrakenExchange: broader than `provider`'s default (XBTUSD/ETHUSD only,
-# used for ingestion/backtests/price-consensus, deliberately narrow so Parquet storage and API
-# usage stay bounded). Kraken's public AssetPairs endpoint lists ~1450 pairs when queried with no
-# filter -- verified against the real API -- far too many to fetch candles/snapshots for on every
-# page load even with bounded concurrency. This is a curated set of major, liquid USD pairs
-# (symbols verified against Kraken's real `altname` field, not guessed -- Kraken uses its own
-# codes for some assets, e.g. Bitcoin is "XBT" and Dogecoin is "XDG", not "BTC"/"DOGE").
-MARKET_OVERVIEW_PAIRS = (
-    "XBTUSD",
-    "ETHUSD",
-    "SOLUSD",
-    "XRPUSD",
-    "ADAUSD",
-    "XDGUSD",
-    "LTCUSD",
-    "DOTUSD",
-    "LINKUSD",
-    "POLUSD",
-    "AVAXUSD",
-    "BCHUSD",
-    "XLMUSD",
-    "UNIUSD",
-    "ATOMUSD",
-    "ETCUSD",
-    "FILUSD",
-    "NEARUSD",
-    "APTUSD",
-    "ARBUSD",
-    "TRXUSD",
-    "SHIBUSD",
-    "SUIUSD",
-    "OPUSD",
+# Curated liquid Binance USDT markets; ingestion remains bounded to BTC and ETH.
+MARKET_OVERVIEW_PAIRS = tuple(
+    (base, "USDT")
+    for base in (
+        "BTC",
+        "ETH",
+        "SOL",
+        "XRP",
+        "ADA",
+        "DOGE",
+        "LTC",
+        "DOT",
+        "LINK",
+        "AVAX",
+        "BCH",
+        "XLM",
+        "UNI",
+        "ATOM",
+        "ETC",
+        "FIL",
+        "NEAR",
+        "APT",
+        "ARB",
+        "TRX",
+        "SHIB",
+        "SUI",
+        "OP",
+    )
 )
 
 
@@ -218,7 +218,7 @@ async def _price_consensus_loop(
 # Phase 3 Slice 9) had no live caller anywhere -- every downstream piece (allocator, risk engine,
 # execution service, ledger) was real and tested, but nothing ever actually ran the loop in
 # production. Lives in `apps/api` for the same reason as `_market_ingestion_loop`/
-# `_price_consensus_loop`: only this process has internet egress to reach Kraken. The tick itself
+# `_price_consensus_loop`: only this process has internet egress to reach Binance. The tick itself
 # (`run_decision_tick`) lives in `wallybot.application.decision_loop`, same split as
 # `ingest_market_data`/`run_price_consensus_tick`; this wrapper only resolves "which account" from
 # real control/user state each tick. `paper_gateway`/`execution`/`reconciliation` are constructed
@@ -233,7 +233,7 @@ DECISION_INTERVAL_SECONDS = 300
 
 async def _decision_loop(
     sessions,
-    provider: KrakenExchange,
+    provider: MarketDataProvider,
     paper_gateway: FakeExchange,
     execution: ExecutionService,
     reconciliation: ReconciliationService,
@@ -273,6 +273,7 @@ async def _decision_loop(
                 universe_config=universe_config,
                 account_id=paper_account_id(admin_id),
                 now=clock.now(),
+                cash_currency="USDT",
             )
             DECISION_TICK_DURATION.observe(time.monotonic() - tick_started)
             orders_placed = sum(
@@ -361,6 +362,7 @@ async def _telegram_report_loop(
     throttle: NotificationThrottle,
     clock: SystemClock,
     logger,
+    market_providers: dict[str, MarketDataProvider] | None = None,
 ) -> None:
     while True:
         try:
@@ -378,6 +380,9 @@ async def _telegram_report_loop(
                     paper_account_id(admin_id),
                     "PAPER",
                     now,
+                    owner_id=admin_id,
+                    language="es",
+                    market_providers=market_providers,
                 )
                 await run_ai_proposal_digest_tick(
                     sessions, crypto, transport, throttle, admin_id, now
@@ -412,20 +417,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.kraken_private_factory = lambda key, secret: DatabaseKrakenTransport(
             engine, key, secret, telegram_client
         )
+        app.state.binance_private_factory = lambda key, secret: SignedBinanceTransport(
+            key, secret, telegram_client
+        )
         app.state.telegram_transport = HttpxTelegramTransport(telegram_client)
         app.state.notification_throttle = NotificationThrottle()
 
         clock = SystemClock()
-        provider = KrakenExchange(clock=clock)
-        app.state.portfolio_market_provider = provider
+        kraken = KrakenExchange(clock=clock)
+        provider = binance = BinanceExchange(clock=clock)
+        app.state.paper_cash_currency = "USDT"
+        app.state.portfolio_market_provider = VenueRoutedMarketData(
+            {"kraken": kraken, "binance": binance}
+        )
         app.state.live_trading = LiveTradingService(
             engine,
             sessions,
             app.state.auth.crypto,
             app.state.kraken_private_factory,
-            provider,
+            kraken,
             clock,
             capable=lambda: config.live_capable,
+            binance_transport_factory=lambda key, secret: app.state.binance_private_factory(
+                key, secret
+            ),
+            binance_provider=binance,
         )
         quality_policy = QualityPolicy(
             version=1,
@@ -444,7 +460,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         app.state.market_overview = partial(
             build_market_overview,
-            provider=KrakenExchange(clock=clock, pairs=MARKET_OVERVIEW_PAIRS),
+            provider=BinanceExchange(clock=clock, symbols=MARKET_OVERVIEW_PAIRS),
             clock=clock,
             timeframe="1h",
             history_candles=30,
@@ -506,7 +522,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 _price_consensus_loop(
                     sessions,
                     app.state.auth.crypto,
-                    [ProviderSource("kraken", provider)],
+                    [ProviderSource("binance", provider)],
                     clock,
                     logger,
                 )
@@ -568,6 +584,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     app.state.notification_throttle,
                     clock,
                     logger,
+                    market_providers={"binance": binance, "kraken": kraken},
                 )
             )
         )

@@ -20,6 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from wallybot.application.ai_decision_loop import run_ai_decision_tick
 from wallybot.data.quality import QualityPolicy
+from wallybot.domain.market import MarketDataProvider
+from wallybot.exchanges.binance import BinanceExchange
 from wallybot.exchanges.kraken import KrakenExchange
 from wallybot.infrastructure.ai_worker_settings import AiWorkerSettings, load_ai_worker_settings
 from wallybot.infrastructure.live_models import AnalystPortfolioRow
@@ -72,7 +74,11 @@ async def run_ai_worker() -> None:
 
     clock = SystemClock()
     id_generator = UuidIdGenerator()
-    provider = KrakenExchange(clock=clock)
+    # The analyst studies the real account's own exchange; Binance is the default otherwise.
+    provider: dict[str, MarketDataProvider] = {
+        "kraken": KrakenExchange(clock=clock),
+        "binance": BinanceExchange(clock=clock),
+    }
     quality_policy = QualityPolicy(
         version=1,
         timeframe="1h",
@@ -125,7 +131,7 @@ async def run_ai_worker() -> None:
 
 async def _tick(
     sessions: async_sessionmaker[AsyncSession],
-    provider: KrakenExchange,
+    provider: dict[str, MarketDataProvider],
     settings: AiWorkerSettings,
     id_generator: UuidIdGenerator,
     quality_policy: QualityPolicy,
@@ -186,7 +192,7 @@ async def _tick(
     try:
         await _analyze(
             sessions,
-            provider,
+            provider[portfolio.venue if portfolio is not None else "binance"],
             analysts,
             control,
             admin_id,
@@ -229,7 +235,7 @@ async def _report_analyst_status(
 
 async def _analyze(
     sessions: async_sessionmaker[AsyncSession],
-    provider: KrakenExchange,
+    provider: MarketDataProvider,
     analysts: list[CliAiProvider],
     control: AiAutonomyControlRow,
     admin_id: str,

@@ -8,6 +8,7 @@ export function useAiAutonomyData(enabled: boolean) {
     queryKey: ["ai-autonomy-control"],
     enabled,
     queryFn: () => api("/ai-autonomy/control", aiAutonomyControlSchema),
+    refetchInterval: 30_000,
   });
   const change = useMutation({
     mutationFn: (body: {

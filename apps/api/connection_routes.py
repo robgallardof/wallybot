@@ -6,11 +6,7 @@ from fastapi import APIRouter, HTTPException, Request
 from apps.api.dependencies import Admin, SignedIn
 from apps.api.dto import ProviderConnectionListView, ProviderConnectionView
 from apps.api.schemas import ProviderConnectionCreate
-from wallybot.exchanges.kraken_private import (
-    KrakenPrivateError,
-    spot_balances,
-    validate_permissions,
-)
+from wallybot.exchanges.private_errors import ExchangePrivateError
 from wallybot.infrastructure.models import ProviderConnectionRow
 from wallybot.infrastructure.provider_connection_repository import ProviderConnectionRepository
 from wallybot.security.auth import audit
@@ -44,17 +40,24 @@ async def add_connection(
     crypto = request.app.state.auth.crypto
     status = "PENDING"
     if body.mode == "TRADE_ONLY":
-        transport = request.app.state.kraken_private_factory(body.api_key, body.api_secret)
+        factory = (
+            request.app.state.binance_private_factory
+            if body.provider == "BINANCE"
+            else request.app.state.kraken_private_factory
+        )
+        venue = request.app.state.live_trading.venue(body.provider)
+        transport = factory(body.api_key, body.api_secret)
         try:
-            validate_permissions(await transport.call("GetApiKeyInfo", {}))
-            spot_balances(await transport.call("BalanceEx", {}))
-        except KrakenPrivateError as exc:
+            # Verification reads permissions and balances only; it never places an order.
+            await venue.verify_key(transport)
+            await venue.balances(transport)
+        except ExchangePrivateError as exc:
             # Messages are sanitized by construction and tell the operator what to fix.
             raise HTTPException(status_code=409, detail=str(exc)) from None
         except (ValueError, KeyError):
             raise HTTPException(
                 status_code=409,
-                detail="Kraken returned balances in an unexpected format; nothing was saved",
+                detail="The exchange returned balances in an unexpected format; nothing was saved",
             ) from None
         status = "HEALTHY"
     connection = ProviderConnectionRow(

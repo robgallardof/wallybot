@@ -308,7 +308,7 @@ async def fund_portfolio(body: PortfolioFund, request: Request, user: Admin) -> 
     now = datetime.now(UTC)
     transaction = build_initial_funding_transaction(
         account_id=account_id,
-        currency=CASH_CURRENCY,
+        currency=getattr(request.app.state, "paper_cash_currency", CASH_CURRENCY),
         amount=body.amount,
         transaction_id=str(uuid4()),
         now=now,
@@ -330,7 +330,7 @@ async def fund_ai_portfolio(body: PortfolioFund, request: Request, user: Admin) 
     now = datetime.now(UTC)
     transaction = build_initial_funding_transaction(
         account_id=account_id,
-        currency=CASH_CURRENCY,
+        currency=getattr(request.app.state, "paper_cash_currency", CASH_CURRENCY),
         amount=body.amount,
         transaction_id=str(uuid4()),
         now=now,

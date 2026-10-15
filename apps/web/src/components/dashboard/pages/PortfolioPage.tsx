@@ -177,7 +177,7 @@ function AccountFundingForm({
   return (
     <form className="settings-form" onSubmit={submit}>
       <label>
-        {i18n.t("Efectivo inicial (USD)")}
+        {i18n.t("Efectivo inicial (USDT)")}
         <input
           type="number"
           min="0.01"

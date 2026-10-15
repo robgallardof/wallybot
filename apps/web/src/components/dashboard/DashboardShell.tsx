@@ -23,7 +23,6 @@ import { ThemeToggle } from "../ThemeToggle";
 import { Button } from "../ui/button";
 
 const navigation = [
-  ["docs", "Documentación", FaBookOpen],
   ["dashboard", "Resumen", FaGaugeHigh],
   ["portfolio", "Portafolio", FaWallet],
   ["connections", "Conexiones", FaPlug],
@@ -34,20 +33,21 @@ const navigation = [
   ["events", "Actividad", FaTimeline],
   ["system", "Sistema", FaSliders],
   ["settings", "Configuración", FaGear],
+  ["docs", "Documentación", FaBookOpen],
 ] as const;
 
 const PAGE_META: Record<string, { eyebrow: string; description: string }> = {
   dashboard: {
     eyebrow: "PANORAMA",
-    description: "Lo esencial de tu instancia, sin métricas inventadas.",
+    description: "Tu cuenta, tus mercados y el estado del bot en un solo lugar.",
   },
   portfolio: {
     eyebrow: "PORTAFOLIO",
-    description: "Saldos, actividad y resultados de tu cuenta de simulación.",
+    description: "Saldos, actividad y resultados, separados por cuenta y entorno.",
   },
   connections: {
     eyebrow: "CONEXIONES",
-    description: "Proveedores y wallets de consulta, separados de la ejecución.",
+    description: "Conecta Binance y administra tus fuentes de datos.",
   },
   markets: {
     eyebrow: "MERCADOS",
@@ -114,7 +114,7 @@ export function DashboardShell({
   }
 
   return (
-    <div className="app-layout">
+    <div className="app-layout" data-page={page} data-environment={environment ?? "OBSERVE"}>
       <a className="skip-link" href="#main-content">
         {i18n.t("Saltar al contenido")}
       </a>
@@ -254,7 +254,7 @@ export function DashboardShell({
           {children}
           <footer className="page-footer">
             <span>
-              WALLYBOT <span>v0.1 · Foundation</span>
+              WALLYBOT <span>v0.1</span>
             </span>
             <span>
               <FaShieldHalved size={12} />{" "}

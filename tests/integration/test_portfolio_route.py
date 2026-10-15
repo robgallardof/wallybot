@@ -165,7 +165,7 @@ def test_fund_credits_the_signed_in_users_cash_balance(client, settings, db) -> 
 
     assert response.status_code == 201, response.text
     body = response.json()
-    assert body["balances"] == [{"currency": "USD", "purpose": "CASH", "amount": "10000"}]
+    assert body["balances"] == [{"currency": "USDT", "purpose": "CASH", "amount": "10000"}]
 
 
 def test_fund_rejects_a_second_attempt_for_the_same_account(client, settings, db) -> None:
@@ -180,7 +180,7 @@ def test_fund_rejects_a_second_attempt_for_the_same_account(client, settings, db
     assert second.status_code == 409
     # The rejected second attempt never touched the balance already recorded.
     portfolio = client.get("/api/portfolio").json()
-    assert portfolio["balances"] == [{"currency": "USD", "purpose": "CASH", "amount": "10000"}]
+    assert portfolio["balances"] == [{"currency": "USDT", "purpose": "CASH", "amount": "10000"}]
 
 
 def test_fund_rejects_a_non_positive_amount(client, settings, db) -> None:

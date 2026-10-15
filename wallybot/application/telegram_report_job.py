@@ -17,12 +17,16 @@ genuine delivery failure so it is retried is PENDING.md Fase 8's still-unchecked
 de entrega sin alterar verdad financiera" item, not this one.
 """
 
+from dataclasses import replace
 from datetime import datetime, timedelta
+from typing import Literal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from wallybot.application.market_benchmarks import fetch_market_benchmarks
 from wallybot.application.notification_dispatch import dispatch_telegram_notification
+from wallybot.domain.market import MarketDataProvider
 from wallybot.domain.notification_throttle import NotificationThrottle
 from wallybot.domain.telegram_report import (
     EquityWindow,
@@ -34,7 +38,13 @@ from wallybot.domain.telegram_report import (
 )
 from wallybot.infrastructure.breaker_repository import BreakerRepository
 from wallybot.infrastructure.equity_snapshot_repository import EquitySnapshotRepository
-from wallybot.infrastructure.models import HeartbeatRow
+from wallybot.infrastructure.live_models import LiveControlRow
+from wallybot.infrastructure.models import (
+    AiAutonomyControlRow,
+    ControlRow,
+    HeartbeatRow,
+    ProviderConnectionRow,
+)
 from wallybot.infrastructure.portfolio_repository import PortfolioRepository
 from wallybot.infrastructure.telegram_report_repository import TelegramReportRepository
 from wallybot.notifications.telegram import Notification, NotificationSeverity, TelegramTransport
@@ -66,9 +76,7 @@ def _period_key(period: ReportPeriod, now: datetime) -> str:
     return f"{iso.year}-W{iso.week:02d}"
 
 
-def _heartbeat_status(
-    service: str, timestamp: int | None, now: datetime
-) -> ServiceHeartbeat:
+def _heartbeat_status(service: str, timestamp: int | None, now: datetime) -> ServiceHeartbeat:
     if timestamp is None:
         return ServiceHeartbeat(service=service, age_seconds=None, stale=True)
     age = max(0, int(now.timestamp()) - timestamp)
@@ -76,7 +84,15 @@ def _heartbeat_status(
 
 
 async def _build_inputs(
-    db: AsyncSession, period: ReportPeriod, account_id: str, environment: str, now: datetime
+    db: AsyncSession,
+    period: ReportPeriod,
+    account_id: str,
+    environment: str,
+    now: datetime,
+    currency: str = "USD",
+    language: Literal["en", "es"] = "en",
+    venue: str | None = None,
+    live_state: str | None = None,
 ) -> ReportInputs:
     period_start = _period_start(period, now)
     equity_repo = EquitySnapshotRepository(db)
@@ -84,14 +100,18 @@ async def _build_inputs(
     window_snapshots = await equity_repo.recent(account_id, environment, period_start)
     starting = window_snapshots[0] if window_snapshots else None
 
-    total_fees = await PortfolioRepository(db).sum_fees_since(account_id, period_start)
+    total_fees = await PortfolioRepository(db).sum_fees_since(
+        account_id, period_start, environment, currency
+    )
     active_breakers = await BreakerRepository(db).list_active()
 
     beat_rows = (await db.scalars(select(HeartbeatRow))).all()
     beats = {beat.service: beat.timestamp for beat in beat_rows}
-    heartbeats = tuple(
-        _heartbeat_status(service, beats.get(service), now) for service in HEARTBEAT_SERVICES
-    )
+    # This query is running successfully inside the API: it is current liveness evidence.
+    beats["api"] = int(now.timestamp())
+    ai = await db.get(AiAutonomyControlRow, 1)
+    services = HEARTBEAT_SERVICES + (("ai_worker",) if ai and ai.status == "ENABLED" else ())
+    heartbeats = tuple(_heartbeat_status(service, beats.get(service), now) for service in services)
 
     return ReportInputs(
         period=period,
@@ -105,6 +125,17 @@ async def _build_inputs(
         total_fees=total_fees,
         active_breakers=active_breakers,
         heartbeats=heartbeats,
+        currency=currency,
+        language=language,
+        venue=venue,
+        reconciliation_state=(
+            live_state
+            if current and timedelta(0) <= now - current.recorded_at <= timedelta(seconds=60)
+            else "STALE"
+            if live_state is not None
+            else None
+        ),
+        equity_as_of=current.recorded_at if current else None,
     )
 
 
@@ -116,15 +147,39 @@ async def run_telegram_report_tick(
     account_id: str,
     environment: str,
     now: datetime,
+    *,
+    owner_id: str | None = None,
+    currency: str = "USD",
+    language: Literal["en", "es"] = "en",
+    market_providers: dict[str, MarketDataProvider] | None = None,
 ) -> None:
     """For each of DAILY/WEEKLY: if this period's report was not already generated (by its own
     `last_sent_key`), build it from real data and dispatch it over Telegram.
 
     :param account_id: The single PAPER account this system administers (PENDING.md Fase 1: no
         multi-user account administration yet).
-    :param environment: Passed through to the equity/fee queries; "PAPER" in production today.
+    :param environment: Account mode; resolved from operator controls when owner_id is provided.
     :param now: Current time; timezone-aware, drives both period-window math and the throttle.
     """
+    venue = None
+    live_state = None
+    if owner_id is not None:
+        async with sessions() as db:
+            control = await db.get(ControlRow, 1)
+            environment = control.environment if control is not None else "OBSERVE"
+            account_id = "paper:" + owner_id
+            currency = "USDT"
+            if environment == "LIVE":
+                live = await db.get(LiveControlRow, 1)
+                if live is None or live.owner_id != owner_id:
+                    return  # Never substitute another operator's or simulated account.
+                connection = await db.get(ProviderConnectionRow, live.connection_id)
+                if connection is None or connection.user_id != owner_id:
+                    return
+                venue = connection.provider.lower()
+                currency = "USDT" if venue == "binance" else "USD"
+                account_id = "live:" + live.connection_id
+                live_state = live.state
     for period in (ReportPeriod.DAILY, ReportPeriod.WEEKLY):
         key = _period_key(period, now)
         async with sessions() as db:
@@ -133,7 +188,21 @@ async def run_telegram_report_tick(
             continue
 
         async with sessions() as db:
-            inputs = await _build_inputs(db, period, account_id, environment, now)
+            inputs = await _build_inputs(
+                db, period, account_id, environment, now, currency, language, venue, live_state
+            )
+        benchmark_venue = venue or ("binance" if currency == "USDT" else "kraken")
+        market = (market_providers or {}).get(benchmark_venue)
+        if market is not None:
+            benchmark_start = inputs.period_start
+            if now.replace(minute=0, second=0, microsecond=0) <= benchmark_start:
+                # At the UTC roll-over no current-period hour has closed yet. Show the
+                # previous complete period, with its own explicit dates, instead of zeroes.
+                benchmark_start -= timedelta(days=1 if period is ReportPeriod.DAILY else 7)
+            benchmarks = await fetch_market_benchmarks(
+                market, benchmark_venue, currency, benchmark_start, now
+            )
+            inputs = replace(inputs, benchmarks=benchmarks)
         content = build_report_content(inputs)
         notification = Notification(_SEVERITY_MAP[content.severity], content.title, content.body)
         await dispatch_telegram_notification(

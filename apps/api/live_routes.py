@@ -11,7 +11,7 @@ from apps.api.dependencies import Admin, SignedIn
 from apps.api.schemas import Input
 from wallybot.application.live_trading import LiveBlocked, account_id
 from wallybot.domain.control import Environment
-from wallybot.exchanges.kraken_private import KrakenPrivateError
+from wallybot.exchanges.private_errors import ExchangePrivateError
 from wallybot.infrastructure.equity_snapshot_repository import EquitySnapshotRepository
 from wallybot.infrastructure.live_models import LiveControlRow
 from wallybot.infrastructure.models import (
@@ -52,6 +52,8 @@ class LiveView(BaseModel):
     reason: str = ""
     version: int | None = None
     connection_id: str | None = None
+    venue: str | None = None
+    cash_currency: str | None = None
     max_order_usd: str | None = None
     max_daily_loss_usd: str | None = None
     max_total_usd: str | None = None
@@ -67,6 +69,9 @@ async def view(request, user_id):
     config = await service.configuration(user_id)
     if config is None:
         return LiveView(capable=request.app.state.settings.live_capable)
+    async with service.sessions() as db:
+        connection = await db.get(ProviderConnectionRow, config.connection_id)
+    venue = service.venue(connection.provider) if connection is not None else None
     async with service.sessions() as db:
         balances = await PortfolioRepository(db).list_balances(account_id(config))
         equity = await EquitySnapshotRepository(db).latest(account_id(config), "LIVE")
@@ -108,6 +113,8 @@ async def view(request, user_id):
         state=config.state,
         reason=config.reason,
         connection_id=config.connection_id,
+        venue=venue.name if venue else None,
+        cash_currency=venue.cash if venue else None,
         max_order_usd=str(config.max_order_usd),
         max_daily_loss_usd=str(config.max_daily_loss_usd),
         max_total_usd=str(config.max_total_usd),
@@ -152,10 +159,10 @@ async def configure_live(body: LiveChange, request: Request, user: Admin):
             if (
                 connection is None
                 or connection.user_id != user.id
-                or connection.provider != "KRAKEN"
+                or connection.provider not in {"KRAKEN", "BINANCE"}
                 or connection.mode != "TRADE_ONLY"
             ):
-                raise LiveBlocked("Select your own verified Kraken trading connection")
+                raise LiveBlocked("Select your own verified spot trading connection")
             if existing is not None and existing.connection_id != body.connection_id:
                 raise LiveBlocked(
                     "Changing the initialized real account requires separate reconciliation"
@@ -186,7 +193,7 @@ async def configure_live(body: LiveChange, request: Request, user: Admin):
             if body.enabled:
                 try:
                     await service._sync(config, initialize=True)
-                except (LiveBlocked, KrakenPrivateError) as exc:
+                except (LiveBlocked, ExchangePrivateError) as exc:
                     await service.latch(str(exc))
                     raise LiveBlocked(str(exc)) from None
                 except Exception:

@@ -123,3 +123,27 @@ async def test_repeated_ticks_accumulate_outcomes_until_reliability_is_confident
     # 3 ticks x len(TRACKED_PAIRS) calls each = enough to cross MIN_CALLS_FOR_STATUS (5).
     kraken_snapshot = next(s for s in snapshots if s.provider == "kraken")
     assert kraken_snapshot.status is ProviderReliabilityStatus.HEALTHY
+
+
+async def test_binance_is_queried_for_usdt_and_never_combined_with_usd():
+    binance = FakeCandleProvider("100")
+    tiingo = FakeCandleProvider("100")
+    results, snapshots = await compute_price_consensus_and_reliability(
+        [ProviderSource("binance", binance), ProviderSource("tiingo", tiingo)], NOW, {}
+    )
+    by_pair = {result.instrument_id: result for result in results}
+    assert set(by_pair) == {"BTC/USDT", "ETH/USDT", "BTC/USD", "ETH/USD"}
+    assert {instrument.quote for instrument in binance.calls} == {"USDT"}
+    assert {instrument.quote for instrument in tiingo.calls} == {"USD"}
+    assert all(result.status is PriceConsensusStatus.INSUFFICIENT_DATA for result in results)
+    assert all(result.consensus_price is None for result in results)
+    assert {snapshot.provider for snapshot in snapshots} == {"binance", "tiingo"}
+
+
+async def test_binance_failures_are_recorded_without_borrowing_usd_quotes():
+    results, snapshots = await compute_price_consensus_and_reliability(
+        [ProviderSource("binance", FakeCandleProvider("100", fails=True))], NOW, {}
+    )
+    assert {result.instrument_id for result in results} == {"BTC/USDT", "ETH/USDT"}
+    assert all(result.consensus_price is None for result in results)
+    assert snapshots[0].provider == "binance"

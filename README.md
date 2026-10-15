@@ -31,6 +31,7 @@
   <img alt="Redis" src="https://img.shields.io/badge/Redis-DC382D?logo=redis&logoColor=white">
   <img alt="Docker" src="https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white">
   <img alt="Kraken" src="https://img.shields.io/badge/Kraken-Spot-5741D9?logo=kraken&logoColor=white">
+  <img alt="Binance" src="https://img.shields.io/badge/Binance-Spot-F0B90B?logo=binance&logoColor=black">
   <img alt="Pruebas" src="https://img.shields.io/badge/pruebas-971%20backend%20%C2%B7%2019%20navegador-2ea44f">
 </p>
 
@@ -48,7 +49,7 @@
 WallyBot reúne mercados, análisis asistido por IA, seguimiento de cartera y ejecución controlada en una aplicación que alojas tú. Los analistas preparan propuestas **BUY, HOLD, SELL o REDUCE** con explicación y vencimiento. **Tú decides qué aprobar**; los controles deterministas vuelven a comprobar cada operación antes de enviarla al exchange.
 
 > [!IMPORTANT]
-> **Trading real disponible: Kraken spot con USD, BTC/XBT y ETH.** Cada operación requiere la aprobación del administrador con MFA. La IA nunca ejecuta órdenes, y no existen retiros, transferencias ni apalancamiento.
+> **Trading real disponible: Kraken spot (USD, BTC/XBT, ETH) o Binance spot (USDT, BTC, ETH).** Cada operación requiere la aprobación del administrador con MFA. La IA nunca ejecuta órdenes, y no existen retiros, transferencias ni apalancamiento.
 
 ## ✨ Qué puedes hacer
 
@@ -56,7 +57,7 @@ WallyBot reúne mercados, análisis asistido por IA, seguimiento de cartera y ej
   <tr>
     <td width="50%" valign="top">
       <h4>📈 Mercados</h4>
-      Cotizaciones públicas de Kraken con validación de origen, antigüedad y diferencial.
+      Cotizaciones públicas de Binance con validación de origen, antigüedad y diferencial.
     </td>
     <td width="50%" valign="top">
       <h4>🧠 Analistas IA</h4>
@@ -70,7 +71,7 @@ WallyBot reúne mercados, análisis asistido por IA, seguimiento de cartera y ej
     </td>
     <td valign="top">
       <h4>💼 Cuenta real</h4>
-      Credenciales cifradas, saldos verificados y órdenes spot IOC en Kraken.
+      Credenciales cifradas, saldos verificados y órdenes spot IOC en Kraken o Binance.
     </td>
   </tr>
   <tr>
@@ -142,11 +143,11 @@ Inicia los servicios Docker y el analista nativo. Consulta la [guía del analist
 
 | Paso | Dónde | Qué hacer |
 | :---: | --- | --- |
-| **1** | Kraken | Crea una clave API **exclusiva para WallyBot**: consultar fondos, órdenes abiertas/cerradas, crear/modificar y cancelar/cerrar órdenes. Sin depósitos, retiros, transferencias ni earn; sin restricción de fechas ni 2FA propia de la clave. |
-| **2** | **Conexiones** | Elige KRAKEN, modo de trading spot real, y pega la clave y la clave privada. Si algo falla, el mensaje explica qué corregir. Vincular no envía órdenes. |
+| **1** | Kraken o Binance | Crea una clave API **exclusiva para WallyBot**. **Kraken:** consultar fondos, órdenes abiertas/cerradas, crear/modificar y cancelar/cerrar órdenes; sin depósitos, retiros, transferencias ni earn. **Binance:** «System generated», solo *Enable Reading* y *Enable Spot & Margin Trading*, restringida a la IP pública de tu PC; sin retiros, transferencias, margen ni futuros, y sin pagar comisiones con BNB. |
+| **2** | **Conexiones** | Elige BINANCE, marca trading spot real, y pega la clave y la clave privada. Si algo falla, el mensaje explica qué corregir. Vincular no envía órdenes. |
 | **3** | **Configuración → Análisis de IA** | Comprueba que Codex y Claude aparezcan como «Disponible». |
-| **4** | **Configuración → Operaciones con dinero real** | Indica máximo por operación, exposición total y pérdida diaria (USD) y la variación de precio (0,01–2 %). Escribe `LIVE` y confirma con MFA. |
-| **5** | **Portafolio** | Revisa la «Cuenta real Kraken»: saldos verificados, órdenes y cantidades ejecutadas. |
+| **4** | **Configuración → Operaciones con dinero real** | Indica máximo por operación, exposición total y pérdida diaria (USDT en Binance) y la variación de precio (0,01–2 %). Escribe `LIVE` y confirma con MFA. |
+| **5** | **Portafolio** | Revisa la «Cuenta real Binance»: saldos verificados, órdenes y cantidades ejecutadas. En Binance los importes van en USDT. |
 | **6** | **Inteligencia → Propuestas** | Revisa cada propuesta, confirma «dinero real» y aprueba. Cada aprobación es individual y de un solo uso. |
 
 > [!TIP]
@@ -165,7 +166,7 @@ flowchart LR
     A --> P[Propuesta explicada]
     P --> U[Tu revisión y MFA]
     U --> R[Mandato y riesgo determinista]
-    R --> K[Kraken spot]
+    R --> K[Kraken o Binance spot]
     R --> S[Simulación]
     K --> C[Conciliación y cartera]
     S --> C
@@ -186,7 +187,7 @@ flowchart LR
 
 ## 📌 Alcance actual
 
-- La ejecución real admite **Kraken spot USD/BTC/ETH** con órdenes límite IOC y aprobación por operación.
+- La ejecución real admite **Kraken spot USD/BTC/ETH** y **Binance spot USDT/BTC/ETH** con órdenes límite IOC y aprobación por operación. El analista estudia el mercado del exchange de tu cuenta real.
 - Stops y objetivos son **avisos de revisión**; no generan órdenes protectoras automáticas.
 - Cambios externos en la cuenta que no cuadren con la contabilidad **bloquean** la ejecución hasta revisarlos. El coste histórico de posiciones importadas no se inventa.
 - Las pruebas locales no sustituyen una validación con una cuenta financiada ni demuestran rentabilidad.
@@ -243,7 +244,7 @@ Las copias se cifran en `backups/` (excluido del repositorio) y `verify` las res
 
 | Guía | Contenido |
 | --- | --- |
-| 💱 [Trading real](docs/runbooks/real-spot-trading.md) | Kraken, límites, aprobación, errores y conciliación |
+| 💱 [Trading real](docs/runbooks/real-spot-trading.md) | Kraken, Binance, límites, aprobación, errores y conciliación |
 | 🧠 [Analistas locales](docs/runbooks/native-ai-worker.md) | CLI, disponibilidad, arranque y diagnóstico |
 | 🎯 [Mandato del producto](docs/PRODUCT-MANDATE.md) | Objetivos, asignación y decisiones del operador |
 | 🏗️ [Arquitectura](ARCHITECTURE.md) | Límites entre procesos y contratos |

@@ -40,7 +40,7 @@ export function DocsPage() {
 
     <article className="panel docs-panel" id="primeros-pasos"><div className="panel-heading"><div><p className="eyebrow">{i18n.t("PRIMEROS PASOS")}</p><h2>{i18n.t("Configurá tu espacio en este orden")}</h2></div></div><ol className="setup-steps">
       <li><span>01</span><div><strong>{i18n.t("Protegé tu acceso")}</strong><p>{i18n.t("Configurá MFA y guardá tus códigos de recuperación fuera de WallyBot.")}</p></div></li>
-      <li><span>02</span><div><strong>{i18n.t("Conectá tu cuenta")}</strong><p>{i18n.t("Para Kraken spot usa una clave API con consulta de fondos y órdenes, crear y cancelar órdenes. Sin permisos de depósito, retiro ni transferencia. Las otras fuentes son de consulta.")}</p></div></li>
+      <li><span>02</span><div><strong>{i18n.t("Conectá tu cuenta")}</strong><p>{i18n.t("Para Binance spot usa una clave API con consulta y trading spot únicamente, restringida a tu IP. Sin permisos de retiro ni transferencia. Las otras fuentes son de consulta.")}</p></div></li>
       <li><span>03</span><div><strong>{i18n.t("Revisá mercado e inteligencia")}</strong><p>{i18n.t("Confirmá calidad, liquidez y contexto antes de investigar una hipótesis.")}</p></div></li>
       <li><span>04</span><div><strong>{i18n.t("Configurá límites y analistas")}</strong><p>{i18n.t("Define tus máximos por operación, exposición y pérdida diaria. Activa LIVE con MFA y confirma cada propuesta. Codex y Claude analizan; PAPER es una prueba opcional.")}</p></div></li>
       <li><span>05</span><div><strong>{i18n.t("Vinculá alertas")}</strong><p>{i18n.t("Guardá el token de Telegram y enviá el código /start que te muestra WallyBot. El Chat ID se vincula solo.")}</p></div></li>

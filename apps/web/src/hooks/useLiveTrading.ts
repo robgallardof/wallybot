@@ -10,6 +10,8 @@ const liveSchema = z.object({
   reason: z.string(),
   version: z.number().nullable(),
   connection_id: z.string().nullable(),
+  venue: z.string().nullable().default(null),
+  cash_currency: z.string().nullable().default(null),
   max_order_usd: z.string().nullable(),
   max_daily_loss_usd: z.string().nullable(),
   max_total_usd: z.string().nullable(),
@@ -30,6 +32,11 @@ const liveSchema = z.object({
     }),
   ),
 });
+
+/** Display name and cash currency of the configured real-account exchange. */
+export function liveVenueLabel(venue: string | null | undefined) {
+  return venue === "kraken" ? "Kraken" : "Binance";
+}
 
 export function useLiveTrading(enabled = true) {
   const client = useQueryClient();

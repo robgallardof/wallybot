@@ -374,3 +374,14 @@ async def test_signed_out_claude_error_envelope_is_unavailable() -> None:
 
     assert await provider.check_ready() is False
     assert provider.last_call_ok is False
+
+
+def test_binance_portfolio_prompt_labels_cash_in_usdt():
+    from dataclasses import replace
+
+    original = make_context()
+    instrument = replace(original.instrument, venue="binance", quote="USDT")
+    context = replace(original, instrument=instrument, portfolio_cash_usd=Decimal("123.45"))
+    prompt = make_provider(FakeCliTransport())._build_prompt(context)
+    assert "cash USDT=123.45" in prompt
+    assert "cash USD=" not in prompt

@@ -199,9 +199,7 @@ class FakeExchange:
         return ask if side is Side.BUY else bid
 
     async def _validate(self, intent: OrderIntent) -> str | None:
-        _price_increment, _quantity_increment, min_quantity = _require_precision(
-            intent.instrument
-        )
+        _price_increment, _quantity_increment, min_quantity = _require_precision(intent.instrument)
         if intent.quantity < min_quantity:
             return "quantity below instrument minimum"
         price = (
@@ -239,9 +237,7 @@ class FakeExchange:
         # restarts at 1 after a process restart or in a second simulator instance, and fills are
         # deduplicated by id, so a reused id would silently drop a real fill from the ledger.
         fill_number = len(self._fills.get(intent.client_order_id, ())) + 1
-        price_increment, _quantity_increment, _min_quantity = _require_precision(
-            intent.instrument
-        )
+        price_increment, _quantity_increment, _min_quantity = _require_precision(intent.instrument)
         fee = (quantity * price * self.fee_rate).quantize(price_increment)
         fill = Fill(
             fill_id=f"fake-fill-{intent.client_order_id}-{fill_number}",

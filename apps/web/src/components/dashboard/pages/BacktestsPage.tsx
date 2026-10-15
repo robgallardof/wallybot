@@ -58,8 +58,8 @@ export function BacktestsPage({
   role: string;
 }) {
   useTranslation();
-  const [base, setBase] = useState("XBT");
-  const [quote, setQuote] = useState("USD");
+  const [base, setBase] = useState("BTC");
+  const [quote, setQuote] = useState("USDT");
   const [timeframe, setTimeframe] = useState("1h");
   const [windowStart, setWindowStart] = useState(() => suggestedWindow().start);
   const [windowEnd, setWindowEnd] = useState(() => suggestedWindow().end);
@@ -136,7 +136,7 @@ export function BacktestsPage({
             <input
               value={base}
               onChange={(event) => setBase(event.target.value)}
-              placeholder="XBT"
+              placeholder="BTC"
               required
               maxLength={16}
               pattern=".*\S.*"
@@ -147,7 +147,7 @@ export function BacktestsPage({
             <input
               value={quote}
               onChange={(event) => setQuote(event.target.value)}
-              placeholder="USD"
+              placeholder="USDT"
               required
               maxLength={16}
               pattern=".*\S.*"
