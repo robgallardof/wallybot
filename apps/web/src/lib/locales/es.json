@@ -123,5 +123,15 @@
   "Trading spot real": "Trading spot real",
   "Al activarlo se verifica la clave: permiso de trading spot, sin retiros y saldos legibles. No se pone ninguna orden.": "Al activarlo se verifica la clave: permiso de trading spot, sin retiros y saldos legibles. No se pone ninguna orden.",
   "Cerrar": "Cerrar",
-  "EDITAR CONEXIÓN": "EDITAR CONEXIÓN"
+  "EDITAR CONEXIÓN": "EDITAR CONEXIÓN",
+  "Modo de operación": "Modo de operación",
+  "¿Qué hace WallyBot con tus análisis?": "¿Qué hace WallyBot con tus análisis?",
+  "Observar": "Observar",
+  "Simulación": "Simulación",
+  "Dinero real": "Dinero real",
+  "Solo observa mercados y genera análisis. No opera.": "Solo observa mercados y genera análisis. No opera.",
+  "Simula órdenes con dinero ficticio sobre datos reales.": "Simula órdenes con dinero ficticio sobre datos reales.",
+  "Opera tu cuenta real dentro de los límites que configures.": "Opera tu cuenta real dentro de los límites que configures.",
+  "Salir de LIVE desactiva las operaciones con dinero real. ¿Continuar?": "Salir de LIVE desactiva las operaciones con dinero real. ¿Continuar?",
+  "Para pasar a LIVE: 1) en Conexiones, edita tu Binance y activa «Trading spot real»; 2) en «Operaciones con dinero real», elige esa conexión, define los límites, escribe LIVE y confirma con tu código TOTP.": "Para pasar a LIVE: 1) en Conexiones, edita tu Binance y activa «Trading spot real»; 2) en «Operaciones con dinero real», elige esa conexión, define los límites, escribe LIVE y confirma con tu código TOTP."
 }

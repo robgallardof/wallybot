@@ -16,6 +16,7 @@ import type { z } from "zod";
 import { Button } from "../../ui/button";
 import { MfaForm } from "../../auth/MfaForm";
 import { LiveTradingPanel } from "./LiveTradingPanel";
+import { OperationModeSwitch } from "./OperationModeSwitch";
 import { SettingsSwitch } from "../../ui/SettingsSwitch";
 
 const TELEGRAM_ACTION_LABELS: Record<string, string> = {
@@ -103,7 +104,6 @@ export function SettingsPage({
 }) {
   useTranslation();
   const environment = dashboard.data?.environment;
-  const isPaper = environment === "PAPER";
   const [botToken, setBotToken] = useState("");
   const [telegramEnabled, setTelegramEnabled] = useState(
     telegram.data?.enabled ?? false,
@@ -223,78 +223,21 @@ export function SettingsPage({
   return (
     <section className="settings-stack" aria-label={i18n.t("Configuración")}>
       <nav className="settings-index" aria-label={i18n.t("Secciones de configuración")}>
-        <a href="#settings-trading"><FlaskConical size={18} />{i18n.t("Operación")}</a>
+        <a href="#settings-mode"><FlaskConical size={18} />{i18n.t("Operación")}</a>
         <a href="#settings-analysts"><Bot size={18} />{i18n.t("Analistas")}</a>
         <a href="#settings-telegram"><Send size={18} />Telegram</a>
         {role === "ADMIN" && <a href="#settings-security"><Lock size={18} />{i18n.t("Seguridad")}</a>}
       </nav>
+      <div id="settings-mode" className="settings-anchor">
+        <OperationModeSwitch
+          environment={environment}
+          status={dashboard.data?.status}
+          role={role}
+          change={change}
+          liveAnchorId="settings-trading"
+        />
+      </div>
       <div id="settings-trading" className="settings-anchor"><LiveTradingPanel role={role} /></div>
-      {environment !== "LIVE" && <article className="panel wide-panel settings-panel">
-        <div className="settings-heading">
-          <span className="settings-heading-icon">
-            <FlaskConical size={19} />
-          </span>
-          <div>
-            <p className="eyebrow">{i18n.t("Modo de simulación")}</p>
-            <h2>
-              {isPaper
-                ? i18n.t("Simulación PAPER activada")
-                : i18n.t("Observando mercados reales (OBSERVE)")}
-            </h2>
-          </div>
-          <span
-            className={isPaper ? "settings-status paper" : "settings-status"}
-          >
-            <i /> {isPaper ? "PAPER" : "OBSERVE"}
-          </span>
-        </div>
-        <p className="muted settings-description">
-          {i18n.t(
-            "Por defecto tu instancia solo observa datos reales de mercado: no genera ni simula operaciones. Activa PAPER si querés que el sistema simule órdenes sobre esos mismos datos, sin dinero real ni conexión de ejecución.",
-          )}
-        </p>
-        <p className="settings-command-help">
-          {i18n.t(
-            "Cuando tu chat esté vinculado, enviá /help o /commands al bot para conocer sus comandos seguros.",
-          )}
-        </p>
-        <div className="settings-action-row">
-          <div className="settings-safety">
-            <ShieldCheck size={18} />
-            <span>
-              {i18n.t(
-                "PAPER es una prueba opcional sin dinero real. Para operar con tu cuenta usa la configuración LIVE de arriba.",
-              )}
-            </span>
-          </div>
-          {role === "ADMIN" ? (
-            <Button
-              disabled={!dashboard.data || change.isPending}
-              onClick={() =>
-                change.mutate({
-                  status: dashboard.data?.status ?? "RUNNING",
-                  environment: isPaper ? "OBSERVE" : "PAPER",
-                })
-              }
-            >
-              {isPaper
-                ? i18n.t("Desactivar simulación (volver a OBSERVE)")
-                : i18n.t("Activar simulación PAPER")}
-            </Button>
-          ) : (
-            <p className="settings-readonly">
-              {i18n.t(
-                "Tu rol VIEWER permite consultar, pero no cambiar la configuración.",
-              )}
-            </p>
-          )}
-        </div>
-        {change.isError && (
-          <p className="error" role="alert">
-            {i18n.t(change.error.message)}
-          </p>
-        )}
-      </article>}
 
       <article className="panel wide-panel settings-panel settings-anchor" id="settings-analysts">
         <div className="settings-heading">

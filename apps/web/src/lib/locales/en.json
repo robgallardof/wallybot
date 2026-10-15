@@ -845,5 +845,13 @@
   "Déjalo vacío para conservar el valor guardado.": "Leave empty to keep the stored value.",
   "Trading spot real": "Real spot trading",
   "Al activarlo se verifica la clave: permiso de trading spot, sin retiros y saldos legibles. No se pone ninguna orden.": "Turning it on verifies the key: spot trading permission, no withdrawals and readable balances. No order is placed.",
-  "EDITAR CONEXIÓN": "EDIT CONNECTION"
+  "EDITAR CONEXIÓN": "EDIT CONNECTION",
+  "¿Qué hace WallyBot con tus análisis?": "What does WallyBot do with your analysis?",
+  "Simulación": "Simulation",
+  "Dinero real": "Real money",
+  "Solo observa mercados y genera análisis. No opera.": "Only watches markets and produces analysis. Never trades.",
+  "Simula órdenes con dinero ficticio sobre datos reales.": "Simulates orders with play money on real data.",
+  "Opera tu cuenta real dentro de los límites que configures.": "Trades your real account within the limits you set.",
+  "Salir de LIVE desactiva las operaciones con dinero real. ¿Continuar?": "Leaving LIVE disables real-money trading. Continue?",
+  "Para pasar a LIVE: 1) en Conexiones, edita tu Binance y activa «Trading spot real»; 2) en «Operaciones con dinero real», elige esa conexión, define los límites, escribe LIVE y confirma con tu código TOTP.": "To switch to LIVE: 1) in Connections, edit your Binance and turn on «Real spot trading»; 2) in «Real-money trading», pick that connection, set the limits, type LIVE and confirm with your TOTP code."
 }
