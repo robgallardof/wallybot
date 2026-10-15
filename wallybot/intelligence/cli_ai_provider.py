@@ -49,12 +49,14 @@ from wallybot.domain.trade_proposal import AIAnalysisContext, TradeDirection, Tr
 CliName = Literal["claude", "codex"]
 
 _STARTER_INSTRUCTIONS = (
-    "Starter request: the operator holds no position yet and explicitly asked for ONE small, "
-    "conservative first buy so the account starts working. Prefer BUY over HOLD when this "
-    "instrument is liquid and established and is not in a clear downtrend or risk-off regime; "
-    "keep suggested_allocation_pct at most 0.25, always set a stop_price, and stay within the "
-    "allocation guidance (memecoins only as a SPECULATIVE-sized idea). HOLD remains correct for "
-    "illiquid, falling or unverifiable instruments; this request never overrides risk rules.\n"
+    "Starter request: the operator holds no position yet and explicitly instructed you to open "
+    "ONE small first position now, like a desk trader told to get exposure today rather than "
+    "wait for a perfect setup. A mild short-term (1h) downtrend is NOT a reason to HOLD for an "
+    "established, liquid CORE/GROWTH asset (e.g. BTC, ETH, large caps): treat it as a "
+    "scaled-in entry. Answer BUY with suggested_allocation_pct at most 0.25, a stop_price about "
+    "3-5% below entry and a take_profit_price. HOLD only for memecoins/illiquid or unverifiable "
+    "instruments, or a crash (a drop above 10% in the window). Deterministic risk limits still "
+    "size and may reject the order; this request never overrides them.\n"
 )
 
 _SCHEMA_INSTRUCTIONS = """
@@ -273,6 +275,8 @@ class CliAiProvider:
             "You are a trading analyst for a self-hosted crypto trading bot.\n"
             f"Instrument: {instrument.venue}:{instrument.market_type}:"
             f"{instrument.base}/{instrument.quote}\n"
+            f"Current quote: bid={context.bid} ask={context.ask} "
+            "(use it for entry_price, stop_price and take_profit_price)\n"
             f"Regime: {context.regime.regime} ({context.regime.reason})\n"
             "Existing deterministic strategy signals for this instrument, for you to weigh, "
             f"agree, or disagree with:\n{signals}\n"

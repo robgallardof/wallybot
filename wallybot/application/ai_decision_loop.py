@@ -30,6 +30,10 @@ HISTORY_CANDLES = 30
 FEATURE_WINDOW = 20
 MAX_FINALISTS = 5
 RISK_OFF_THRESHOLD = Decimal("0.5")
+STARTER_CORE_BASES = ("BTC", "ETH")
+# Pullback entries: down over the feature window, but less than this (beyond it is a crash).
+MAX_PULLBACK = Decimal("0.10")
+PULLBACK_CANDIDATES = 3
 
 
 @dataclass(frozen=True)
@@ -83,13 +87,34 @@ async def run_ai_decision_tick(
     # Review every open position (HOLD / SELL / add more) before new ideas, even when its
     # momentum no longer ranks it among the finalists.
     held = {asset for asset, quantity in portfolio_holdings if quantity > 0}
-    finalist_ids = {score.inputs.instrument.id for score in scan.finalists}
-    reviews = tuple(
+    reviews = tuple(score for score in scan.ranked if score.inputs.instrument.base in held)
+    # Two entry styles: momentum finalists (trend following) and pullbacks -- the deepest dips
+    # that are not a crash (buy low). A starter buy leads with pullbacks, then the core assets.
+    momentum_key = f"momentum_{FEATURE_WINDOW}"
+    dips = tuple(
+        sorted(
+            (
+                score
+                for score in scan.ranked
+                if -MAX_PULLBACK < score.inputs.values.get(momentum_key, Decimal(0)) < 0
+            ),
+            key=lambda score: score.inputs.values[momentum_key],
+        )
+    )[:PULLBACK_CANDIDATES]
+    core = tuple(
         score
+        for base in STARTER_CORE_BASES
         for score in scan.ranked
-        if score.inputs.instrument.base in held and score.inputs.instrument.id not in finalist_ids
+        if score.inputs.instrument.base == base
     )
-    for score in (*reviews, *scan.finalists):
+    ordered = (*dips, *core, *scan.finalists) if starter_position else (*scan.finalists, *dips)
+    seen = {score.inputs.instrument.id for score in reviews}
+    entries = []
+    for score in ordered:
+        if score.inputs.instrument.id not in seen:
+            seen.add(score.inputs.instrument.id)
+            entries.append(score)
+    for score in (*reviews, *entries):
         vector = score.inputs
         instrument = vector.instrument
         context = AIAnalysisContext(
@@ -112,6 +137,8 @@ async def run_ai_decision_tick(
             portfolio_holdings=portfolio_holdings,
             portfolio_as_of=portfolio_as_of,
             starter_position=starter_position,
+            bid=snapshots_by_id[instrument.id].bid,
+            ask=snapshots_by_id[instrument.id].ask,
         )
         proposal = await ai_provider.analyze(context)
         if proposal is None:
@@ -124,7 +151,7 @@ async def run_ai_decision_tick(
             break  # One starter buy is the whole request; the finalists are ranked best-first.
 
     return AiDecisionTickResult(
-        instruments_evaluated=len(reviews) + len(scan.finalists),
+        instruments_evaluated=len(reviews) + len(entries),
         proposals_received=proposals_received,
         proposals_persisted=proposals_persisted,
     )

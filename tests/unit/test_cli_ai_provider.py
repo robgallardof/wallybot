@@ -396,4 +396,12 @@ def test_starter_request_adds_conservative_first_buy_instructions():
     )
     assert "Starter request" not in plain
     assert "Starter request" in starter
-    assert "never overrides risk rules" in starter
+    assert "never overrides them" in starter
+
+
+def test_prompt_includes_the_live_quote():
+    from dataclasses import replace
+
+    context = replace(make_context(), bid=Decimal("100.5"), ask=Decimal("100.6"))
+    prompt = make_provider(FakeCliTransport())._build_prompt(context)
+    assert "Current quote: bid=100.5 ask=100.6" in prompt

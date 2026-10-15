@@ -54,6 +54,9 @@ class AIAnalysisContext:
     portfolio_as_of: datetime | None = None
     # Operator asked (Telegram /init) for one conservative first buy; still needs approval.
     starter_position: bool = False
+    # Live top of book, so analysts anchor entry/stop/take-profit to a real quote, not a guess.
+    bid: Decimal | None = None
+    ask: Decimal | None = None
 
     def __post_init__(self) -> None:
         require_aware_datetime(self.as_of, "as_of")
