@@ -92,6 +92,7 @@ export function DashboardShell({
   hasError,
   mutationError,
   environment,
+  pendingProposals = 0,
   children,
 }: {
   user: z.infer<typeof meSchema>;
@@ -101,6 +102,7 @@ export function DashboardShell({
   hasError: boolean;
   mutationError?: string;
   environment?: "OBSERVE" | "PAPER" | "LIVE";
+  pendingProposals?: number;
   children: ReactNode;
 }) {
   useTranslation();
@@ -172,7 +174,13 @@ export function DashboardShell({
             >
               <Icon size={18} />
               {i18n.t(label)}
-              {page === key && <span className="nav-dot" />}
+              {key === "intelligence" && pendingProposals > 0 ? (
+                <span className="nav-badge" aria-hidden="true">
+                  {pendingProposals}
+                </span>
+              ) : (
+                page === key && <span className="nav-dot" />
+              )}
             </button>
           ))}
         </nav>

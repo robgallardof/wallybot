@@ -62,7 +62,7 @@ export function Dashboard({
     : "dashboard";
   const { dashboard, system, events, change, confirmMfa } = useDashboardData();
   const eventsFeed = useEventsFeed(page === "events");
-  const markets = useMarketsData(page === "markets");
+  const markets = useMarketsData(page === "markets" || page === "dashboard");
   const smartMoney = useSmartMoneyData(page === "intelligence");
   const whaleFlow = useWhaleFlowData(page === "intelligence");
   const tokenRisk = useTokenRiskData(page === "intelligence");
@@ -72,7 +72,7 @@ export function Dashboard({
   const priceConsensus = usePriceConsensusData(page === "intelligence");
   const walletActivity = useWalletActivityData(page === "intelligence");
   const entityGraph = useEntityGraphData(page === "intelligence");
-  const proposals = useProposalsData(page === "intelligence");
+  const proposals = useProposalsData(true);
   const { history: backtestHistory, run: runBacktest } = useBacktestsData(
     page === "research",
   );
@@ -118,12 +118,19 @@ export function Dashboard({
       hasError={Boolean(dashboard.error || system.error || events.error)}
       mutationError={change.error?.message}
       environment={dashboard.data?.environment}
+      pendingProposals={
+        proposals.proposals.data?.rows.filter(
+          (row) => row.decision_status === "PENDING" && Date.parse(row.expires_at) > Date.now(),
+        ).length ?? 0
+      }
     >
       {page === "dashboard" && (
         <Overview
           system={system}
           events={events}
           portfolio={portfolio}
+          markets={markets}
+          proposals={proposals}
           environment={dashboard.data?.environment}
           navigate={navigate}
         />

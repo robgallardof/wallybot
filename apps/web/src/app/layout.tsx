@@ -4,6 +4,7 @@ import { ThemeProvider } from "next-themes";
 import "../style.css";
 import "../theme.css";
 import "../workspace.css";
+import "../polish.css";
 
 export const metadata: Metadata = {
   title: "WallyBot",

@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { liveVenueLabel, useLiveTrading } from "../../../hooks/useLiveTrading";
 import { useConnectionsData } from "../../../hooks/useConnectionsData";
+import { FaCircleCheck, FaShieldHalved } from "react-icons/fa6";
+import { formatDateTime, formatMoney, formatNumber, formatRelative } from "../../../lib/format";
 
 export function LiveTradingPanel({ role }: { role: string }) {
   const { t } = useTranslation();
@@ -69,26 +71,46 @@ export function LiveTradingPanel({ role }: { role: string }) {
   }
   return (
     <article className="panel wide-panel settings-panel">
-      <h2>{t("Operaciones con dinero real")}</h2>
-      <p>
-        {t(
-          "Conecta tu cuenta en Conexiones y define tus límites. Cada propuesta sigue necesitando tu aprobación con MFA. La IA no recibe tus claves.",
-        )}
-      </p>
-      <p>
-        <strong>{live.data?.state ?? t("Cargando…")}</strong>{" "}
-        {t(live.data?.reason ?? "")}
-      </p>
-      <p className="muted">
-        {t(
-          "Binance spot: USDT, BTC y ETH; límites en USDT. Sin deuda ni apalancamiento. Las órdenes usan precio límite y cancelan la cantidad que no se llena inmediatamente. Los stops y objetivos son avisos de revisión.",
-        )}
-      </p>
-      <p className="muted">
-        {t(
-          "También se bloquean nuevas operaciones al perder 2% diario, 5% semanal o alcanzar 10% de caída desde el máximo. Siempre aplica el límite más estricto. Una diferencia con los saldos del exchange requiere revisión; no se reinician las pérdidas.",
-        )}
-      </p>
+      <div className="live-account-head">
+        <div>
+          <h2>{t("Operaciones con dinero real")}</h2>
+          <p className="muted" style={{ margin: 0 }}>
+            {t(
+              "Conecta tu cuenta en Conexiones y define tus límites. Cada propuesta sigue necesitando tu aprobación con MFA. La IA no recibe tus claves.",
+            )}
+          </p>
+        </div>
+        <span
+          className={`badge ${
+            live.data?.state === "READY" && live.data.enabled
+              ? "positive live"
+              : live.data?.configured
+                ? "warning"
+                : ""
+          }`}
+        >
+          {live.data?.state ?? t("Cargando…")}
+        </span>
+      </div>
+      {live.data?.reason && (
+        <p className="muted">
+          <strong>{t("Último estado")}:</strong> {t(live.data.reason)}
+        </p>
+      )}
+      <ul className="info-list">
+        <li>
+          <FaCircleCheck size={13} />
+          {t(
+            "Binance spot: USDT, BTC y ETH; límites en USDT. Sin deuda ni apalancamiento. Las órdenes usan precio límite y cancelan la cantidad que no se llena inmediatamente. Los stops y objetivos son avisos de revisión.",
+          )}
+        </li>
+        <li>
+          <FaShieldHalved size={13} />
+          {t(
+            "También se bloquean nuevas operaciones al perder 2% diario, 5% semanal o alcanzar 10% de caída desde el máximo. Siempre aplica el límite más estricto. Una diferencia con los saldos del exchange requiere revisión; no se reinician las pérdidas.",
+          )}
+        </li>
+      </ul>
       {role === "ADMIN" && (
         <form className="connection-form" onSubmit={submit}>
           <label>
@@ -167,8 +189,9 @@ export function LiveTradingPanel({ role }: { role: string }) {
               onChange={(event) => setConfirmation(event.target.value)}
             />
           </label>
+          <div className="form-actions">
           <button
-            className="danger-button"
+            className="danger-button button-lg"
             disabled={
               configure.isPending ||
               confirmation !== "LIVE" ||
@@ -184,7 +207,7 @@ export function LiveTradingPanel({ role }: { role: string }) {
           {live.data?.configured && (
             <button
               type="button"
-              className="secondary-button"
+              className="secondary-button danger-outline button-lg"
               disabled={configure.isPending}
               onClick={() =>
                 configure.mutate({
@@ -200,6 +223,7 @@ export function LiveTradingPanel({ role }: { role: string }) {
               {t("Desactivar operaciones reales")}
             </button>
           )}
+          </div>
         </form>
       )}
       {candidates.length === 0 && (
@@ -229,7 +253,7 @@ export function LiveTradingPanel({ role }: { role: string }) {
 }
 
 export function LivePortfolioPanel() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { live } = useLiveTrading();
   if (live.isPending)
     return (
@@ -254,71 +278,120 @@ export function LivePortfolioPanel() {
         </p>
       </article>
     );
+  const cash = live.data.cash_currency ?? "USD";
+  const held = live.data.balances.filter((row) => row.asset !== cash && Number(row.amount) > 0);
+  const cashRow = live.data.balances.find((row) => row.asset === cash);
   return (
     <article className="panel wide-panel">
-      <h2>
-        {t("Cuenta real {{venue}}", { venue: liveVenueLabel(live.data.venue) })}
-      </h2>
-      <p>
-        <strong>LIVE · {live.data.state}</strong> {t(live.data.reason)}
-      </p>
-      <p>
-        {t("Valor verificado")}: {live.data.equity_usd ?? "—"}{" "}
-        {live.data.cash_currency ?? "USD"} ·{" "}
-        {live.data.as_of
-          ? new Date(live.data.as_of).toLocaleString(i18n.language)
-          : "—"}
-      </p>
-      <p className="muted">
-        {t(
-          "Los saldos iniciales vienen del exchange. Su coste de compra histórico no se conoce; no se inventan ganancias sobre esas posiciones.",
-        )}
-      </p>
+      <div className="live-account-head">
+        <div>
+          <h2>{t("Cuenta real {{venue}}", { venue: liveVenueLabel(live.data.venue) })}</h2>
+          <p className="muted" style={{ margin: 0 }}>
+            {t(
+              "Los saldos iniciales vienen del exchange. Su coste de compra histórico no se conoce; no se inventan ganancias sobre esas posiciones.",
+            )}
+          </p>
+        </div>
+        <span className={`badge ${live.data.state === "READY" ? "positive live" : "warning"}`}>
+          LIVE · {live.data.state}
+        </span>
+      </div>
+      <div className="kpi-row">
+        <div className="kpi">
+          <small>{t("Valor verificado")}</small>
+          <strong>
+            {live.data.equity_usd ?? "—"} {cash}
+          </strong>
+        </div>
+        <div className="kpi">
+          <small>{t("Efectivo disponible")}</small>
+          <strong>{formatMoney(cashRow?.amount, cash)}</strong>
+        </div>
+        <div className="kpi">
+          <small>{t("Posiciones abiertas")}</small>
+          <strong>{held.length}</strong>
+        </div>
+        <div className="kpi">
+          <small>{t("Última verificación")}</small>
+          <strong style={{ fontSize: 15 }}>
+            {live.data.as_of ? formatRelative(live.data.as_of) : "—"}
+          </strong>
+        </div>
+      </div>
+      {live.data.reason && <p className="muted">{t(live.data.reason)}</p>}
+      <h3>{t("Saldos")}</h3>
       <div className="markets-table-wrap">
         <table className="markets-table">
           <thead>
             <tr>
               <th>{t("Activo")}</th>
-              <th>{t("Cantidad")}</th>
+              <th className="num">{t("Cantidad")}</th>
             </tr>
           </thead>
           <tbody>
             {live.data.balances.map((row) => (
               <tr key={row.asset}>
-                <td>{row.asset}</td>
-                <td>{row.amount}</td>
+                <td>
+                  <span className="asset-cell">
+                    <span className="asset-icon">{row.asset.slice(0, 4)}</span>
+                    {row.asset}
+                  </span>
+                </td>
+                <td className="num">{formatNumber(row.amount)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
       <h3>{t("Órdenes reales")}</h3>
-      <div className="markets-table-wrap">
-        <table className="markets-table">
-          <thead>
-            <tr>
-              <th>{t("Activo")}</th>
-              <th>{t("Acción")}</th>
-              <th>{t("Cantidad")}</th>
-              <th>{t("Precio límite")}</th>
-              <th>{t("Llenado confirmado")}</th>
-              <th>{t("Estado")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {live.data.orders.map((row) => (
-              <tr key={row.id}>
-                <td>{row.pair}</td>
-                <td>{row.side}</td>
-                <td>{row.quantity}</td>
-                <td>{row.limit_price}</td>
-                <td>{row.filled_quantity}</td>
-                <td>{row.status}</td>
+      {live.data.orders.length === 0 ? (
+        <p className="muted">{t("Todavía no hay órdenes reales.")}</p>
+      ) : (
+        <div className="markets-table-wrap">
+          <table className="markets-table">
+            <thead>
+              <tr>
+                <th>{t("Activo")}</th>
+                <th>{t("Acción")}</th>
+                <th className="num">{t("Cantidad")}</th>
+                <th className="num">{t("Precio límite")}</th>
+                <th className="num">{t("Llenado confirmado")}</th>
+                <th>{t("Estado")}</th>
+                <th>{t("Fecha")}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {live.data.orders.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.pair}</td>
+                  <td>
+                    <span className={`badge plain ${row.side === "BUY" ? "positive" : "danger"}`}>
+                      {row.side === "BUY" ? t("Compra") : t("Venta")}
+                    </span>
+                  </td>
+                  <td className="num">{formatNumber(row.quantity)}</td>
+                  <td className="num">{formatNumber(row.limit_price)}</td>
+                  <td className="num">{formatNumber(row.filled_quantity)}</td>
+                  <td>
+                    <span
+                      className={`badge ${
+                        row.status === "FILLED"
+                          ? "positive"
+                          : ["REJECTED", "CANCELED", "CANCELLED", "EXPIRED"].includes(row.status)
+                            ? "danger"
+                            : "warning"
+                      }`}
+                    >
+                      {row.status}
+                    </span>
+                  </td>
+                  <td>{formatDateTime(row.created_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </article>
   );
 }
