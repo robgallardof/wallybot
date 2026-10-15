@@ -1,3 +1,57 @@
+## Autorización de despliegue y bloqueo del entorno — 2026-10-15
+
+El operador autoriza explícitamente ejecutar las pruebas de integración y reiniciar producción
+para desplegar estos cambios de WallyBot. No volver a pedir ese permiso para este alcance.
+La nueva comprobación `docker version --format '{{.Server.Version}}'` sigue fallando al conectar
+con /var/run/docker.sock: Operation not permitted. Es una restricción del entorno de ejecución;
+no se intentó eludirla, alterar permisos del socket ni acceder por otra identidad/transporte.
+Esta sesión no permite elevar permisos. Integración y despliegue siguen pendientes; ningún
+servicio de producción reiniciado. Continuar al disponer de un entorno con acceso autorizado
+a Docker, preservando los servicios ajenos a WallyBot y los cambios locales existentes.
+
+## Telegram: aprobación sin MFA y propuestas explicadas — 2026-10-15
+
+Petición explícita del operador: aprobar/rechazar sin MFA por operación desde Telegram;
+mostrar por qué, importe/faltante, vigencia, horizonte, niveles y riesgos, y ordenar las ideas.
+Implementación LOCAL, NO desplegada. No confundir con los despliegues históricos de abajo.
+
+`/approve ID`, `/reject ID` y callbacks funcionan exclusivamente con remitente == chat ID
+vinculado y tipo private; ADMIN comprobado en la función interna. Botones ligados al modo y
+versión LIVE mostrados; cambios rechazan la aprobación antigua. El camino compartido mantiene
+propiedad, caducidad, uso único y revalidación determinista; auditoría distingue WEB de
+TELEGRAM_PRIVATE_CHAT. La web, activación LIVE y cambios de límites conservan MFA. No se
+modificó autenticación web, límites, modo ni datos de cuenta. Respuestas incluyen motivo de
+bloqueo/ejecución; aprobar no implica necesariamente que existió una orden.
+
+Nuevo `proposal_presentation.py` reutilizado por /proposals (/proposal alias) y digests: hasta
+cinco fichas entre 100 recientes, pendientes vigentes primero, relación beneficio/riesgo y
+potencial bruto después (no rendimiento esperado/probabilidad). Etiquetas orientativas LOW
+(stop <=2%, asignación <=5%), MEDIUM (<=5%, <=10%), HIGH para el resto/niveles no comparables.
+Importe/faltante sólo con LIVE READY propio y equity/cash de <=60s, moneda/proveedor iguales,
+limitado por cash/límite por orden, antes de costes y demás controles. Sin evidencia no inventa
+saldos. Fichas incluyen razones/riesgos/invalidación, escenarios, horizonte y caducidad UTC;
+se envía cada ficha por separado, con botones y enlace web al detalle. No salidas automáticas.
+
+El prompt pide español claro, evidencia y explicación de asignación/plazos/niveles. El parser
+conserva invalidating_conditions y valida listas de texto. Consenso conserva razones y condiciones
+de ambos analistas antes de su etiqueta. Default de prompt pasa a v2-es; históricos no cambian.
+ADR-021, mandato, SECURITY/RISK y guía TELEGRAM-PROPOSALS actualizados.
+
+Verificación: selección local 113 passed, 6 deselected (not codex and not subprocess), más una
+regresión adicional de invalidación de consenso 1 passed: 114 pruebas distintas. Ruff y Pyright
+sin errores; git diff --check limpio. Dos ejecuciones ampliadas se interrumpieron al estancarse
+la fixture Codex que usa asyncio.to_thread; no se atribuye un fallo del producto. No se ejecutó
+ninguna CLI real de análisis. Integración intentada con --maxfail=1: ERROR de preparación,
+Docker socket Operation not permitted antes de arrancar PostgreSQL/Redis. No suite de integración
+aceptada ni afirmación de aceptación LIVE. Graphify no instalado y graphify-out/graph.json ausente;
+Serena tampoco inició language server, por lo que se usaron herramientas locales.
+
+Pendiente: ejecutar integración Telegram/proposal notifications y controles LIVE en entorno con
+Docker, construir/verificar y desplegar API + actualizar proceso nativo de analistas sólo con
+permiso de producción. No reinicios, órdenes reales, cambios de saldo/configuración ni mensajes
+Telegram manuales. No commits/push. Preservados .claude/worktrees/ y docker-compose.override.yml
+preexistentes. No leer .env ni .secrets.
+
 ## Settings controls and analyst status UX — 2026-10-14
 
 User requested usable Settings switches/buttons/layouts and clarification of analyst selection.

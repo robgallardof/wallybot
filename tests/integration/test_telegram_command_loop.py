@@ -46,7 +46,7 @@ class FakeCommandTransport:
 
 
 def _message(update_id: int, chat_id: int, text: str, language_code: str | None = None) -> dict:
-    message: dict = {"chat": {"id": chat_id}, "text": text}
+    message: dict = {"chat": {"id": chat_id, "type": "private"}, "text": text}
     if language_code is not None:
         message["from"] = {"id": chat_id, "language_code": language_code}
     return {"update_id": update_id, "message": message}

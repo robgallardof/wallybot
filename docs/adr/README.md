@@ -24,3 +24,4 @@ Accepted for the design baseline; runtime evidence remains pending. Supersede a 
 | [018](018-real-spot-objective.md) | Operator-configured, MFA-approved real Kraken spot trading |
 | [019](019-binance-spot-venue.md) | Binance spot as the default venue |
 | [020](020-market-references.md) | Gross, dated market references for reports; no account outperformance claim |
+| [021](021-telegram-proposal-review.md) | Aprobación privada en Telegram sin MFA por operación y propuestas explicadas/clasificadas |

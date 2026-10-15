@@ -1,9 +1,9 @@
 """Long-polls Telegram's `getUpdates` for inbound commands from the operator's single allowlisted
 chat (SECURITY.md: "allowlisted numeric user/chat IDs"). Query commands (`/status`, `/breakers`,
 `/portfolio`, `/proposals`, `/withdrawal`) reply immediately with read-only evidence.
-`/approve ID CODE` and `/reject ID CODE` record a proposal decision only through the injected
-`decide` callback, which verifies a fresh single-use TOTP code and runs the same path as the web
-(ADR-017); without a code they only return the web review link. Sensitive commands
+`/approve ID`, `/reject ID` and inline buttons record decisions through the injected callback
+only from the linked private operator chat, without per-decision MFA. The shared decision path
+retains ownership, expiry, mode binding and deterministic risk revalidation. Sensitive commands
 (`/pause`, `/resume`) never
 execute directly -- they create a `wallybot.domain.telegram_confirmation.TelegramConfirmation` the
 operator must confirm through the existing Admin+fresh-MFA web flow, and reply saying so.
@@ -27,6 +27,7 @@ ever replies.
 """
 
 import hmac
+import json
 import re
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
@@ -37,6 +38,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from wallybot.application.paper_accounts import paper_ai_account_id
 from wallybot.application.portfolio_performance import compute_fifo_performance
+from wallybot.application.proposal_presentation import (
+    display_context,
+    proposal_notification,
+    rank_proposals,
+)
 from wallybot.application.telegram_commands import TelegramCommand, parse_command
 from wallybot.domain.control import Status
 from wallybot.domain.id_generator import IdGenerator
@@ -47,15 +53,15 @@ from wallybot.infrastructure.models import AiAutonomyControlRow, ControlRow, Tra
 from wallybot.infrastructure.portfolio_repository import PortfolioRepository
 from wallybot.infrastructure.telegram_config_repository import TelegramConfigRepository
 from wallybot.infrastructure.telegram_confirmation_repository import TelegramConfirmationRepository
-from wallybot.notifications.telegram import TelegramCommandTransport
+from wallybot.notifications.telegram import Notification, TelegramCommandTransport
 from wallybot.notifications.telegram_i18n import Language, resolve_language
 from wallybot.security.crypto import Crypto, digest
 
 GET_UPDATES_TIMEOUT_SECONDS = 8
 
-# (proposal_id, "approve" | "reject", TOTP code) -> {"status", "execution_status"}. Raises on an
-# invalid code, throttling or a refused decision; the message is shown to the operator.
-ProposalDecider = Callable[[str, str, str], Awaitable[dict[str, str | None]]]
+# (proposal_id, decision, optional displayed mode/version binding) -> decision result.
+# Throttling and refused decisions are reported to the operator.
+ProposalDecider = Callable[[str, str, str | None], Awaitable[dict[str, str | None]]]
 
 
 async def run_telegram_command_tick(
@@ -87,7 +93,10 @@ async def run_telegram_command_tick(
 
     token = crypto.decrypt(config.encrypted_bot_token)
     base_url = f"https://api.telegram.org/bot{token}"
-    params = {"timeout": str(GET_UPDATES_TIMEOUT_SECONDS)}
+    params = {
+        "timeout": str(GET_UPDATES_TIMEOUT_SECONDS),
+        "allowed_updates": json.dumps(["message", "callback_query"]),
+    }
     if config.last_update_id is not None:
         params["offset"] = str(config.last_update_id + 1)
     payload = await transport.get_json(f"{base_url}/getUpdates", params)
@@ -102,6 +111,10 @@ async def run_telegram_command_tick(
     # existed) as if it were just issued.
     if config.last_update_id is not None:
         for update in updates:
+            callback = update.get("callback_query")
+            if callback is not None:
+                await _handle_callback(callback, config.chat_id, decide, transport, base_url)
+                continue
             message = update.get("message")
             if not message or "text" not in message or "chat" not in message:
                 continue
@@ -118,15 +131,85 @@ async def run_telegram_command_tick(
                 message["text"],
                 language,
                 web_origin,
-                decide,
+                decide if _private_operator(message, config.chat_id) else None,
             )
             if reply is not None:
-                await transport.post_form(
-                    f"{base_url}/sendMessage", {"chat_id": str(chat_id), "text": reply}
-                )
+                replies = reply if isinstance(reply, list) else [reply]
+                for item in replies:
+                    form = {
+                        "chat_id": str(chat_id),
+                        "text": item.text if isinstance(item, Notification) else item,
+                    }
+                    if isinstance(item, Notification) and item.reply_markup is not None:
+                        form["reply_markup"] = json.dumps(item.reply_markup)
+                    await transport.post_form(f"{base_url}/sendMessage", form)
 
     async with sessions.begin() as db:
         await TelegramConfigRepository(db).set_last_update_id(max_update_id)
+
+
+def _private_operator(message: dict, chat_id: int) -> bool:
+    chat, sender = message.get("chat") or {}, message.get("from") or {}
+    return (
+        chat.get("type") == "private"
+        and chat.get("id") == chat_id
+        and sender.get("id") == chat_id
+        and not sender.get("is_bot", False)
+    )
+
+
+async def _handle_callback(
+    callback: dict,
+    chat_id: int,
+    decide: ProposalDecider | None,
+    transport: TelegramCommandTransport,
+    base_url: str,
+) -> None:
+    message = callback.get("message") or {}
+    message = {**message, "from": callback.get("from") or {}}
+    language = resolve_language(message["from"].get("language_code"))
+    en = language == "en"
+    if not _private_operator(message, chat_id) or decide is None:
+        reply = "Use your linked private chat." if en else "Usa tu chat privado vinculado."
+    else:
+        match = re.fullmatch(
+            r"(approve|reject):([A-Za-z0-9_-]{1,64}):(OBSERVE|PAPER|LIVE):(\d{1,10})",
+            str(callback.get("data", "")),
+        )
+        if match is None:
+            reply = "Invalid button. Use /proposals." if en else "Botón no válido. Usa /proposals."
+        else:
+            decision, proposal_id, environment, version = match.groups()
+            await transport.post_form(
+                f"{base_url}/answerCallbackQuery",
+                {
+                    "callback_query_id": str(callback["id"]),
+                    "text": "Processing…" if en else "Procesando…",
+                },
+            )
+            reply = await _decision_reply(
+                decide,
+                proposal_id,
+                TelegramCommand(decision.upper()),
+                f"{environment}:{version}",
+                language,
+            )
+            await transport.post_form(
+                f"{base_url}/sendMessage",
+                {
+                    "chat_id": str(chat_id),
+                    "text": reply,
+                },
+            )
+            return
+    await transport.post_form(
+        f"{base_url}/answerCallbackQuery",
+        {
+            "callback_query_id": str(callback["id"]),
+            "text": reply[:180],
+            "show_alert": "true",
+        },
+    )
 
 
 async def _run_pairing_tick(
@@ -138,7 +221,10 @@ async def _run_pairing_tick(
 ) -> None:
     token = crypto.decrypt(config.encrypted_bot_token)
     base_url = f"https://api.telegram.org/bot{token}"
-    params = {"timeout": str(GET_UPDATES_TIMEOUT_SECONDS)}
+    params = {
+        "timeout": str(GET_UPDATES_TIMEOUT_SECONDS),
+        "allowed_updates": json.dumps(["message", "callback_query"]),
+    }
     if config.last_update_id is not None:
         params["offset"] = str(config.last_update_id + 1)
     payload = await transport.get_json(f"{base_url}/getUpdates", params)
@@ -192,7 +278,7 @@ async def _handle_command(
     language: Language,
     web_origin: str | None = None,
     decide: ProposalDecider | None = None,
-) -> str | None:
+) -> str | list[Notification] | None:
     command = parse_command(text)
     if command is None:
         return None
@@ -200,11 +286,10 @@ async def _handle_command(
     if (
         decide is not None
         and command in {TelegramCommand.APPROVE, TelegramCommand.REJECT}
-        and len(parts) == 3
-        and re.fullmatch(r"[A-Za-z0-9:_-]{1,128}", parts[1])
-        and re.fullmatch(r"\d{6}", parts[2])
+        and len(parts) == 2
+        and re.fullmatch(r"[A-Za-z0-9_-]{1,128}", parts[1])
     ):
-        return await _decision_reply(decide, parts[1], command, parts[2], language)
+        return await _decision_reply(decide, parts[1], command, None, language)
     if command in {TelegramCommand.APPROVE, TelegramCommand.REJECT, TelegramCommand.SIMULATE}:
         return await _proposal_review_reply(
             sessions, owner_id, now, text, command, language, web_origin
@@ -216,7 +301,7 @@ async def _handle_command(
     if command is TelegramCommand.PORTFOLIO:
         return await _portfolio_reply(sessions, account_id, owner_id, language)
     if command is TelegramCommand.PROPOSALS:
-        return await _proposals_reply(sessions, owner_id, language)
+        return await _proposals_reply(sessions, owner_id, language, now, web_origin)
     if command is TelegramCommand.WITHDRAWAL:
         return await _withdrawal_reply(sessions, owner_id, language)
     if command is TelegramCommand.HELP:
@@ -231,23 +316,25 @@ async def _decision_reply(
     decide: ProposalDecider,
     proposal_id: str,
     command: TelegramCommand,
-    code: str,
+    binding: str | None,
     language: Language,
 ) -> str:
     try:
-        result = await decide(proposal_id, command.value.lower(), code)
+        result = await decide(proposal_id, command.value.lower(), binding)
     except Exception as exc:  # noqa: BLE001 -- every refusal is reported, nothing is retried
         detail = getattr(exc, "detail", None) or getattr(exc, "message", None) or str(exc)
         reason = str(detail) or type(exc).__name__
         return f"Not recorded: {reason}" if language == "en" else f"No se registró: {reason}"
     status, execution = result.get("status"), result.get("execution_status")
+    reason = result.get("execution_reason")
+    explanation = f"\n{reason}" if reason else ""
     if language == "en":
         reply = f"Proposal {status}."
-        return reply + (f" Execution: {execution}." if execution else "")
+        return reply + (f" Execution: {execution}." if execution else "") + explanation
     reply = {"APPROVED": "Propuesta aprobada.", "REJECTED": "Propuesta rechazada."}.get(
         str(status), f"Propuesta {status}."
     )
-    return reply + (f" Ejecución: {execution}." if execution else "")
+    return reply + (f" Ejecución: {execution}." if execution else "") + explanation
 
 
 async def _proposal_review_reply(
@@ -263,10 +350,10 @@ async def _proposal_review_reply(
     parts = text.split()
     if len(parts) != 2 or re.fullmatch(r"[A-Za-z0-9:_-]{1,128}", parts[1]) is None:
         return (
-            "Use /approve ID CODE or /reject ID CODE with your 6-digit MFA code, or /simulate ID "
+            "Use /approve ID or /reject ID in your linked private chat, or /simulate ID "
             "from /proposals."
             if language == "en"
-            else "Usá /approve ID CÓDIGO o /reject ID CÓDIGO con tu código MFA de 6 dígitos, o "
+            else "Usa /approve ID o /reject ID en tu chat privado vinculado, o "
             "/simulate ID de /proposals."
         )
     async with sessions() as db:
@@ -290,11 +377,9 @@ async def _proposal_review_reply(
     return (
         f"Review {command.value}: {row.base}/{row.quote} at {row.entry_price}. "
         f"Nothing was approved or executed. Open the link, review and confirm with MFA:\n{link}"
-        f"\nOr reply here: /{command.value.lower()} {row.proposal_id} CODE"
         if language == "en"
         else f"Revisar {command.value}: {row.base}/{row.quote} a {row.entry_price}. "
         f"No se aprobó ni ejecutó nada. Abrí el enlace, revisá y confirmá con MFA:\n{link}"
-        f"\nO respondé aquí: /{command.value.lower()} {row.proposal_id} CÓDIGO"
     )
 
 
@@ -311,12 +396,12 @@ async def _init_reply(sessions: async_sessionmaker[AsyncSession], language: Lang
         row.starter_requested = True
     return (
         "Starter analysis requested. Codex and Claude will look for one conservative first buy "
-        "within a minute; if they agree you will get a proposal to approve with MFA. "
+        "within a minute; if they agree you will get a proposal to approve here. "
         "Nothing is executed automatically."
         if language == "en"
         else "Análisis inicial solicitado. Codex y Claude buscarán una primera compra "
         "conservadora en el próximo minuto; si se ponen de acuerdo te llegará una propuesta "
-        "para aprobar con MFA. No se ejecuta nada automáticamente."
+        "para aprobar aquí. No se ejecuta nada automáticamente."
     )
 
 
@@ -328,9 +413,9 @@ def _help_reply(language: Language) -> str:
             "/breakers -- active circuit breakers\n"
             "/portfolio -- latest equity snapshot\n"
             "/proposals -- latest AI proposals (read-only)\n"
-            "/approve ID CODE /reject ID CODE -- decide here with your MFA code\n"
-            "/approve ID /reject ID /simulate ID -- open a web review with MFA\n"
-            "/init -- ask the analysts for a first conservative buy (approve with MFA)\n"
+            "/approve ID /reject ID -- decide in your linked private chat, no MFA\n"
+            "/simulate ID -- open a web simulation review\n"
+            "/init -- ask the analysts for a first conservative buy (approve here)\n"
             "/withdrawal -- informational realized-result review (read-only)\n"
             "/pause -- request a pause (confirm on the web with MFA)\n"
             "/resume -- request a resume (confirm on the web with MFA)\n"
@@ -342,9 +427,9 @@ def _help_reply(language: Language) -> str:
         "/breakers -- circuit breakers activos\n"
         "/portfolio -- último snapshot de equity\n"
         "/proposals -- últimas propuestas de IA (solo lectura)\n"
-        "/approve ID CÓDIGO /reject ID CÓDIGO -- decidir aquí con tu código MFA\n"
-        "/approve ID /reject ID /simulate ID -- abrir revisión web con MFA\n"
-        "/init -- pide a los analistas una primera compra conservadora (aprobás con MFA)\n"
+        "/approve ID /reject ID -- decidir en tu chat privado vinculado, sin MFA\n"
+        "/simulate ID -- abrir revisión de simulación web\n"
+        "/init -- pide a los analistas una primera compra conservadora (apruebas aquí)\n"
         "/withdrawal -- revisión informativa de resultado realizado (solo lectura)\n"
         "/pause -- solicita pausar (confirmás en la web con MFA)\n"
         "/resume -- solicita reanudar (confirmás en la web con MFA)\n"
@@ -470,46 +555,32 @@ async def _ai_portfolio_summary(
 
 
 async def _proposals_reply(
-    sessions: async_sessionmaker[AsyncSession], owner_id: str | None, language: Language
-) -> str:
+    sessions: async_sessionmaker[AsyncSession],
+    owner_id: str | None,
+    language: Language,
+    now: datetime,
+    web_origin: str | None = None,
+) -> str | list[Notification]:
     if owner_id is None:
-        return (
-            "Proposals unavailable: no administrator configured."
-            if language == "en"
-            else "Propuestas no disponibles: no hay administrador configurado."
-        )
+        return "Proposals unavailable." if language == "en" else "Propuestas no disponibles."
     async with sessions() as db:
-        rows = (
-            await db.scalars(
-                select(TradeProposalRow)
-                .where(TradeProposalRow.owner_id == owner_id)
-                .order_by(TradeProposalRow.as_of.desc())
-                .limit(5)
-            )
-        ).all()
+        rows = list(
+            (
+                await db.scalars(
+                    select(TradeProposalRow)
+                    .where(TradeProposalRow.owner_id == owner_id)
+                    .order_by(TradeProposalRow.as_of.desc())
+                    .limit(100)
+                )
+            ).all()
+        )
+        context = await display_context(db, owner_id, now)
     if not rows:
         return "No AI proposals yet." if language == "en" else "Todavía no hay propuestas de IA."
-
-    def execution_context(row: TradeProposalRow) -> str:
-        if row.execution_status is None:
-            return ""
-        return f" · {row.execution_environment or 'PAPER'} {row.execution_status}"
-
-    if language == "en":
-        lines = ["Latest AI proposals:"]
-        lines.extend(
-            f"{row.proposal_id}: {row.direction} {row.base}/{row.quote} "
-            f"at {row.entry_price} — {row.decision_status}{execution_context(row)}"
-            for row in rows
-        )
-        return "\n".join(lines) + "\nOpen WallyBot to simulate, approve, or reject with MFA."
-    lines = ["Últimas propuestas de IA:"]
-    lines.extend(
-        f"{row.proposal_id}: {row.direction} {row.base}/{row.quote} "
-        f"a {row.entry_price} — {row.decision_status}{execution_context(row)}"
-        for row in rows
-    )
-    return "\n".join(lines) + "\nAbrí WallyBot para simular, aprobar o rechazar con MFA."
+    return [
+        proposal_notification(row, i, context, now, language, web_origin)
+        for i, row in enumerate(rank_proposals(rows, now)[:5], 1)
+    ]
 
 
 async def _withdrawal_reply(

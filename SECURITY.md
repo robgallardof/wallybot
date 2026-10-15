@@ -1,5 +1,12 @@
 # Security design
 
+Actualización 2026-10-15: por petición explícita del operador, aprobar/rechazar propuestas
+por Telegram no requiere MFA por operación. Se autoriza exclusivamente al remitente del chat
+privado vinculado, con decisión de uso único, vigencia y los mismos controles de riesgo.
+Los botones ligan modo y versión de límites; la web y los cambios sensibles conservan MFA.
+Esto sustituye las referencias anteriores a MFA obligatorio para esa decisión en Telegram.
+Véase [ADR-021](docs/adr/021-telegram-proposal-review.md).
+
 Update 2026-10-12: [ADR-018](docs/adr/018-real-spot-objective.md) implements explicit, per-operation
 approved spot LIVE activation; [ADR-019](docs/adr/019-binance-spot-venue.md) selects Binance
 as the default venue. This supersedes the older Phase 1/PAPER-only status below;
@@ -46,7 +53,8 @@ Research receives sanitized exports or read-only analytics views, separate metad
 `claude`/`codex` CLI to analyze validated public market context, but it can only persist a
 schema-validated, operator-scoped `TradeProposal`. It has no execution gateway, account balance,
 order-building, withdrawal or transfer capability. An authenticated operator chooses approve,
-reject or simulate. Only the MFA-protected API route, after committing that one-time approval,
+reject or simulate. Only the operator decision path (web MFA or the bound private Telegram chat),
+after committing that one-time approval,
 may revalidate it against data freshness and the deterministic controls and submit one PAPER
 order through the AI account's simulated gateway. ADR-018 additionally allows an explicitly
 activated, operator-owned LIVE spot account, with per-order mode/policy binding and revalidation.

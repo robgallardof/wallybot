@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
@@ -100,7 +101,24 @@ async def test_strict_consensus_combines_two_nearby_recommendations_conservative
     assert result.proposal_id == "codex-proposal"
     assert result.model_id == "consensus:codex+claude"
     assert result.confidence == Decimal("0.7")
-    assert result.reasons[0] == "Independent analyst consensus: codex, claude"
+    assert result.reasons[-1] == "Consenso independiente: codex, claude"
+    assert "codex evidence" in result.reasons
+    assert "claude evidence" in result.reasons
+
+
+async def test_consensus_preserves_both_analysts_invalidating_conditions():
+    first = replace(
+        proposal("one", "codex", Decimal(100)), invalidating_conditions=("Pierde soporte",)
+    )
+    second = replace(
+        proposal("two", "claude", Decimal(100)),
+        invalidating_conditions=("Pierde soporte", "Desaparece el volumen"),
+    )
+    result = await ConsensusAiProvider((FixedProvider(first), FixedProvider(second))).analyze(
+        context()
+    )
+    assert result is not None
+    assert result.invalidating_conditions == ("Pierde soporte", "Desaparece el volumen")
 
 
 async def test_strict_consensus_fails_closed_when_one_analyst_holds_or_is_unavailable() -> None:

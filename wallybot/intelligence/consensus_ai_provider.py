@@ -52,8 +52,8 @@ class ConsensusAiProvider:
         proposals = tuple(proposals)
         analyst_models = tuple(proposal.model_id for proposal in proposals)
         reasons = (
-            f"Independent analyst consensus: {', '.join(analyst_models)}",
-            *primary.reasons,
+            *dict.fromkeys(reason for proposal in proposals for reason in proposal.reasons),
+            f"Consenso independiente: {', '.join(analyst_models)}",
         )
         risks = tuple(dict.fromkeys(risk for proposal in proposals for risk in proposal.risks))
         supporting_signal_ids = tuple(
@@ -78,7 +78,13 @@ class ConsensusAiProvider:
             reasons=reasons,
             risks=risks,
             supporting_signal_ids=supporting_signal_ids,
-            invalidating_conditions=primary.invalidating_conditions,
+            invalidating_conditions=tuple(
+                dict.fromkeys(
+                    condition
+                    for proposal in proposals
+                    for condition in proposal.invalidating_conditions
+                )
+            ),
             source_event_ids=primary.source_event_ids,
             model_id="consensus:" + "+".join(analyst_models),
             prompt_version="consensus/"

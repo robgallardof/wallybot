@@ -29,6 +29,7 @@ _COMMANDS: dict[str, TelegramCommand] = {
     "/breakers": TelegramCommand.BREAKERS,
     "/portfolio": TelegramCommand.PORTFOLIO,
     "/proposals": TelegramCommand.PROPOSALS,
+    "/proposal": TelegramCommand.PROPOSALS,
     "/withdrawal": TelegramCommand.WITHDRAWAL,
     "/pause": TelegramCommand.PAUSE,
     "/resume": TelegramCommand.RESUME,

@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from wallybot.notifications.telegram import (
@@ -51,3 +53,15 @@ async def test_rejects_message_that_telegram_would_truncate() -> None:
         await notifier.notify(123, Notification(NotificationSeverity.INFO, "Status", "x" * 4096))
 
     assert transport.calls == []
+
+
+async def test_inline_buttons_reach_the_telegram_transport():
+    transport = FakeTransport()
+    notifier = TelegramNotifier("synthetic", frozenset({42}), transport)
+    markup = {
+        "inline_keyboard": [
+            [{"text": "Aprobar · LIVE", "callback_data": "approve:proposal:LIVE:3"}]
+        ]
+    }
+    await notifier.notify(42, Notification(NotificationSeverity.INFO, "Proposal", "Why", markup))
+    assert json.loads(transport.calls[0][1]["reply_markup"]) == markup

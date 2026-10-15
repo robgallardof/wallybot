@@ -1,8 +1,6 @@
-import time
 from datetime import UTC, datetime, timedelta
 from functools import partial
 
-import pyotp
 import pytest
 
 from apps.api.proposal_routes import decide_from_telegram
@@ -100,13 +98,6 @@ def test_review_links_are_scoped_expiring_and_strictly_parsed(
     ).fetchone() == ("PENDING",)
 
 
-def _next_code(client, db, owner) -> str:
-    # Enrollment consumed the current TOTP step; the next one is still inside the accepted window.
-    encrypted = db.execute("SELECT totp_encrypted FROM users WHERE id=%s", (owner,)).fetchone()[0]
-    secret = client.app.state.auth.crypto.decrypt(encrypted)
-    return pyotp.TOTP(secret).at((int(time.time()) // 30 + 1) * 30)
-
-
 def _decide_tick(client, owner, text):
     transport = FakeCommandTransport([_message(100, 42, text, "en")])
     client.portal.call(
@@ -146,21 +137,35 @@ def _status(db):
 
 
 @pytest.mark.parametrize("decision,expected", [("approve", "APPROVED"), ("reject", "REJECTED")])
-def test_telegram_decision_with_fresh_totp_is_recorded_once(
-    client, settings, db, decision, expected
-):
+def test_telegram_decision_without_mfa_is_recorded_once(client, settings, db, decision, expected):
     owner = _paired(client, settings, db)
-    code = _next_code(client, db, owner)
-    reply = _decide_tick(client, owner, f"/{decision} review-proposal {code}")
+    reply = _decide_tick(client, owner, f"/{decision} review-proposal")
     assert expected in reply, reply
     assert _status(db) == expected
-    # The same code can never be replayed, not even for another decision.
-    replay = _decide_tick(client, owner, f"/reject review-proposal {code}")
+    # The same proposal cannot be decided twice.
+    replay = _decide_tick(client, owner, "/reject review-proposal")
     assert "Not recorded" in replay and _status(db) == expected
 
 
-def test_telegram_decision_with_wrong_code_changes_nothing(client, settings, db):
+def test_telegram_extra_arguments_change_nothing(client, settings, db):
     owner = _paired(client, settings, db)
     reply = _decide_tick(client, owner, "/approve review-proposal 000000")
-    assert "Not recorded" in reply
+    assert "Use /approve" in reply
+    assert _status(db) == "PENDING"
+
+
+def test_telegram_without_mfa_still_rejects_expired_proposal(client, settings, db):
+    owner = _paired(client, settings, db)
+    db.execute("UPDATE trade_proposals SET as_of = as_of - interval '2 hours'")
+    reply = _decide_tick(client, owner, "/approve review-proposal")
+    assert "Not recorded" in reply and "expired" in reply
+    assert _status(db) == "PENDING"
+
+
+def test_telegram_without_mfa_cannot_approve_another_owners_proposal(client, settings, db):
+    owner = _paired(client, settings, db)
+    # A deliberately unowned proposal cannot be claimed by the linked operator.
+    db.execute("UPDATE trade_proposals SET owner_id = NULL")
+    reply = _decide_tick(client, owner, "/approve review-proposal")
+    assert "Not recorded" in reply and "not found" in reply
     assert _status(db) == "PENDING"

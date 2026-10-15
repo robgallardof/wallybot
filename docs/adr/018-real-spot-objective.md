@@ -36,6 +36,8 @@ state; rearming requires MFA and healthy evidence. Balance mismatches fail close
 The analyst may read a dated, sanitized cash/holding snapshot, not credentials, account controls,
 orders or the ledger. Missing/stale LIVE portfolio context stops proposal generation. The AI has
 no gateway and cannot approve or send orders. Telegram review links remain navigation only.
+ADR-021 subsequently allows per-proposal decisions from the linked private Telegram chat
+without per-order MFA; explicit LIVE activation and deterministic controls remain mandatory.
 
 ## Practical limits
 

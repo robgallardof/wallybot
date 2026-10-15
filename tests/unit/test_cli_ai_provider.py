@@ -40,6 +40,25 @@ _VALID_PAYLOAD = {
 }
 
 
+async def test_analyst_invalidation_is_preserved_and_prompt_requests_plain_spanish():
+    payload = {**_VALID_PAYLOAD, "invalidating_conditions": ["Cierre bajo el soporte"]}
+    transport = FakeCliTransport(stdout=json.dumps({"result": json.dumps(payload)}))
+    provider = make_provider(transport)
+    result = await provider.analyze(make_context())
+    assert result is not None
+    assert result.invalidating_conditions == ("Cierre bajo el soporte",)
+    prompt = provider._build_prompt(make_context())
+    assert "clear Spanish" in prompt
+    assert "WHY now" in prompt
+
+
+async def test_invalidation_cannot_be_parsed_as_characters_or_non_text():
+    for invalid in ["not an array", [123], ["   "], {"condition": "support"}]:
+        payload = {**_VALID_PAYLOAD, "invalidating_conditions": invalid}
+        transport = FakeCliTransport(stdout=json.dumps({"result": json.dumps(payload)}))
+        assert await make_provider(transport).analyze(make_context()) is None
+
+
 class FakeClock:
     def now(self) -> datetime:
         return AS_OF

@@ -73,8 +73,16 @@ matching this shape:
   "time_horizon_hours": number greater than 0,
   "signal_ttl_hours": number greater than 0, how long this proposal stays valid,
   "reasons": array of at least one non-empty string,
-  "risks": array of strings, may be empty
+  "risks": array of non-empty strings describing concrete failure scenarios,
+  "invalidating_conditions": array of non-empty strings describing when the thesis stops holding
 }
+
+Write reasons, risks and invalidating_conditions in clear Spanish for the operator. Explain WHY
+this asset and WHY now, citing the supplied price/feature/regime evidence and its limitations;
+"analysts agree" alone is not a reason. Explain the choice of allocation, holding horizon and
+expiry, and the assumptions behind the stop/target. Distinguish holding horizon from the deadline
+to approve. Never invent news, indicators, balances, probabilities, or guaranteed returns. State
+missing evidence honestly. Supply concrete invalidating conditions, not just a generic risk label.
 
 Respond with {"action": "HOLD"} if you have no actionable trade idea for this instrument right
 now. SELL means reduce an existing spot position only; it never means opening a short, borrowing,
@@ -315,8 +323,16 @@ class CliAiProvider:
             )
             time_horizon = timedelta(hours=float(payload["time_horizon_hours"]))
             signal_ttl = timedelta(hours=float(payload["signal_ttl_hours"]))
-            reasons = tuple(str(reason) for reason in payload["reasons"])
-            risks = tuple(str(risk) for risk in payload.get("risks", ()))
+            evidence = {}
+            for field in ("reasons", "risks", "invalidating_conditions"):
+                values = payload.get(field, [])
+                if not isinstance(values, list) or any(
+                    not isinstance(value, str) or not value.strip() for value in values
+                ):
+                    return None
+                evidence[field] = tuple(value.strip() for value in values)
+            reasons = evidence["reasons"]
+            risks = evidence["risks"]
         except (KeyError, TypeError, ValueError, InvalidOperation):
             return None
         try:
@@ -337,7 +353,7 @@ class CliAiProvider:
                 supporting_signal_ids=tuple(
                     signal.strategy_id for signal in context.strategy_signals
                 ),
-                invalidating_conditions=(),
+                invalidating_conditions=evidence["invalidating_conditions"],
                 source_event_ids=(),
                 model_id=self._model_id,
                 prompt_version=self._prompt_version,

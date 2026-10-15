@@ -103,29 +103,39 @@ Una reducción requiere una nueva propuesta aprobada con MFA y los mismos contro
 
 ## Conversación con tu bot de Telegram
 
-El bot responde en español o inglés según el idioma de Telegram. La conversación objetivo es:
-`/proposals`, `/portfolio`, `/withdrawal`, `/status`, `/breakers`, `/pause`, `/resume` y `/help`. `/proposals`
-es de solo lectura y muestra las últimas ideas de tu cuenta. Las decisiones de simular, aprobar o
-rechazar se confirman desde WallyBot con MFA; Telegram nunca ejecuta una operación. Cada respuesta
-explica importe, precio, riesgo, vigencia y resultado. Si una propuesta aprobada produjo una
-simulación PAPER, `/proposals` muestra ese resultado; si la instancia está en OBSERVE, muestra que
-no se creó una orden. Ningún
-comando acepta una dirección de wallet, banco o destinatario; `/withdrawal` sólo muestra una
-recomendación para que la ejecutes fuera de WallyBot.
+Actualización 2026-10-15, por petición explícita del operador: `/approve ID`, `/reject ID`
+y los botones Aprobar/Rechazar deciden desde el chat **privado vinculado**, sin solicitar MFA
+por operación. Se exige coincidencia entre el remitente y el ID del chat privado autorizado;
+los grupos, mensajes reenviados a otros chats y usuarios ajenos no pueden aprobar. La web,
+activación LIVE, cambios de límites y reanudación conservan sus requisitos de autenticación/MFA.
+La decisión queda auditada con el canal y usa los mismos controles deterministas de ejecución.
+Una propuesta caducada o ya decidida no se puede aprobar. Los botones muestran el entorno y
+quedan ligados a ese modo y versión de límites; si cambian, se pide consultar `/proposals` de nuevo.
 
-`/approve ID`, `/reject ID` y `/simulate ID` abren la propuesta propia en la web para revisión.
-El enlace sólo navega: ni el comando ni abrirlo consumen una aprobación. La web sigue exigiendo
-una acción explícita, sesión autorizada, MFA y vigencia. No se emiten enlaces de aprobación o
-simulación para propuestas caducadas; rechazarlas para archivarlas sigue disponible.
+`/proposals` (también `/proposal`) muestra hasta cinco fichas completas, ordenadas entre las
+100 propuestas más recientes del operador: primero pendientes vigentes, después por relación
+beneficio/riesgo hasta los niveles propuestos, potencial bruto y confianza del analista como
+desempate. No es una predicción de rentabilidad ni una probabilidad de éxito. Las propuestas sin
+stop/objetivo comparable y las reducciones no compiten como rendimientos calculables.
 
-`/withdrawal` sólo revisa el resultado realizado confirmado de la cuenta de IA y lo presenta como
-contexto para una decisión externa. No acepta una wallet o cuenta bancaria, no crea una orden, no
-genera una confirmación y no puede retirar ni transferir fondos.
+Cada ficha explica activo, entorno, estado, asignación, importe orientativo cuando hay valoración
+verificada, razones, riesgos, condiciones de invalidación, entrada, stop, objetivo, escenarios
+brutos, horizonte de tenencia y fecha/hora exacta de caducidad en UTC. El horizonte de tenencia
+es distinto del plazo para aprobar. Los avisos de nuevas propuestas usan las mismas fichas y
+clasificación. `LOW`, `MEDIUM` y `HIGH` son etiquetas orientativas por stop/asignación, no una
+calificación de seguridad del activo. Véase [criterios y ejemplo](TELEGRAM-PROPOSALS.md).
 
-Cuando el análisis está activado, el intervalo de digest de Configuración determina cuándo se
-recibe un resumen de **propuestas nuevas pendientes**. Cada aviso reúne como máximo cinco ideas y
-repite que la revisión se hace en la web con MFA. No hay botones, comandos ni respuestas de
-Telegram que puedan aprobar, ejecutar, transferir o cambiar esa frecuencia.
+El importe sólo se calcula con evidencia LIVE de la cuenta propia, READY, de hasta 60 segundos,
+con proveedor/moneda coincidentes. Es el menor entre la asignación sugerida sobre el valor de
+cartera, el efectivo observado y el límite por orden, antes de comisiones y demás controles.
+PAPER/OBSERVE o evidencia ausente/antigua muestran porcentaje e importe no disponible; no se
+inventa un saldo ni una recomendación de depósito. Si el efectivo no alcanza, se muestra el faltante para esa asignación con tope, antes de costes;
+puedes utilizar el importe menor. El motor vuelve a calcular el importe final.
+
+`/simulate ID` abre la revisión web; no aprueba ni ejecuta por sí mismo. `/status`, `/breakers`,
+`/portfolio`, `/withdrawal` y `/help` conservan su función. `/init` solicita análisis inicial;
+no garantiza que se genere una propuesta si falta consenso o evidencia. `/withdrawal` sólo
+informa: ningún comando acepta destinatarios ni puede retirar o transferir fondos.
 
 ## Estrategia de ejemplo: DCA condicionado
 

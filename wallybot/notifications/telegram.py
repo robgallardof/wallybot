@@ -5,6 +5,7 @@ adapter can send a bounded text notification only to configured chats; it cannot
 perform withdrawals, or interpret a chat message as an operation.
 """
 
+import json
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
@@ -38,6 +39,7 @@ class Notification:
     severity: NotificationSeverity
     title: str
     body: str
+    reply_markup: dict | None = None
 
     def __post_init__(self) -> None:
         if not self.title or not self.body:
@@ -125,11 +127,11 @@ class TelegramNotifier:
         text = notification.text
         if len(text) > 4096:
             raise ValueError("Telegram notification exceeds the 4096-character limit")
-        await self._transport.post_form(
-            self._url,
-            {
-                "chat_id": str(chat_id),
-                "text": text,
-                "disable_web_page_preview": "true",
-            },
-        )
+        form = {
+            "chat_id": str(chat_id),
+            "text": text,
+            "disable_web_page_preview": "true",
+        }
+        if notification.reply_markup is not None:
+            form["reply_markup"] = json.dumps(notification.reply_markup)
+        await self._transport.post_form(self._url, form)

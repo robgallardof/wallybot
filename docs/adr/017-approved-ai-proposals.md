@@ -59,11 +59,10 @@ Las CLI trabajan en un directorio temporal, sin variables WALLY ni herramientas 
 se comprobó su respuesta real con una solicitud HOLD que no persiste propuestas. Arrancar el
 proceso no modifica los controles de análisis/PAPER del operador.
 
-Telegram puede abrir una propuesta propia mediante /approve, /reject o /simulate; sin código, el
-comando y el enlace sólo navegan. Desde 2026-10-15, por decisión explícita del operador,
-`/approve ID CÓDIGO` y `/reject ID CÓDIGO` desde el chat allowlisted registran la decisión si el
-código TOTP es válido: consume el paso TOTP (no reutilizable, ni en web ni en Telegram), está
-limitado por intentos y ejecuta exactamente la misma ruta que la web (`record_decision`), atada al
-modo y a la versión de límites LIVE vigentes, con caducidad, uso único y revalidación. /simulate
-sigue siendo sólo un enlace. El seguimiento de cartera y stop/objetivo es de lectura;
-un nivel alcanzado no origina una venta automática. Ver el mandato para las reglas de valoración.
+Desde 2026-10-15, la petición posterior del operador elimina MFA por aprobación en Telegram.
+`/approve ID`, `/reject ID` y botones funcionan sólo desde el chat privado vinculado, verificando
+remitente y chat. Se conserva el flujo compartido `record_decision`, con propietario, vigencia,
+uso único, modo/versión LIVE y revalidación. La web conserva MFA. Los botones antiguos quedan
+invalidados cuando cambia el modo o la versión de límites. Véase [ADR-021](021-telegram-proposal-review.md).
+El seguimiento de cartera y stop/objetivo sigue siendo de lectura: alcanzar un nivel no origina
+una venta automática. Las fichas detalladas y su clasificación se documentan en el mandato.

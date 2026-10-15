@@ -125,9 +125,7 @@ async def _save_proposal(db, proposal_id: str, as_of: datetime) -> None:
     )
 
 
-async def test_new_pending_proposals_are_grouped_into_one_bilingual_digest(
-    sessions, crypto
-) -> None:
+async def test_new_pending_proposal_has_a_detailed_card(sessions, crypto) -> None:
     await _configure_telegram(sessions, crypto)
     await _save_pending_proposal(sessions)
     transport = FakeTransport()
@@ -138,9 +136,9 @@ async def test_new_pending_proposals_are_grouped_into_one_bilingual_digest(
 
     assert sent is True
     assert len(transport.calls) == 1
-    assert "New WallyBot analysis proposals" in transport.calls[0][1]["text"]
-    assert "Nuevas propuestas de análisis" in transport.calls[0][1]["text"]
-    assert "BUY / Comprar BTC/USD" in transport.calls[0][1]["text"]
+    assert "COMPRAR BTC/USD" in transport.calls[0][1]["text"]
+    assert "Por qué: analysts agree" in transport.calls[0][1]["text"]
+    assert "reply_markup" in transport.calls[0][1]
     async with sessions() as db:
         assert await AiProposalDigestRepository(db).last_sent_at(OWNER_ID) == NOW + timedelta(
             minutes=1
@@ -207,4 +205,5 @@ async def test_immediate_alert_ignores_the_digest_cadence_but_never_repeats(
 
     assert sent is True and repeated is False
     assert len(transport.calls) == 2
+    assert "/approve proposal-2" in transport.calls[1][1]["text"]
     assert "https://wally.example/intelligence?proposal=proposal-2" in transport.calls[1][1]["text"]

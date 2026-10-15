@@ -1,5 +1,12 @@
 # Deterministic risk and execution policy
 
+Actualización 2026-10-15: por petición explícita del operador, aprobar/rechazar propuestas
+por Telegram no requiere MFA por operación. Se autoriza exclusivamente al remitente del chat
+privado vinculado, con decisión de uso único, vigencia y los mismos controles de riesgo.
+Los botones ligan modo y versión de límites; la web y los cambios sensibles conservan MFA.
+Esto sustituye las referencias anteriores a MFA obligatorio para esa decisión en Telegram.
+Véase [ADR-021](docs/adr/021-telegram-proposal-review.md).
+
 Update 2026-10-12: manual, MFA-approved Kraken spot LIVE is implemented under ADR-018. Historical
 phase status below is not the current delivery scope. Required evidence is tracked in
 [verification](docs/stats/testing.md); no financial-performance claim is made.
@@ -60,8 +67,8 @@ Risk-reducing intents use a separate deterministic policy: cannot exceed held qu
 Pyramiding requires profit, renewed evidence, original thesis validity and full reapproval; it never bypasses aggregate limits. Profit harvesting and speculative scaling remain experiment parameters until tested. Full Kelly, live arbitrage and autonomous limit relaxation are excluded.
 
 **AI proposals ([ADR-017](docs/adr/017-approved-ai-proposals.md))**: the AI worker does not
-submit orders. It creates explained, expiring proposals only. An operator approval (Admin, fresh
-MFA, single-use, rejected once the proposal's signal TTL elapsed) creates at most one PAPER order
+submit orders. It creates explained, expiring proposals only. An operator approval (Admin, web MFA
+or linked private Telegram chat, single-use, rejected once the proposal's signal TTL elapsed) creates at most one PAPER order
 on the separate `paper-ai:` account, and only while PAPER is explicitly enabled. Before that order
 exists, `wallybot/application/proposal_execution.py` re-reads instrument precision, candles,
 quality, spread, equity, active breakers and that account's reconciliation, then runs the same

@@ -1,3 +1,12 @@
+## 2026-10-15 — Telegram privado sin MFA por decisión
+
+El operador pide explícitamente eliminar MFA por aprobación/rechazo en Telegram y mejorar las
+explicaciones/clasificación. Frontera elegida: remitente del chat privado vinculado + ADMIN;
+web y configuración sensible mantienen MFA. Uso único, caducidad, modo/versión y revalidación
+no se eliminan. Clasificación es heurística de presentación, sin autoridad de ejecución.
+Véase [ADR-021](../docs/adr/021-telegram-proposal-review.md). Implementación local pendiente de
+test de integración y despliegue; no se modificó producción.
+
 # Decisions
 
 Durable technical/architectural decisions for **this repo only** (wally-bot). This file must never

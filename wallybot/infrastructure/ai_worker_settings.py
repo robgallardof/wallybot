@@ -25,7 +25,7 @@ class AiWorkerSettings(BaseSettings):
     database_url: SecretStr
     codex_model_id: str = "codex"
     claude_model_id: str = "claude"
-    ai_prompt_version: str = "v1"
+    ai_prompt_version: str = "v2-es"
     ai_timeout_seconds: float = 120.0
     # Wake often so UI/Telegram requests (/init, availability checks) are picked up quickly;
     # the full market analysis itself runs on the slower cadences below.
