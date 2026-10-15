@@ -17,6 +17,7 @@ from wallybot.scoring.simple import Score, score_momentum
 class ScanResult:
     finalists: tuple[Score, ...]
     rejected_instrument_ids: tuple[str, ...]
+    ranked: tuple[Score, ...] = ()
 
 
 def scan_universe(
@@ -53,4 +54,5 @@ def scan_universe(
     return ScanResult(
         finalists=tuple(ranked[:max_finalists]),
         rejected_instrument_ids=tuple(rejected),
+        ranked=tuple(ranked),
     )

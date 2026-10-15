@@ -27,7 +27,13 @@ class AiWorkerSettings(BaseSettings):
     claude_model_id: str = "claude"
     ai_prompt_version: str = "v1"
     ai_timeout_seconds: float = 120.0
-    ai_poll_interval_seconds: float = 300.0
+    # Wake often so UI/Telegram requests (/init, availability checks) are picked up quickly;
+    # the full market analysis itself runs on the slower cadences below.
+    ai_poll_interval_seconds: float = 60.0
+    # Analysis runs on 1h candles, so scanning faster only repeats the same evidence: look for
+    # entries every 30 min while flat and review open positions every closed hour.
+    ai_flat_analysis_interval_seconds: float = 1800.0
+    ai_holding_analysis_interval_seconds: float = 3600.0
 
 
 def load_ai_worker_settings() -> AiWorkerSettings:

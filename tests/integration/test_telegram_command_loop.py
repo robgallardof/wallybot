@@ -429,3 +429,28 @@ async def test_an_unrecognized_message_gets_no_reply(sessions, crypto) -> None:
         config = await TelegramConfigRepository(db).get()
     assert config is not None
     assert config.last_update_id == 100
+
+
+async def test_init_command_requests_a_starter_analysis_without_executing(
+    sessions, crypto, dependencies
+) -> None:
+    await _configure(sessions, crypto)
+    async with sessions.begin() as db:
+        await TelegramConfigRepository(db).set_last_update_id(99)
+    with psycopg.connect(dependencies[0].replace("+psycopg", ""), autocommit=True) as connection:
+        connection.execute(
+            "UPDATE ai_autonomy_control SET status = 'ENABLED', starter_requested = false"
+        )
+        try:
+            transport = FakeCommandTransport([_message(100, ALLOWED_CHAT_ID, "/init")])
+            await run_telegram_command_tick(sessions, crypto, transport, SequentialIds(), None, NOW)
+            requested = connection.execute(
+                "SELECT starter_requested FROM ai_autonomy_control WHERE id = 1"
+            ).fetchone()[0]
+        finally:
+            connection.execute(
+                "UPDATE ai_autonomy_control SET status = 'DISABLED', starter_requested = false"
+            )
+
+    assert requested is True
+    assert "No se ejecuta nada automáticamente." in transport.sent[0][1]["text"]

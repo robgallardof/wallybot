@@ -385,3 +385,15 @@ def test_binance_portfolio_prompt_labels_cash_in_usdt():
     prompt = make_provider(FakeCliTransport())._build_prompt(context)
     assert "cash USDT=123.45" in prompt
     assert "cash USD=" not in prompt
+
+
+def test_starter_request_adds_conservative_first_buy_instructions():
+    from dataclasses import replace
+
+    plain = make_provider(FakeCliTransport())._build_prompt(make_context())
+    starter = make_provider(FakeCliTransport())._build_prompt(
+        replace(make_context(), starter_position=True)
+    )
+    assert "Starter request" not in plain
+    assert "Starter request" in starter
+    assert "never overrides risk rules" in starter

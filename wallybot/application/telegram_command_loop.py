@@ -39,7 +39,7 @@ from wallybot.domain.id_generator import IdGenerator
 from wallybot.domain.telegram_confirmation import CONFIRMATION_TTL, TelegramAction
 from wallybot.infrastructure.breaker_repository import BreakerRepository
 from wallybot.infrastructure.equity_snapshot_repository import EquitySnapshotRepository
-from wallybot.infrastructure.models import ControlRow, TradeProposalRow
+from wallybot.infrastructure.models import AiAutonomyControlRow, ControlRow, TradeProposalRow
 from wallybot.infrastructure.portfolio_repository import PortfolioRepository
 from wallybot.infrastructure.telegram_config_repository import TelegramConfigRepository
 from wallybot.infrastructure.telegram_confirmation_repository import TelegramConfirmationRepository
@@ -201,6 +201,8 @@ async def _handle_command(
         return await _withdrawal_reply(sessions, owner_id, language)
     if command is TelegramCommand.HELP:
         return _help_reply(language)
+    if command is TelegramCommand.INIT:
+        return await _init_reply(sessions, language)
     action = TelegramAction.PAUSE if command is TelegramCommand.PAUSE else TelegramAction.RESUME
     return await _confirmation_reply(sessions, id_generator, now, action, language)
 
@@ -249,6 +251,28 @@ async def _proposal_review_reply(
     )
 
 
+async def _init_reply(sessions: async_sessionmaker[AsyncSession], language: Language) -> str:
+    """Ask the analysts for one starter buy; it is only a proposal, approval stays on the web."""
+    async with sessions.begin() as db:
+        row = await db.get(AiAutonomyControlRow, 1, with_for_update=True)
+        if row is None or row.status != "ENABLED":
+            return (
+                "AI analysis is disabled. Enable it in WallyBot first."
+                if language == "en"
+                else "El análisis IA está desactivado. Activalo primero en WallyBot."
+            )
+        row.starter_requested = True
+    return (
+        "Starter analysis requested. Codex and Claude will look for one conservative first buy "
+        "within a minute; if they agree you will get a proposal to approve with MFA. "
+        "Nothing is executed automatically."
+        if language == "en"
+        else "Análisis inicial solicitado. Codex y Claude buscarán una primera compra "
+        "conservadora en el próximo minuto; si se ponen de acuerdo te llegará una propuesta "
+        "para aprobar con MFA. No se ejecuta nada automáticamente."
+    )
+
+
 def _help_reply(language: Language) -> str:
     if language == "en":
         return (
@@ -258,6 +282,7 @@ def _help_reply(language: Language) -> str:
             "/portfolio -- latest equity snapshot\n"
             "/proposals -- latest AI proposals (read-only)\n"
             "/approve ID /reject ID /simulate ID -- open a web review with MFA\n"
+            "/init -- ask the analysts for a first conservative buy (approve with MFA)\n"
             "/withdrawal -- informational realized-result review (read-only)\n"
             "/pause -- request a pause (confirm on the web with MFA)\n"
             "/resume -- request a resume (confirm on the web with MFA)\n"
@@ -270,6 +295,7 @@ def _help_reply(language: Language) -> str:
         "/portfolio -- último snapshot de equity\n"
         "/proposals -- últimas propuestas de IA (solo lectura)\n"
         "/approve ID /reject ID /simulate ID -- abrir revisión web con MFA\n"
+        "/init -- pide a los analistas una primera compra conservadora (aprobás con MFA)\n"
         "/withdrawal -- revisión informativa de resultado realizado (solo lectura)\n"
         "/pause -- solicita pausar (confirmás en la web con MFA)\n"
         "/resume -- solicita reanudar (confirmás en la web con MFA)\n"

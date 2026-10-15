@@ -43,6 +43,40 @@ class HttpxBinanceTransport:
         return response.json()
 
 
+# Curated liquid Binance USDT spot markets -- established coins plus a few high-volume memecoins.
+# Shared by the market overview and the AI analyst; ingestion remains bounded to BTC and ETH.
+CURATED_USDT_PAIRS = tuple(
+    (base, "USDT")
+    for base in (
+        "BTC",
+        "ETH",
+        "SOL",
+        "XRP",
+        "ADA",
+        "DOGE",
+        "LTC",
+        "DOT",
+        "LINK",
+        "AVAX",
+        "BCH",
+        "XLM",
+        "UNI",
+        "ATOM",
+        "ETC",
+        "FIL",
+        "NEAR",
+        "APT",
+        "ARB",
+        "TRX",
+        "SHIB",
+        "SUI",
+        "OP",
+        "BNB",
+        "PEPE",
+    )
+)
+
+
 def _filter(info: dict[str, Any], name: str) -> dict[str, Any]:
     for item in info["filters"]:
         if item["filterType"] == name:

@@ -51,6 +51,7 @@ async def run_ai_decision_tick(
     portfolio_cash_usd: Decimal | None = None,
     portfolio_holdings: tuple[tuple[str, Decimal], ...] = (),
     portfolio_as_of: datetime | None = None,
+    starter_position: bool = False,
 ) -> AiDecisionTickResult:
     """Analyze eligible instruments and save explained proposals for one operator only."""
     step = TIMEFRAME_DURATIONS[TIMEFRAME]
@@ -79,7 +80,16 @@ async def run_ai_decision_tick(
     strategy = TrendFollowingStrategy()
     proposals_received = 0
     proposals_persisted = 0
-    for score in scan.finalists:
+    # Review every open position (HOLD / SELL / add more) before new ideas, even when its
+    # momentum no longer ranks it among the finalists.
+    held = {asset for asset, quantity in portfolio_holdings if quantity > 0}
+    finalist_ids = {score.inputs.instrument.id for score in scan.finalists}
+    reviews = tuple(
+        score
+        for score in scan.ranked
+        if score.inputs.instrument.base in held and score.inputs.instrument.id not in finalist_ids
+    )
+    for score in (*reviews, *scan.finalists):
         vector = score.inputs
         instrument = vector.instrument
         context = AIAnalysisContext(
@@ -101,6 +111,7 @@ async def run_ai_decision_tick(
             portfolio_cash_usd=portfolio_cash_usd,
             portfolio_holdings=portfolio_holdings,
             portfolio_as_of=portfolio_as_of,
+            starter_position=starter_position,
         )
         proposal = await ai_provider.analyze(context)
         if proposal is None:
@@ -109,9 +120,11 @@ async def run_ai_decision_tick(
         async with sessions.begin() as db:
             await TradeProposalRepository(db).save(proposal, owner_id=owner_id)
         proposals_persisted += 1
+        if starter_position:
+            break  # One starter buy is the whole request; the finalists are ranked best-first.
 
     return AiDecisionTickResult(
-        instruments_evaluated=len(scan.finalists),
+        instruments_evaluated=len(reviews) + len(scan.finalists),
         proposals_received=proposals_received,
         proposals_persisted=proposals_persisted,
     )

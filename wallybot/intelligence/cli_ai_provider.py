@@ -48,6 +48,15 @@ from wallybot.domain.trade_proposal import AIAnalysisContext, TradeDirection, Tr
 
 CliName = Literal["claude", "codex"]
 
+_STARTER_INSTRUCTIONS = (
+    "Starter request: the operator holds no position yet and explicitly asked for ONE small, "
+    "conservative first buy so the account starts working. Prefer BUY over HOLD when this "
+    "instrument is liquid and established and is not in a clear downtrend or risk-off regime; "
+    "keep suggested_allocation_pct at most 0.25, always set a stop_price, and stay within the "
+    "allocation guidance (memecoins only as a SPECULATIVE-sized idea). HOLD remains correct for "
+    "illiquid, falling or unverifiable instruments; this request never overrides risk rules.\n"
+)
+
 _SCHEMA_INSTRUCTIONS = """
 Respond with EXACTLY ONE JSON object and nothing else -- no prose, no markdown code fence --
 matching this shape:
@@ -277,6 +286,7 @@ class CliAiProvider:
             f"holdings={context.portfolio_holdings or 'unavailable/empty'}; "
             f"portfolio as of={context.portfolio_as_of or 'unavailable'}. "
             "Never recommend SELL when no confirmed holding is available.\n"
+            f"{_STARTER_INSTRUCTIONS if context.starter_position else ''}"
             f"As of: {context.as_of.isoformat()}\n\n"
             f"{_SCHEMA_INSTRUCTIONS}"
         )

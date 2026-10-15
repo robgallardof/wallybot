@@ -16,6 +16,7 @@ from wallybot.application.telegram_commands import TelegramCommand, parse_comman
         ("/withdrawal", TelegramCommand.WITHDRAWAL),
         ("/pause", TelegramCommand.PAUSE),
         ("/resume", TelegramCommand.RESUME),
+        ("/init", TelegramCommand.INIT),
         ("/STATUS", TelegramCommand.STATUS),
         ("  /status  ", TelegramCommand.STATUS),
         ("/status@wallybot_bot", TelegramCommand.STATUS),

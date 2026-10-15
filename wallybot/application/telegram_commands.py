@@ -21,6 +21,7 @@ class TelegramCommand(StrEnum):
     APPROVE = "APPROVE"
     REJECT = "REJECT"
     SIMULATE = "SIMULATE"
+    INIT = "INIT"
 
 
 _COMMANDS: dict[str, TelegramCommand] = {
@@ -37,6 +38,7 @@ _COMMANDS: dict[str, TelegramCommand] = {
     "/approve": TelegramCommand.APPROVE,
     "/reject": TelegramCommand.REJECT,
     "/simulate": TelegramCommand.SIMULATE,
+    "/init": TelegramCommand.INIT,
 }
 
 

@@ -53,7 +53,7 @@ from wallybot.domain.control import Environment, Status
 from wallybot.domain.market import MarketDataProvider
 from wallybot.domain.notification_throttle import NotificationThrottle
 from wallybot.domain.provider_reliability import ProviderCallOutcome
-from wallybot.exchanges.binance import BinanceExchange
+from wallybot.exchanges.binance import CURATED_USDT_PAIRS, BinanceExchange
 from wallybot.exchanges.binance_private import SignedBinanceTransport
 from wallybot.exchanges.fake import FakeExchange
 from wallybot.exchanges.kraken import KrakenExchange
@@ -160,35 +160,6 @@ async def _market_ingestion_loop(
 # considered stale purely because this loop's own cadence is too slow.
 PRICE_CONSENSUS_INTERVAL_SECONDS = 300
 
-# Curated liquid Binance USDT markets; ingestion remains bounded to BTC and ETH.
-MARKET_OVERVIEW_PAIRS = tuple(
-    (base, "USDT")
-    for base in (
-        "BTC",
-        "ETH",
-        "SOL",
-        "XRP",
-        "ADA",
-        "DOGE",
-        "LTC",
-        "DOT",
-        "LINK",
-        "AVAX",
-        "BCH",
-        "XLM",
-        "UNI",
-        "ATOM",
-        "ETC",
-        "FIL",
-        "NEAR",
-        "APT",
-        "ARB",
-        "TRX",
-        "SHIB",
-        "SUI",
-        "OP",
-    )
-)
 
 
 async def _price_consensus_loop(
@@ -460,7 +431,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         app.state.market_overview = partial(
             build_market_overview,
-            provider=BinanceExchange(clock=clock, symbols=MARKET_OVERVIEW_PAIRS),
+            provider=BinanceExchange(clock=clock, symbols=CURATED_USDT_PAIRS),
             clock=clock,
             timeframe="1h",
             history_candles=30,

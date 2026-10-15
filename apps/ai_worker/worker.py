@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from wallybot.application.ai_decision_loop import run_ai_decision_tick
 from wallybot.data.quality import QualityPolicy
 from wallybot.domain.market import MarketDataProvider
-from wallybot.exchanges.binance import BinanceExchange
+from wallybot.exchanges.binance import CURATED_USDT_PAIRS, BinanceExchange
 from wallybot.exchanges.kraken import KrakenExchange
 from wallybot.infrastructure.ai_worker_settings import AiWorkerSettings, load_ai_worker_settings
 from wallybot.infrastructure.live_models import AnalystPortfolioRow
@@ -77,7 +77,7 @@ async def run_ai_worker() -> None:
     # The analyst studies the real account's own exchange; Binance is the default otherwise.
     provider: dict[str, MarketDataProvider] = {
         "kraken": KrakenExchange(clock=clock),
-        "binance": BinanceExchange(clock=clock),
+        "binance": BinanceExchange(clock=clock, symbols=CURATED_USDT_PAIRS),
     }
     quality_policy = QualityPolicy(
         version=1,
@@ -103,6 +103,7 @@ async def run_ai_worker() -> None:
 
     heartbeat = asyncio.create_task(_heartbeat_loop(sessions, stopping, logger))
     status_recorded_at: dict[str, int] = {}
+    last_analysis: dict[str, float] = {}
     try:
         # Immediate check on startup so the UI shows fresh state as soon as the worker is running.
         await _check_analyst_availability(sessions, provider, settings, id_generator, clock, logger, status_recorded_at)
@@ -118,6 +119,7 @@ async def run_ai_worker() -> None:
                     clock,
                     logger,
                     status_recorded_at,
+                    last_analysis,
                 )
             except Exception:
                 logger.warning("AI_WORKER_TICK_FAILED")
@@ -166,6 +168,7 @@ async def _tick(
     clock: SystemClock,
     logger: logging.LoggerAdapter,
     status_recorded_at: dict[str, int],
+    last_analysis: dict[str, float],
 ) -> None:
     async with sessions() as db:
         control = await db.get(AiAutonomyControlRow, 1)
@@ -228,6 +231,30 @@ async def _tick(
         logger.warning("AI_WORKER_NO_ANALYST_CONFIGURED")
         return
 
+    holdings = (
+        tuple((asset, Decimal(quantity)) for asset, quantity in portfolio.holdings.items())
+        if portfolio
+        else ()
+    )
+    starter = bool(control.starter_requested)
+    if starter:
+        async with sessions.begin() as db:
+            row = await db.get(AiAutonomyControlRow, 1, with_for_update=True)
+            if row is not None:
+                row.starter_requested = False
+        if holdings:
+            logger.info("AI_STARTER_SKIPPED_HOLDINGS_PRESENT")
+            starter = False
+    # Flat accounts are scanned often; once something was bought, re-evaluate every few hours.
+    interval = (
+        settings.ai_holding_analysis_interval_seconds
+        if holdings
+        else settings.ai_flat_analysis_interval_seconds
+    )
+    if not starter and time.monotonic() - last_analysis.get("at", float("-inf")) < interval:
+        return
+    last_analysis["at"] = time.monotonic()
+
     try:
         await _analyze(
             sessions,
@@ -240,6 +267,8 @@ async def _tick(
             universe_config,
             clock,
             logger,
+            holdings,
+            starter,
         )
     finally:
         await _report_analyst_status(sessions, analysts, status_recorded_at, logger)
@@ -283,6 +312,8 @@ async def _analyze(
     universe_config: UniverseFilterConfig,
     clock: SystemClock,
     logger: logging.LoggerAdapter,
+    holdings: tuple[tuple[str, Decimal], ...],
+    starter: bool,
 ) -> None:
     result = await run_ai_decision_tick(
         sessions=sessions,
@@ -300,12 +331,9 @@ async def _analyze(
             ("SPECULATIVE", control.target_speculative_pct),
         ),
         portfolio_cash_usd=portfolio.cash_usd if portfolio else None,
-        portfolio_holdings=tuple(
-            (asset, Decimal(quantity)) for asset, quantity in portfolio.holdings.items()
-        )
-        if portfolio
-        else (),
+        portfolio_holdings=holdings,
         portfolio_as_of=portfolio.as_of if portfolio else None,
+        starter_position=starter,
     )
     logger.info(
         "AI_WORKER_TICK_COMPLETED",
@@ -313,5 +341,6 @@ async def _analyze(
             "instruments_evaluated": result.instruments_evaluated,
             "proposals_received": result.proposals_received,
             "proposals_persisted": result.proposals_persisted,
+            "starter": starter,
         },
     )
