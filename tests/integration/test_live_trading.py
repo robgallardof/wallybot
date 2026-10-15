@@ -30,7 +30,8 @@ class PublicTransport:
         if path.endswith("AssetPairs"):
             return {"result": {"XXBTZUSD": {"costmin": "5"}}}
         if path.endswith("Depth"):
-            now = str(datetime.now(UTC).timestamp())
+            # Real depth levels are always already published when read, never in the future.
+            now = str((datetime.now(UTC) - timedelta(seconds=1)).timestamp())
             return {
                 "result": {
                     "XXBTZUSD": {"asks": [["51905", "10", now]], "bids": [["51895", "10", now]]}
