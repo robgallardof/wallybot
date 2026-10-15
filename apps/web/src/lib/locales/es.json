@@ -1,6 +1,4 @@
 {
-  "EDITAR CONEXIÓN": "EDITAR CONEXIÓN",
-  "Deja la clave y el secreto vacíos para conservar los guardados.": "Deja la clave y el secreto vacíos para conservar los guardados.",
   "Guardar cambios": "Guardar cambios",
   "Acciones": "Acciones",
   "Editar": "Editar",
@@ -119,5 +117,11 @@
   "Binance spot: USDT, BTC y ETH; límites en USDT. Sin deuda ni apalancamiento. Las órdenes usan precio límite y cancelan la cantidad que no se llena inmediatamente. Los stops y objetivos son avisos de revisión.": "Binance spot: USDT, BTC y ETH; límites en USDT. Sin deuda ni apalancamiento. Las órdenes usan precio límite y cancelan la cantidad que no se llena inmediatamente. Los stops y objetivos son avisos de revisión.",
   "Primero agrega en Conexiones una clave API de Binance con permisos de consulta y trading spot. Nunca habilites retiros ni transferencias.": "Primero agrega en Conexiones una clave API de Binance con permisos de consulta y trading spot. Nunca habilites retiros ni transferencias.",
   "Para Binance spot usa una clave API con consulta y trading spot únicamente, restringida a tu IP. Sin permisos de retiro ni transferencia. Las otras fuentes son de consulta.": "Para Binance spot usa una clave API con consulta y trading spot únicamente, restringida a tu IP. Sin permisos de retiro ni transferencia. Las otras fuentes son de consulta.",
-  "Para otras fuentes, agrega únicamente credenciales de consulta. Vincular una fuente no habilita operaciones.": "Para otras fuentes, agrega únicamente credenciales de consulta. Vincular una fuente no habilita operaciones."
+  "Para otras fuentes, agrega únicamente credenciales de consulta. Vincular una fuente no habilita operaciones.": "Para otras fuentes, agrega únicamente credenciales de consulta. Vincular una fuente no habilita operaciones.",
+  "Token API": "Token API",
+  "Déjalo vacío para conservar el valor guardado.": "Déjalo vacío para conservar el valor guardado.",
+  "Trading spot real": "Trading spot real",
+  "Al activarlo se verifica la clave: permiso de trading spot, sin retiros y saldos legibles. No se pone ninguna orden.": "Al activarlo se verifica la clave: permiso de trading spot, sin retiros y saldos legibles. No se pone ninguna orden.",
+  "Cerrar": "Cerrar",
+  "EDITAR CONEXIÓN": "EDITAR CONEXIÓN"
 }

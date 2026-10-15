@@ -152,10 +152,14 @@
 :root .button { justify-content: center; min-height: 44px; font-size: 14px; border-radius: 10px; padding-inline: 18px; }
 :root .mobile-menu-toggle { padding: 0; }
 :root .mobile-menu-toggle svg { flex-shrink: 0; }
-:root .connection-form label:has(input[type="checkbox"]) { flex-direction: row; align-items: center; gap: 10px; min-height: 44px; }
-:root .connection-form input[type="checkbox"] { width: 18px; height: 18px; min-height: 18px; padding: 0; margin: 0; flex-shrink: 0; accent-color: var(--accent); }
+:root .connection-form label:not(.settings-switch):has(input[type="checkbox"]) { flex-direction: row; align-items: center; gap: 10px; min-height: 44px; }
+:root .connection-form input[type="checkbox"]:not([role="switch"]) { width: 18px; height: 18px; min-height: 18px; padding: 0; margin: 0; flex-shrink: 0; accent-color: var(--accent); }
 :root .markets-table-wrap { margin-top: 22px; border-radius: 14px; }
 :root .markets-table th { font-size: 11px; font-weight: 600; letter-spacing: 0.3px; padding: 14px 16px; }
+:root .connection-editor-panel { margin-top: 20px; }
+:root .connection-editor-panel h3 { margin: 4px 0 12px; }
+:root .connection-editor :is(.settings-switch, .error, .connection-editor-actions) { grid-column: 1 / -1; }
+:root .connection-editor-actions { display: flex; gap: 12px; flex-wrap: wrap; }
 :root .markets-table td { padding: 16px; font-size: 13px; font-variant-numeric: tabular-nums; }
 :root .markets-table tbody tr:hover { background: var(--surface-raised); }
 :root :is(.event-row, .service-row) { padding-block: 16px; }

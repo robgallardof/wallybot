@@ -1,6 +1,4 @@
 {
-  "EDITAR CONEXIÓN": "EDIT CONNECTION",
-  "Deja la clave y el secreto vacíos para conservar los guardados.": "Leave key and secret empty to keep the stored ones.",
   "Guardar cambios": "Save changes",
   "Acciones": "Actions",
   "Editar": "Edit",
@@ -824,7 +822,6 @@
   "Sin comprobar todavía": "Not checked yet",
   "comprobado": "checked",
   "{{name}} no respondió en esta PC: la sesión de su CLI está cerrada o el programa no está instalado. Abre una terminal y ejecuta {{command}}; la siguiente comprobación lo detectará sin reiniciar WallyBot.": "{{name}} did not respond on this PC: its CLI is signed out or not installed. Open a terminal and run {{command}}; the next check will detect it without restarting WallyBot.",
-  "Mientras exijas coincidencia no se crearán propuestas. Si prefieres no usarlo, desactívalo y desmarca la coincidencia tú mismo: WallyBot no cambia estos ajustes automáticamente.": "While agreement is required, no proposals will be created. If you prefer not to use it, disable it and clear the agreement option yourself: WallyBot never changes these settings automatically.",
   "El máximo por operación no puede superar la exposición total máxima.": "The maximum per trade cannot exceed the maximum total exposure.",
   "El cambio de precio máximo debe estar entre 0,01% y 2%.": "The maximum price change must be between 0.01% and 2%.",
   "Conecta tus fuentes o una cuenta spot de Kraken o Binance con permisos de trading. Las credenciales se cifran y nunca se vuelven a mostrar. Conectar una cuenta no activa operaciones reales.": "Connect data sources or a Kraken or Binance spot account with trading permissions. Credentials are encrypted and never shown again. Connecting an account does not activate real trades.",
@@ -843,5 +840,10 @@
   "Binance spot: USDT, BTC y ETH; límites en USDT. Sin deuda ni apalancamiento. Las órdenes usan precio límite y cancelan la cantidad que no se llena inmediatamente. Los stops y objetivos son avisos de revisión.": "Binance spot: USDT, BTC and ETH; limits in USDT. No borrowing or leverage. Orders use a limit price and cancel any quantity not filled immediately. Stops and targets are review notices.",
   "Primero agrega en Conexiones una clave API de Binance con permisos de consulta y trading spot. Nunca habilites retiros ni transferencias.": "First add a Binance API key under Connections with query and spot trading permissions. Never enable withdrawals or transfers.",
   "Para Binance spot usa una clave API con consulta y trading spot únicamente, restringida a tu IP. Sin permisos de retiro ni transferencia. Las otras fuentes son de consulta.": "For Binance spot, use an API key with query and spot trading only, restricted to your IP. No withdrawal or transfer permissions. Other sources are read-only.",
-  "Para otras fuentes, agrega únicamente credenciales de consulta. Vincular una fuente no habilita operaciones.": "For other sources, add read-only credentials. Connecting a source does not enable trading."
+  "Para otras fuentes, agrega únicamente credenciales de consulta. Vincular una fuente no habilita operaciones.": "For other sources, add read-only credentials. Connecting a source does not enable trading.",
+  "Token API": "API token",
+  "Déjalo vacío para conservar el valor guardado.": "Leave empty to keep the stored value.",
+  "Trading spot real": "Real spot trading",
+  "Al activarlo se verifica la clave: permiso de trading spot, sin retiros y saldos legibles. No se pone ninguna orden.": "Turning it on verifies the key: spot trading permission, no withdrawals and readable balances. No order is placed.",
+  "EDITAR CONEXIÓN": "EDIT CONNECTION"
 }
