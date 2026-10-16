@@ -372,3 +372,32 @@ def test_scheduled_report_does_not_use_another_operators_live_account(setup_bina
 
     client.portal.call(run)
     assert db.execute("SELECT count(*) FROM telegram_reports").fetchone()[0] == 0
+
+
+def test_transient_binance_failures_only_block_after_repeating(setup_binance, monkeypatch):
+    from wallybot.application.live_trading import TRANSIENT_FAILURES_BEFORE_BLOCK
+    from wallybot.exchanges.binance_private import BinanceTransientError
+
+    activate(setup_binance)
+    client, _, _, _, account, service = setup_binance
+    original = account.call
+
+    async def flaky(method, path, params):
+        raise BinanceTransientError("Binance could not be reached")
+
+    monkeypatch.setattr(account, "call", flaky)
+    for _ in range(TRANSIENT_FAILURES_BEFORE_BLOCK - 1):
+        client.portal.call(service.refresh)
+        assert client.get("/api/live").json()["state"] == "READY"
+
+    # A success resets the streak, so isolated hiccups never accumulate into a block.
+    monkeypatch.setattr(account, "call", original)
+    client.portal.call(service.refresh)
+    monkeypatch.setattr(account, "call", flaky)
+    for _ in range(TRANSIENT_FAILURES_BEFORE_BLOCK - 1):
+        client.portal.call(service.refresh)
+    assert client.get("/api/live").json()["state"] == "READY"
+
+    client.portal.call(service.refresh)
+    live = client.get("/api/live").json()
+    assert live["state"] == "BLOCKED" and "could not be reached" in live["reason"]

@@ -7,3 +7,7 @@ keys, secrets, signatures or raw provider payloads.
 
 class ExchangePrivateError(Exception):
     """Sanitized, operator-actionable failure from an authenticated exchange call."""
+
+
+class TransientExchangeError(ExchangePrivateError):
+    """Failure expected to clear on its own (network hiccup, rate limit, clock window)."""

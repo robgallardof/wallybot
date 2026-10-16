@@ -46,7 +46,7 @@ from wallybot.domain.order import TERMINAL_STATUSES, OrderIntent, OrderKind, Ord
 from wallybot.domain.portfolio import Bucket, PortfolioState
 from wallybot.domain.risk import RiskDecision
 from wallybot.domain.trade_proposal import TradeDirection
-from wallybot.exchanges.private_errors import ExchangePrivateError
+from wallybot.exchanges.private_errors import ExchangePrivateError, TransientExchangeError
 from wallybot.infrastructure.equity_snapshot_repository import EquitySnapshotRepository
 from wallybot.infrastructure.live_models import AnalystPortfolioRow, LiveControlRow
 from wallybot.infrastructure.models import (
@@ -59,6 +59,9 @@ from wallybot.infrastructure.portfolio_repository import PortfolioRepository
 from wallybot.infrastructure.shadow_decision_repository import ShadowDecisionRepository
 from wallybot.infrastructure.unit_of_work import unit_of_work
 from wallybot.security.auth import audit
+
+# Consecutive transient venue failures (≈30 s apart) tolerated before the monitor blocks LIVE.
+TRANSIENT_FAILURES_BEFORE_BLOCK = 3
 
 
 class LiveBlocked(Exception):
@@ -98,6 +101,7 @@ class LiveTradingService:
         self.binance_provider = binance_provider
         self.clock = clock
         self.capable = capable
+        self._transient_failures = 0
 
     def venue(self, connection_provider: str) -> LiveVenue:
         if connection_provider == "KRAKEN":
@@ -367,8 +371,13 @@ class LiveTradingService:
             async with self.serialized():
                 config = await self.configuration()
                 await self._sync(config)
+            self._transient_failures = 0
         except LiveBlocked as exc:
             if "being reconciled" not in str(exc):
+                await self.latch(str(exc))
+        except TransientExchangeError as exc:
+            self._transient_failures += 1
+            if self._transient_failures >= TRANSIENT_FAILURES_BEFORE_BLOCK:
                 await self.latch(str(exc))
         except ExchangePrivateError as exc:
             await self.latch(str(exc))

@@ -190,3 +190,29 @@ async def test_timestamps_follow_binance_server_time_when_the_local_clock_drifts
     local = clock.time_ns() // 1_000_000
     assert abs(seen[0] - (local + skew)) < 2_000
     binance_private._SERVER_OFFSET.clear()
+
+
+async def test_timestamp_rejection_resyncs_the_offset_and_retries_once():
+    from wallybot.exchanges import binance_private
+    from wallybot.exchanges.private_errors import TransientExchangeError
+
+    binance_private._SERVER_OFFSET.clear()
+    calls = {"time": 0, "account": 0}
+
+    def handler(request):
+        if request.url.path == "/api/v3/time":
+            calls["time"] += 1
+            return httpx.Response(200, json={"serverTime": 1_700_000_000_000})
+        calls["account"] += 1
+        if calls["account"] == 1:
+            return httpx.Response(400, json={"code": -1021, "msg": "Timestamp"})
+        return httpx.Response(200, json={"ok": True})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        result = await SignedBinanceTransport("k", "s", client).call("GET", "/api/v3/account", {})
+    assert result == {"ok": True}
+    assert calls == {"time": 2, "account": 2}
+    binance_private._SERVER_OFFSET.clear()
+
+    with pytest.raises(TransientExchangeError):
+        await _call(lambda request: httpx.Response(429, json={"code": -1003, "msg": "Too many"}))

@@ -16,7 +16,7 @@ from urllib.parse import urlencode
 import httpx
 
 from wallybot.exchanges.binance import CURATED_USDT_PAIRS
-from wallybot.exchanges.private_errors import ExchangePrivateError
+from wallybot.exchanges.private_errors import ExchangePrivateError, TransientExchangeError
 
 ALLOWED_CALLS = frozenset(
     {
@@ -53,6 +53,10 @@ class BinancePrivateError(ExchangePrivateError):
     """Sanitized Binance failure; messages are safe to show the operator."""
 
 
+class BinanceTransientError(BinancePrivateError, TransientExchangeError):
+    """Binance failure that a later attempt is expected to clear."""
+
+
 class BinanceOrderNotFound(BinancePrivateError):
     """Binance reports no order for the requested client identity (code -2013)."""
 
@@ -61,12 +65,13 @@ class BinancePrivateTransport(Protocol):
     async def call(self, method: str, path: str, params: dict[str, str]) -> Any: ...
 
 
+_TRANSIENT_CODES = frozenset({-1003, -1021})
 _ERROR_EXPLANATIONS = {
     -1003: "Binance is temporarily limiting requests; wait a few minutes and retry",
     -1013: "The order does not meet Binance's price or quantity rules",
     -1021: (
-        "This computer's clock is out of sync with Binance; enable automatic time "
-        "synchronization in Windows and retry"
+        "Binance rejected the request timestamp (clock offset or a slow network); the clock "
+        "was resynchronized and the request will be retried"
     ),
     -1022: "Binance rejected the signature; check that the Secret Key was copied completely",
     -2008: "Binance does not recognize this API key; copy the API Key again or create a new one",
@@ -85,10 +90,12 @@ def explain_binance_error(status: int, payload: Any) -> BinancePrivateError:
         return BinanceOrderNotFound("Binance has no order with this identity")
     if code == -2010 and "insufficient balance" in message.lower():
         return BinancePrivateError("Binance reports insufficient funds for this order")
+    if code in _TRANSIENT_CODES:
+        return BinanceTransientError(_ERROR_EXPLANATIONS[code])
     if code in _ERROR_EXPLANATIONS:
         return BinancePrivateError(_ERROR_EXPLANATIONS[code])
     if status in {418, 429}:
-        return BinancePrivateError(_ERROR_EXPLANATIONS[-1003])
+        return BinanceTransientError(_ERROR_EXPLANATIONS[-1003])
     if status == 451:
         return BinancePrivateError("Binance is not available from this location")
     return BinancePrivateError("Binance rejected the private request")
@@ -136,6 +143,17 @@ class SignedBinanceTransport:
     async def call(self, method: str, path: str, params: dict[str, str]) -> Any:
         if (method, path) not in ALLOWED_CALLS:
             raise BinancePrivateError("Unsupported private operation")
+        try:
+            return await self._send(method, path, params)
+        except BinanceTransientError as exc:
+            # -1021 is rejected before Binance processes anything, so one retry is safe even for
+            # orders; the server offset is re-measured first.
+            if exc.args[0] != _ERROR_EXPLANATIONS[-1021] or self._clock_ms is not None:
+                raise
+            _SERVER_OFFSET.pop("checked", None)
+            return await self._send(method, path, params)
+
+    async def _send(self, method: str, path: str, params: dict[str, str]) -> Any:
         timestamp = str(await self._timestamp())
         query = urlencode({**params, "recvWindow": "5000", "timestamp": timestamp})
         url = f"{self._base_url}{path}?{query}&signature={sign(query, self._secret)}"
@@ -148,7 +166,7 @@ class SignedBinanceTransport:
                 follow_redirects=False,
             )
         except httpx.HTTPError:
-            raise BinancePrivateError(
+            raise BinanceTransientError(
                 "Binance could not be reached; check the connection and retry. An order's "
                 "outcome may be unknown until reconciliation"
             ) from None
@@ -157,7 +175,7 @@ class SignedBinanceTransport:
         except ValueError:
             payload = None
         if response.status_code >= 500:
-            raise BinancePrivateError(
+            raise BinanceTransientError(
                 "Binance is temporarily unavailable; an order's outcome may be unknown until "
                 "reconciliation"
             )
