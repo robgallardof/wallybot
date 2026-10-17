@@ -101,6 +101,25 @@ def explain_binance_error(status: int, payload: Any) -> BinancePrivateError:
     return BinancePrivateError("Binance rejected the private request")
 
 
+_UNREACHABLE = (
+    "Binance could not be reached; check the connection and retry. An order's outcome may be "
+    "unknown until reconciliation"
+)
+_UNAVAILABLE = (
+    "Binance is temporarily unavailable; an order's outcome may be unknown until reconciliation"
+)
+# Every reason a BinanceTransientError can latch LIVE with, so the monitor can re-arm by itself
+# once Binance answers again. Includes the pre-2c495a2 -1021 wording still stored in old blocks.
+TRANSIENT_REASONS = frozenset(
+    {
+        *(_ERROR_EXPLANATIONS[code] for code in _TRANSIENT_CODES),
+        _UNREACHABLE,
+        _UNAVAILABLE,
+        "This computer's clock is out of sync with Binance; enable automatic time "
+        "synchronization in Windows and retry",
+    }
+)
+
 _SERVER_OFFSET: dict[str, float] = {}
 
 
@@ -166,19 +185,13 @@ class SignedBinanceTransport:
                 follow_redirects=False,
             )
         except httpx.HTTPError:
-            raise BinanceTransientError(
-                "Binance could not be reached; check the connection and retry. An order's "
-                "outcome may be unknown until reconciliation"
-            ) from None
+            raise BinanceTransientError(_UNREACHABLE) from None
         try:
             payload = response.json()
         except ValueError:
             payload = None
         if response.status_code >= 500:
-            raise BinanceTransientError(
-                "Binance is temporarily unavailable; an order's outcome may be unknown until "
-                "reconciliation"
-            )
+            raise BinanceTransientError(_UNAVAILABLE)
         if response.status_code >= 400:
             raise explain_binance_error(response.status_code, payload)
         if payload is None:

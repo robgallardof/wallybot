@@ -363,6 +363,19 @@ class LiveTradingService:
                 if changed:
                     audit(db, "LIVE_EXECUTION_BLOCKED", config.owner_id)
 
+    async def _recover(self, venue):
+        """Re-arm LIVE after a healthy sync if it was only blocked by a passing venue hiccup."""
+        async with self.sessions.begin() as db:
+            config = await db.get(LiveControlRow, 1, with_for_update=True)
+            if (
+                config is not None
+                and config.enabled
+                and config.state == "BLOCKED"
+                and config.reason in venue.transient_reasons
+            ):
+                config.state, config.reason = "READY", ""
+                audit(db, "LIVE_EXECUTION_RECOVERED", config.owner_id)
+
     async def refresh(self):
         config = await self.configuration()
         if config is None or not config.initialized:
@@ -370,7 +383,8 @@ class LiveTradingService:
         try:
             async with self.serialized():
                 config = await self.configuration()
-                await self._sync(config)
+                venue, *_ = await self._sync(config)
+                await self._recover(venue)
             self._transient_failures = 0
         except LiveBlocked as exc:
             if "being reconciled" not in str(exc):

@@ -376,14 +376,14 @@ def test_scheduled_report_does_not_use_another_operators_live_account(setup_bina
 
 def test_transient_binance_failures_only_block_after_repeating(setup_binance, monkeypatch):
     from wallybot.application.live_trading import TRANSIENT_FAILURES_BEFORE_BLOCK
-    from wallybot.exchanges.binance_private import BinanceTransientError
+    from wallybot.exchanges.binance_private import _UNREACHABLE, BinanceTransientError
 
     activate(setup_binance)
     client, _, _, _, account, service = setup_binance
     original = account.call
 
     async def flaky(method, path, params):
-        raise BinanceTransientError("Binance could not be reached")
+        raise BinanceTransientError(_UNREACHABLE)
 
     monkeypatch.setattr(account, "call", flaky)
     for _ in range(TRANSIENT_FAILURES_BEFORE_BLOCK - 1):
@@ -401,3 +401,18 @@ def test_transient_binance_failures_only_block_after_repeating(setup_binance, mo
     client.portal.call(service.refresh)
     live = client.get("/api/live").json()
     assert live["state"] == "BLOCKED" and "could not be reached" in live["reason"]
+
+    # Once Binance answers again the monitor re-arms LIVE without operator action.
+    monkeypatch.setattr(account, "call", original)
+    client.portal.call(service.refresh)
+    live = client.get("/api/live").json()
+    assert live["state"] == "READY" and live["reason"] == ""
+
+
+def test_non_transient_blocks_stay_until_the_operator_rearms(setup_binance, monkeypatch):
+    activate(setup_binance)
+    client, _, _, _, _, service = setup_binance
+    client.portal.call(service.latch, "Exchange balances differ from the ledger")
+    client.portal.call(service.refresh)
+    # The healthy sync must not clear a block that needs a human to review the account.
+    assert client.get("/api/live").json()["state"] == "BLOCKED"

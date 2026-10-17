@@ -32,7 +32,7 @@ created for Kraken before that cannot execute on Binance; wait for new proposals
 | Binance rejected the signature | Copy the Secret Key again completely. |
 | Binance API key has excessive permissions | Turn off withdrawals, transfers, margin, futures, options and FIX trading. |
 | Restrict the Binance API key to trusted IPs | Enable the IP restriction with this computer's public IP. |
-| This computer's clock is out of sync with Binance | Enable automatic time sync in Windows (WallyBot also follows Binance server time). |
+| Binance rejected the request timestamp / could not be reached / temporarily unavailable or limiting requests | Transient: WallyBot resynchronizes with Binance server time, only blocks after 3 failures in a row and re-arms LIVE by itself once Binance answers again. |
 | This Binance adapter supports only USDT, BTC and ETH | Convert or move other assets, including BNB. |
 | Binance charged the fee in another asset | Turn off paying fees with BNB. |
 

@@ -19,6 +19,9 @@ from wallybot.exchanges.binance_private import (
     SUPPORTED_ASSETS as BINANCE_ASSETS,
 )
 from wallybot.exchanges.binance_private import (
+    TRANSIENT_REASONS as BINANCE_TRANSIENT_REASONS,
+)
+from wallybot.exchanges.binance_private import (
     BinancePrivateError,
     taker_fee_rate,
     validate_restrictions,
@@ -41,6 +44,8 @@ class LiveVenue(Protocol):
     cash: str
     assets: frozenset[str]
     unsupported_assets_message: str
+    # Block reasons caused by venue hiccups; a later healthy sync re-arms LIVE automatically.
+    transient_reasons: frozenset[str]
 
     @property
     def market(self) -> MarketDataProvider: ...
@@ -83,6 +88,7 @@ class KrakenVenue:
     cash = "USD"
     assets = frozenset({"USD", "XBT", "ETH"})
     unsupported_assets_message = "This adapter currently supports a USD/XBT/ETH spot account only"
+    transient_reasons: frozenset[str] = frozenset()
 
     def __init__(self, market: Any) -> None:
         self.market = market
@@ -133,6 +139,7 @@ class BinanceVenue:
         "This Binance adapter supports USDT and the curated spot pairs only; move or convert "
         "other assets (including BNB) before activating"
     )
+    transient_reasons = BINANCE_TRANSIENT_REASONS
 
     def __init__(self, market: BinanceExchange) -> None:
         self.market = market
