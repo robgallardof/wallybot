@@ -103,6 +103,7 @@
   "Restrict the Binance API key to trusted IPs (this computer's public IP)": "Restringe la clave API de Binance a IPs de confianza: añade la IP pública de esta PC.",
   "The Binance account cannot trade spot right now": "La cuenta de Binance no puede operar spot en este momento.",
   "Binance minimum order size cannot be verified": "No se pudo verificar el tamaño mínimo de orden de Binance.",
+  "Turn off \"Use BNB to pay for fees\" in Binance to hold or trade BNB": "Desactiva «Usar BNB para pagar comisiones» en Binance para tener u operar BNB.",
   "Binance charged the fee in another asset; turn off paying fees with BNB": "Binance cobró la comisión en otro activo. Desactiva el pago de comisiones con BNB.",
   "This Binance adapter supports only USDT, BTC and ETH spot balances; move or convert other assets (including BNB) before activating": "Esta conexión de Binance admite solo saldos spot en USDT, BTC y ETH. Convierte o mueve otros activos (incluido BNB) antes de activar.",
   "This proposal was analysed for another exchange than the real account": "Esta propuesta se analizó para otro exchange distinto de tu cuenta real.",

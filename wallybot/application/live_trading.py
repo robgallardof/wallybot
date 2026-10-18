@@ -248,6 +248,12 @@ class LiveTradingService:
             raise LiveBlocked("Exchange funds are reserved; reconciliation is incomplete")
         if any(asset not in venue.assets and total for asset, (total, _) in balances.items()):
             raise LiveBlocked(venue.unsupported_assets_message)
+        if (
+            venue.fee_token is not None
+            and balances.get(venue.fee_token, (Decimal(0), Decimal(0)))[0]
+            and await venue.charges_fee_token(transport)
+        ):
+            raise LiveBlocked(venue.fee_token_message)
         now = self.clock.now()
         async with self.sessions() as db:
             ledger = await PortfolioRepository(db).list_balances(account_id(config))
@@ -429,6 +435,10 @@ class LiveTradingService:
                     )
                 if row.base not in venue.assets or row.quote != venue.cash:
                     raise LiveBlocked("The real account cannot trade this pair")
+                if row.base == venue.fee_token and await venue.charges_fee_token(
+                    (await self.account(config))[1]
+                ):
+                    raise LiveBlocked(venue.fee_token_message)
                 now = self.clock.now()
                 async with self.sessions() as db:
                     mandate = await db.get(AiAutonomyControlRow, 1)
@@ -495,12 +505,15 @@ class LiveTradingService:
                 cash = balances.get(venue.cash, (Decimal(0), Decimal(0)))[1]
                 held = balances.get(instrument.base, (Decimal(0), Decimal(0)))[1]
                 exposure = sum(equity.portfolio_state.asset_exposure.values(), Decimal(0))
+                held_value = equity.portfolio_state.asset_exposure.get(instrument.id, Decimal(0))
                 # Hard ceiling from the operator's limits and the confirmed account balances.
+                # No single asset grows beyond one order's size, so capital diversifies.
                 ceiling = (
                     min(
                         config.max_order_usd / (price * (1 + fee_rate)),
                         cash / (price * (1 + fee_rate)),
                         max(config.max_total_usd - exposure, Decimal(0)) / price,
+                        max(config.max_order_usd - held_value, Decimal(0)) / price,
                     )
                     if buy
                     else min(config.max_order_usd / price, held)

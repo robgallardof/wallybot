@@ -33,6 +33,7 @@ class FakeBinanceAccount:
         self.timeout = False
         self.fee_asset: str | None = None  # None: Binance default (base on BUY, quote on SELL)
         self.fill_ratio = Decimal(1)
+        self.bnb_burn = False  # Binance's "Use BNB to pay for fees" switch
 
     async def call(self, method: str, path: str, params: dict[str, str]):
         self.calls.append((method, path, params.copy()))
@@ -66,6 +67,8 @@ class FakeBinanceAccount:
             return dict(order)
         if path == "/api/v3/order" and method == "DELETE":
             raise BinancePrivateError("Binance rejected the private request")
+        if path == "/sapi/v1/bnbBurn":
+            return {"spotBNBBurn": self.bnb_burn, "interestBNBBurn": False}
         if path == "/api/v3/myTrades":
             return list(self.trades.get(int(params["orderId"]), []))
         raise AssertionError((method, path))

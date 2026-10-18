@@ -14,7 +14,11 @@ implement it. No venue exposes transfer, withdrawal or margin operations.
 Binance specifics:
 
 - Spot only, BTC/USDT and ETH/USDT. USDT is the account's cash currency; limits are entered in
-  USDT. Any other non-zero asset, including BNB, blocks activation and trading.
+  USDT. Any other non-zero asset blocks activation and trading.
+- Update 2026-10-18: the curated USDT pairs, BNB included, are tradeable. Holding or buying BNB
+  requires Binance's "Use BNB to pay for fees" to be off, read via the allowlisted read-only
+  `GET /sapi/v1/bnbBurn`; otherwise the BNB proposal is refused (or LIVE blocks if BNB is
+  already held), because fees taken in BNB cannot be booked in the quote-denominated ledger.
 - The key must report reading and spot trading only, with an IP restriction. Withdrawals,
   internal/universal transfer, margin, futures, options, portfolio margin and FIX trading must
   be off. The private transport allowlists eight account/order endpoints; nothing else is

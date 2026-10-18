@@ -23,6 +23,7 @@ ALLOWED_CALLS = frozenset(
         ("GET", "/sapi/v1/account/apiRestrictions"),
         ("GET", "/api/v3/account"),
         ("GET", "/api/v3/account/commission"),
+        ("GET", "/sapi/v1/bnbBurn"),
         ("GET", "/api/v3/openOrders"),
         ("GET", "/api/v3/order"),
         ("GET", "/api/v3/myTrades"),
@@ -42,10 +43,10 @@ FORBIDDEN_PERMISSIONS = (
     "enablePortfolioMarginTrading",
     "enableFixApiTrade",
 )
-# Spot assets the real account may hold: cash plus every curated pair's base. BNB stays out
-# because Binance can charge fees in BNB, which would desynchronise the ledger.
+# Spot assets the real account may hold: cash plus every curated pair's base. Holding BNB is
+# only safe while "pay fees with BNB" is off; see `spot_fees_in_bnb`.
 SUPPORTED_ASSETS = frozenset({"USDT"}) | frozenset(
-    base for base, quote in CURATED_USDT_PAIRS if quote == "USDT" and base != "BNB"
+    base for base, quote in CURATED_USDT_PAIRS if quote == "USDT"
 )
 
 
@@ -213,6 +214,13 @@ def validate_restrictions(info: Any) -> None:
         raise BinancePrivateError(
             "Restrict the Binance API key to trusted IPs (this computer's public IP)"
         )
+
+
+def spot_fees_in_bnb(info: Any) -> bool:
+    """Whether Binance would charge spot fees in BNB, which the ledger refuses to book."""
+    if not isinstance(info, dict) or not isinstance(info.get("spotBNBBurn"), bool):
+        raise BinancePrivateError("Cannot verify whether Binance pays fees with BNB")
+    return info["spotBNBBurn"]
 
 
 def _amount(value: Any) -> Decimal:

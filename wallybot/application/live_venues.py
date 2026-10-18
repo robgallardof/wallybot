@@ -23,6 +23,7 @@ from wallybot.exchanges.binance_private import (
 )
 from wallybot.exchanges.binance_private import (
     BinancePrivateError,
+    spot_fees_in_bnb,
     taker_fee_rate,
     validate_restrictions,
 )
@@ -46,6 +47,9 @@ class LiveVenue(Protocol):
     unsupported_assets_message: str
     # Block reasons caused by venue hiccups; a later healthy sync re-arms LIVE automatically.
     transient_reasons: frozenset[str]
+    # Asset the venue may charge fees in instead of the traded pair (None: never happens).
+    fee_token: str | None
+    fee_token_message: str
 
     @property
     def market(self) -> MarketDataProvider: ...
@@ -58,6 +62,7 @@ class LiveVenue(Protocol):
         authorize: Callable[[OrderIntent], Awaitable[bool]],
     ) -> ExchangeGateway: ...
     async def verify_key(self, transport: Any) -> None: ...
+    async def charges_fee_token(self, transport: Any) -> bool: ...
     async def has_open_orders(self, transport: Any) -> bool: ...
     async def balances(self, transport: Any) -> dict[str, tuple[Decimal, Decimal]]: ...
     async def minimum_notional(self, instrument: Instrument) -> Decimal: ...
@@ -89,6 +94,8 @@ class KrakenVenue:
     assets = frozenset({"USD", "XBT", "ETH"})
     unsupported_assets_message = "This adapter currently supports a USD/XBT/ETH spot account only"
     transient_reasons: frozenset[str] = frozenset()
+    fee_token = None
+    fee_token_message = ""
 
     def __init__(self, market: Any) -> None:
         self.market = market
@@ -98,6 +105,9 @@ class KrakenVenue:
 
     async def verify_key(self, transport) -> None:
         validate_permissions(await transport.call("GetApiKeyInfo", {}))
+
+    async def charges_fee_token(self, transport) -> bool:
+        return False
 
     async def has_open_orders(self, transport) -> bool:
         return (await transport.call("OpenOrders", {})).get("open") != {}
@@ -137,9 +147,11 @@ class BinanceVenue:
     assets = BINANCE_ASSETS
     unsupported_assets_message = (
         "This Binance adapter supports USDT and the curated spot pairs only; move or convert "
-        "other assets (including BNB) before activating"
+        "other assets before activating"
     )
     transient_reasons = BINANCE_TRANSIENT_REASONS
+    fee_token = "BNB"
+    fee_token_message = 'Turn off "Use BNB to pay for fees" in Binance to hold or trade BNB'
 
     def __init__(self, market: BinanceExchange) -> None:
         self.market = market
@@ -149,6 +161,9 @@ class BinanceVenue:
 
     async def verify_key(self, transport) -> None:
         validate_restrictions(await transport.call("GET", "/sapi/v1/account/apiRestrictions", {}))
+
+    async def charges_fee_token(self, transport) -> bool:
+        return spot_fees_in_bnb(await transport.call("GET", "/sapi/v1/bnbBurn", {}))
 
     async def has_open_orders(self, transport) -> bool:
         opened = await transport.call("GET", "/api/v3/openOrders", {})

@@ -28,7 +28,7 @@ AI cannot bypass RiskEngine. Research cannot trade. A REJECTED assessment cannot
 | Speculative operating maximum | 10% | Protected configured ceiling |
 | Absolute speculative maximum | 15% | Hard ceiling; ordinary runtime changes cannot exceed it |
 | Single speculative asset | 3% | Conservative initial choice within requested 3–4%; aggregate across venues |
-| Open positions | 1 | Aggregate positions plus reserved new entries |
+| Open positions | 5 | Aggregate positions plus reserved new entries; LIVE also caps each asset at the operator's per-order limit so capital spreads across several assets |
 | Leverage / futures / shorting | 1x / OFF / OFF | Spot, no borrowing, no negative inventory |
 
 The 15% absolute ceiling does not automatically authorize an increase from 10%. Such a change needs reviewed configuration, fresh MFA and explicit operator action. Limits for liquidity, spread, slippage, quote age, reconciliation age, per-trade stop risk, asset and cluster exposure must be configured and validated for a venue/timeframe before that strategy is eligible. Missing required limits fail closed; do not invent universally safe market thresholds.

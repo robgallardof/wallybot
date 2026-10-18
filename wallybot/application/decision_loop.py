@@ -70,7 +70,7 @@ PORTFOLIO_POLICY = PortfolioPolicy(
     speculative_operating_max=Decimal("0.10"),
     speculative_absolute_max=Decimal("0.15"),
     single_speculative_asset_max=Decimal("0.03"),
-    max_open_positions=1,
+    max_open_positions=5,
 )
 # RISK.md leaves spread/liquidity/slippage limits as "must be configured ... before eligible" with
 # no universal default ("do not invent universally safe market thresholds") -- 1% reuses the one
