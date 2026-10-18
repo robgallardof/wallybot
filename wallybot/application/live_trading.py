@@ -62,6 +62,9 @@ from wallybot.security.auth import audit
 
 # Consecutive transient venue failures (≈30 s apart) tolerated before the monitor blocks LIVE.
 TRANSIENT_FAILURES_BEFORE_BLOCK = 3
+# Buys lifted to the venue minimum keep this headroom so fees or a small dip still leave a
+# position large enough to sell.
+MINIMUM_BUY_HEADROOM = Decimal("0.10")
 
 
 class LiveBlocked(Exception):
@@ -491,23 +494,35 @@ class LiveTradingService:
                     raise LiveBlocked("Trading fee cannot be verified")
                 cash = balances.get(venue.cash, (Decimal(0), Decimal(0)))[1]
                 held = balances.get(instrument.base, (Decimal(0), Decimal(0)))[1]
-                quantity = min(
-                    risk.final_quantity,
-                    config.max_order_usd / (price * (1 + fee_rate if buy else 1)),
-                )
                 exposure = sum(equity.portfolio_state.asset_exposure.values(), Decimal(0))
-                quantity = (
+                # Hard ceiling from the operator's limits and the confirmed account balances.
+                ceiling = (
                     min(
-                        quantity,
+                        config.max_order_usd / (price * (1 + fee_rate)),
                         cash / (price * (1 + fee_rate)),
                         max(config.max_total_usd - exposure, Decimal(0)) / price,
                     )
                     if buy
-                    else min(quantity, held)
+                    else min(config.max_order_usd / price, held)
                 )
-                quantity = (quantity / instrument.quantity_increment).to_integral_value(
-                    rounding=ROUND_DOWN
-                ) * instrument.quantity_increment
+                step = instrument.quantity_increment
+                ceiling = (ceiling / step).to_integral_value(rounding=ROUND_DOWN) * step
+                quantity = min(
+                    (risk.final_quantity / step).to_integral_value(rounding=ROUND_DOWN) * step,
+                    ceiling,
+                )
+                # Small accounts: the risk size can fall under the exchange minimum. Lift it
+                # to the smallest valid order while it still fits every hard limit above.
+                floor_cost = minimum_cost * (1 + MINIMUM_BUY_HEADROOM) if buy else minimum_cost
+                smallest = max(
+                    instrument.min_quantity,
+                    (floor_cost / price / step).to_integral_value(rounding=ROUND_UP) * step,
+                )
+                if quantity < smallest <= ceiling:
+                    quantity = smallest
+                # A sale that would strand unsellable dust closes the whole position instead.
+                if not buy and (held - quantity) * price < minimum_cost and held <= ceiling:
+                    quantity = (held / step).to_integral_value(rounding=ROUND_DOWN) * step
                 if quantity < instrument.min_quantity or quantity * price < minimum_cost:
                     raise LiveBlocked(
                         "Approved quantity is below venue minimums or available account limits"

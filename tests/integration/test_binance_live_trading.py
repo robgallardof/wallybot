@@ -1,7 +1,7 @@
 """Binance real mode with scripted private semantics and real PostgreSQL. Never funded keys."""
 
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 
 import pytest
 
@@ -198,6 +198,30 @@ def test_real_buy_then_sell_reconcile_exactly_with_binance_fees(setup_binance):
     client.portal.call(service.refresh)
     assert client.get("/api/live").json()["state"] == "READY"
     assert db.execute("SELECT count(*) FROM fills WHERE environment='LIVE'").fetchone()[0] == 2
+
+
+def test_small_risk_sizes_lift_to_the_venue_minimum_and_sales_leave_no_dust(setup_binance):
+    # A 0.5% confidence sizes the order at ~3.5 USDT, under Binance's 5 USDT minimum notional.
+    state = activate(setup_binance)
+    client, db, _, _, account, service = setup_binance
+    pid = binance_proposal(setup_binance)
+    db.execute("UPDATE trade_proposals SET confidence=0.005 WHERE proposal_id=%s", (pid,))
+    bought = approve_live(setup_binance, pid, state["version"])
+    assert bought.json()["execution_status"] == "FILLED", bought.json()
+    buy = [params for method, _, params in account.calls if method == "POST"][-1]
+    notional = Decimal(buy["quantity"]) * Decimal(buy["price"])
+    assert Decimal("5.5") <= notional < 6
+
+    client.portal.call(service.refresh)
+    held = account.balances["BTC"]
+    pid = binance_proposal(setup_binance, "SHORT")
+    db.execute("UPDATE trade_proposals SET confidence=0.5 WHERE proposal_id=%s", (pid,))
+    sold = approve_live(setup_binance, pid, state["version"])
+    assert sold.json()["execution_status"] == "FILLED", sold.json()
+    sale = [params for method, _, params in account.calls if method == "POST"][-1]
+    # Selling half (~2.5 USDT) is under the minimum and would strand dust: it closes it all.
+    assert sale["side"] == "SELL"
+    assert Decimal(sale["quantity"]) == held.quantize(Decimal("0.00001"), ROUND_DOWN)
 
 
 def test_kraken_proposals_cannot_execute_on_a_binance_account(setup_binance):
