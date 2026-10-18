@@ -224,19 +224,6 @@ def test_small_risk_sizes_lift_to_the_venue_minimum_and_sales_leave_no_dust(setu
     assert Decimal(sale["quantity"]) == held.quantize(Decimal("0.00001"), ROUND_DOWN)
 
 
-def test_bnb_trades_only_while_binance_does_not_take_fees_in_bnb(setup_binance):
-    state = activate(setup_binance)
-    client, db, _, _, account, _ = setup_binance
-    account.bnb_burn = True
-    pid = binance_proposal(setup_binance)
-    db.execute("UPDATE trade_proposals SET base='BNB' WHERE proposal_id=%s", (pid,))
-    response = approve_live(setup_binance, pid, state["version"])
-    assert response.json()["execution_status"] == "BLOCKED"
-    assert "Use BNB to pay for fees" in response.json()["execution_reason"]
-    assert client.get("/api/live").json()["state"] == "READY"
-    assert not any(method == "POST" for method, _, _ in account.calls)
-
-
 def test_one_asset_never_grows_beyond_the_per_order_limit(setup_binance):
     state = activate(setup_binance)
     _, _, _, _, account, service = setup_binance
@@ -267,9 +254,9 @@ def test_kraken_proposals_cannot_execute_on_a_binance_account(setup_binance):
     assert not any(method == "POST" for method, _, _ in account.calls)
 
 
-@pytest.mark.parametrize("base", ["OP", "XYZ"])
+@pytest.mark.parametrize("base", ["OP", "BNB", "XYZ"])
 def test_untradeable_pairs_are_refused_without_freezing_live(setup_binance, base):
-    # OP: curated but missing from the venue listing; XYZ: unknown.
+    # OP: curated but missing from the venue listing; BNB: excluded asset; XYZ: unknown.
     state = activate(setup_binance)
     client, db, _, _, account, _ = setup_binance
     pid = binance_proposal(setup_binance)
@@ -280,9 +267,7 @@ def test_untradeable_pairs_are_refused_without_freezing_live(setup_binance, base
     assert not any(method == "POST" for method, _, _ in account.calls)
 
 
-@pytest.mark.parametrize(
-    "failure", ["withdrawals_enabled", "external_open", "bnb_fees", "mismatch"]
-)
+@pytest.mark.parametrize("failure", ["withdrawals_enabled", "external_open", "bnb", "mismatch"])
 def test_unhealthy_binance_accounts_never_submit(setup_binance, failure):
     state = activate(setup_binance)
     _, _, _, _, account, _ = setup_binance
@@ -290,10 +275,8 @@ def test_unhealthy_binance_accounts_never_submit(setup_binance, failure):
         account.restrictions["enableWithdrawals"] = True
     elif failure == "external_open":
         account.external_open = True
-    elif failure == "bnb_fees":
-        # Holding BNB is fine only while Binance does not take fees in it.
+    elif failure == "bnb":
         account.balances["BNB"] = Decimal("0.01")
-        account.bnb_burn = True
     else:
         account.balances["USDT"] += Decimal(1)
     response = approve_live(setup_binance, binance_proposal(setup_binance), state["version"])

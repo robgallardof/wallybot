@@ -248,12 +248,6 @@ class LiveTradingService:
             raise LiveBlocked("Exchange funds are reserved; reconciliation is incomplete")
         if any(asset not in venue.assets and total for asset, (total, _) in balances.items()):
             raise LiveBlocked(venue.unsupported_assets_message)
-        if (
-            venue.fee_token is not None
-            and balances.get(venue.fee_token, (Decimal(0), Decimal(0)))[0]
-            and await venue.charges_fee_token(transport)
-        ):
-            raise LiveBlocked(venue.fee_token_message)
         now = self.clock.now()
         async with self.sessions() as db:
             ledger = await PortfolioRepository(db).list_balances(account_id(config))
@@ -435,10 +429,6 @@ class LiveTradingService:
                     )
                 if row.base not in venue.assets or row.quote != venue.cash:
                     raise LiveBlocked("The real account cannot trade this pair")
-                if row.base == venue.fee_token and await venue.charges_fee_token(
-                    (await self.account(config))[1]
-                ):
-                    raise LiveBlocked(venue.fee_token_message)
                 now = self.clock.now()
                 async with self.sessions() as db:
                     mandate = await db.get(AiAutonomyControlRow, 1)
