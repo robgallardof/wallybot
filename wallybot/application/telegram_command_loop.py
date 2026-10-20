@@ -434,7 +434,10 @@ async def _analyze_reply(
             else {}
         )
         ai_enabled = control is not None and control.status == "ENABLED"
-        if ai_enabled and holdings:
+        # The AI worker refuses LIVE context older than a minute, so a stale snapshot is not
+        # worth a review request (it would only fire later, unexpectedly).
+        fresh = portfolio is not None and now - portfolio.as_of <= timedelta(seconds=60)
+        if ai_enabled and holdings and fresh:
             control.review_requested = True
     if portfolio is None:
         return (
@@ -472,14 +475,15 @@ async def _analyze_reply(
     if not holdings:
         lines.append("No open positions." if en else "Sin posiciones abiertas.")
     lines.append(("Cash" if en else "Efectivo") + f": {portfolio.cash_usd:.2f} {quote}")
-    if now - portfolio.as_of > timedelta(minutes=2):
+    if not fresh:
         state = f"{live.state}: {live.reason}" if live is not None else "OFF"
         lines.append(
-            f"⚠️ Data is stale; LIVE is {state}"
+            f"⚠️ Data is stale; LIVE is {state}\nNo AI review until LIVE is READY again."
             if en
-            else f"⚠️ Datos desactualizados; LIVE está {state}"
+            else f"⚠️ Datos desactualizados; LIVE está {state}\n"
+            "Los analistas no pueden revisar hasta que LIVE vuelva a READY."
         )
-    if not ai_enabled:
+    elif not ai_enabled:
         lines.append(
             "AI analysis is disabled; enable it in WallyBot for a recommendation."
             if en
