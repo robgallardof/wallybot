@@ -60,3 +60,23 @@ async def test_idle_tick_rechecks_only_when_status_is_missing_or_stale() -> None
 
     assert claude.readiness_checks == 1
     assert [(p["analyst"], p["available"]) for p in sessions.recorded] == [("claude", False)]
+
+
+def test_configured_analysts_follow_the_saved_toggles() -> None:
+    from types import SimpleNamespace
+
+    from wallybot.infrastructure.system_clock import SystemClock
+    from wallybot.infrastructure.uuid_id_generator import UuidIdGenerator
+
+    settings = SimpleNamespace(
+        ai_prompt_version="v", codex_model_id="c", claude_model_id="k", ai_timeout_seconds=5
+    )
+
+    def build(codex: bool, claude: bool) -> list[str]:
+        control = SimpleNamespace(codex_enabled=codex, claude_enabled=claude)
+        analysts = worker._configured_analysts(control, settings, UuidIdGenerator(), SystemClock())
+        return [analyst.cli for analyst in analysts]
+
+    assert build(True, True) == ["codex", "claude"]
+    assert build(False, True) == ["claude"]
+    assert build(False, False) == []

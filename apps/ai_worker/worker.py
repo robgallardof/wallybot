@@ -106,7 +106,9 @@ async def run_ai_worker() -> None:
     last_analysis: dict[str, float] = {}
     try:
         # Immediate check on startup so the UI shows fresh state as soon as the worker is running.
-        await _check_analyst_availability(sessions, provider, settings, id_generator, clock, logger, status_recorded_at)
+        await _check_analyst_availability(
+            sessions, provider, settings, id_generator, clock, logger, status_recorded_at
+        )
         while not stopping.is_set():
             try:
                 await _tick(
@@ -133,6 +135,30 @@ async def run_ai_worker() -> None:
         await engine.dispose()
 
 
+def _configured_analysts(
+    control: AiAutonomyControlRow,
+    settings: AiWorkerSettings,
+    id_generator: UuidIdGenerator,
+    clock: SystemClock,
+) -> list[CliAiProvider]:
+    """The enabled analyst CLIs, in the fixed Codex-then-Claude order."""
+    return [
+        CliAiProvider(
+            cli=cli,
+            model_id=model_id,
+            prompt_version=settings.ai_prompt_version,
+            id_generator=id_generator,
+            clock=clock,
+            timeout_seconds=settings.ai_timeout_seconds,
+        )
+        for cli, model_id, enabled in (
+            ("codex", settings.codex_model_id, control.codex_enabled),
+            ("claude", settings.claude_model_id, control.claude_enabled),
+        )
+        if enabled
+    ]
+
+
 async def _check_analyst_availability(
     sessions: async_sessionmaker[AsyncSession],
     provider: dict[str, MarketDataProvider],
@@ -147,11 +173,7 @@ async def _check_analyst_availability(
         control = await db.get(AiAutonomyControlRow, 1)
     if control is None:
         return
-    analysts = []
-    if control.codex_enabled:
-        analysts.append(CliAiProvider(cli="codex", model_id=settings.codex_model_id, prompt_version=settings.ai_prompt_version, id_generator=id_generator, clock=clock, timeout_seconds=settings.ai_timeout_seconds))
-    if control.claude_enabled:
-        analysts.append(CliAiProvider(cli="claude", model_id=settings.claude_model_id, prompt_version=settings.ai_prompt_version, id_generator=id_generator, clock=clock, timeout_seconds=settings.ai_timeout_seconds))
+    analysts = _configured_analysts(control, settings, id_generator, clock)
     for analyst in analysts:
         analyst._last_call_ok = None  # force check_ready() path in _report_analyst_status
     status_recorded_at.clear()
@@ -172,16 +194,23 @@ async def _tick(
 ) -> None:
     # An operator check ("Iniciar"/"Comprobar ahora") runs right away, before any gate that
     # could skip this tick (stale portfolio context, analysis interval, AI paused).
-    async with sessions.begin() as db:
-        row = await db.get(AiAutonomyControlRow, 1, with_for_update=True)
+    # The flag is cleared only after the CLIs answered, so the UI keeps showing «Comprobando…»
+    # instead of the previous (possibly hours old) result while the check runs.
+    async with sessions() as db:
+        row = await db.get(AiAutonomyControlRow, 1)
         check_requested = row is not None and row.check_requested
-        if check_requested:
-            row.check_requested = False
     if check_requested:
-        await _check_analyst_availability(
-            sessions, provider, settings, id_generator, clock, logger, status_recorded_at
-        )
+        try:
+            await _check_analyst_availability(
+                sessions, provider, settings, id_generator, clock, logger, status_recorded_at
+            )
+        finally:
+            async with sessions.begin() as db:
+                row = await db.get(AiAutonomyControlRow, 1, with_for_update=True)
+                if row is not None:
+                    row.check_requested = False
 
+    portfolio_ready = True
     async with sessions() as db:
         control = await db.get(AiAutonomyControlRow, 1)
         instance = await db.get(ControlRow, 1)
@@ -197,38 +226,23 @@ async def _tick(
                 seconds=60
             ):
                 logger.warning("AI_PORTFOLIO_CONTEXT_UNAVAILABLE")
-                return
-            admin_id = await db.scalar(
-                select(UserRow.id).where(UserRow.id == portfolio.owner_id, UserRow.role == "ADMIN")
-            )
+                portfolio_ready = False
+            else:
+                admin_id = await db.scalar(
+                    select(UserRow.id).where(
+                        UserRow.id == portfolio.owner_id, UserRow.role == "ADMIN"
+                    )
+                )
     if control is None or control.status != "ENABLED" or admin_id is None:
         return
 
-    analysts = []
-    if control.codex_enabled:
-        analysts.append(
-            CliAiProvider(
-                cli="codex",
-                model_id=settings.codex_model_id,
-                prompt_version=settings.ai_prompt_version,
-                id_generator=id_generator,
-                clock=clock,
-                timeout_seconds=settings.ai_timeout_seconds,
-            )
-        )
-    if control.claude_enabled:
-        analysts.append(
-            CliAiProvider(
-                cli="claude",
-                model_id=settings.claude_model_id,
-                prompt_version=settings.ai_prompt_version,
-                id_generator=id_generator,
-                clock=clock,
-                timeout_seconds=settings.ai_timeout_seconds,
-            )
-        )
+    analysts = _configured_analysts(control, settings, id_generator, clock)
     if not analysts:
         logger.warning("AI_WORKER_NO_ANALYST_CONFIGURED")
+        return
+    if not portfolio_ready:
+        # No analysis without a fresh LIVE balance, but availability must not go stale meanwhile.
+        await _report_analyst_status(sessions, analysts, status_recorded_at, logger)
         return
 
     holdings = (
