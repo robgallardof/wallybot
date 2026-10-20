@@ -47,11 +47,13 @@ class PortfolioRepository:
             if row.amount != 0
         )
 
-    async def list_recent_fills(self, account_id: str, limit: int = 50) -> tuple[FillRow, ...]:
+    async def list_recent_fills(
+        self, account_id: str, limit: int = 50, environment: str = "PAPER"
+    ) -> tuple[FillRow, ...]:
         rows = (
             await self.session.scalars(
                 select(FillRow)
-                .where(FillRow.account_id == account_id, FillRow.environment == "PAPER")
+                .where(FillRow.account_id == account_id, FillRow.environment == environment)
                 .order_by(FillRow.filled_at.desc(), FillRow.id.desc())
                 .limit(limit)
             )

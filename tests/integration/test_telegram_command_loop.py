@@ -454,3 +454,80 @@ async def test_init_command_requests_a_starter_analysis_without_executing(
 
     assert requested is True
     assert "No se ejecuta nada automáticamente." in transport.sent[0][1]["text"]
+
+
+async def test_analyze_command_reviews_holdings_and_requests_an_analysis(
+    sessions, crypto, dependencies
+) -> None:
+    from types import SimpleNamespace
+
+    from wallybot.infrastructure.live_models import AnalystPortfolioRow
+
+    class FakeMarket:
+        async def discover_instruments(self):
+            return [SimpleNamespace(venue="binance", base="DOT", quote="USDT")]
+
+        async def fetch_snapshot(self, instrument):
+            return SimpleNamespace(bid=Decimal("5"))
+
+    await _configure(sessions, crypto)
+    owner_id = "telegram-analyze-owner"
+    async with sessions.begin() as db:
+        await TelegramConfigRepository(db).set_last_update_id(99)
+        db.add(
+            UserRow(
+                id=owner_id,
+                username="telegram-analyze-admin",
+                password_hash="test",
+                totp_encrypted="test",
+                last_totp_step=-1,
+                role="ADMIN",
+                created_at=0,
+            )
+        )
+        await db.flush()
+        db.add(
+            AnalystPortfolioRow(
+                owner_id=owner_id,
+                cash_usd=Decimal("20.8"),
+                holdings={"DOT": "2", "XRP": "4"},
+                positions={
+                    "DOT": {"average_price": "4", "held_since": "2025-12-30T00:00:00+00:00"}
+                },
+                venue="binance",
+                as_of=NOW,
+            )
+        )
+    with psycopg.connect(dependencies[0].replace("+psycopg", ""), autocommit=True) as connection:
+        connection.execute(
+            "UPDATE ai_autonomy_control SET status = 'ENABLED', review_requested = false"
+        )
+        try:
+            transport = FakeCommandTransport([_message(100, ALLOWED_CHAT_ID, "/analyze")])
+            await run_telegram_command_tick(
+                sessions,
+                crypto,
+                transport,
+                SequentialIds(),
+                None,
+                NOW,
+                owner_id=owner_id,
+                market=FakeMarket(),
+            )
+            requested = connection.execute(
+                "SELECT review_requested FROM ai_autonomy_control WHERE id = 1"
+            ).fetchone()[0]
+        finally:
+            connection.execute(
+                "UPDATE ai_autonomy_control SET status = 'DISABLED', review_requested = false"
+            )
+            connection.execute(
+                "DELETE FROM analyst_portfolio_context WHERE owner_id = %s", (owner_id,)
+            )
+            connection.execute("DELETE FROM users WHERE id = %s", (owner_id,))
+
+    text = transport.sent[0][1]["text"]
+    assert requested is True
+    assert "DOT: 2 · entrada media 4 USDT · 2 d 0 h · +25.00% · ahora 5 · valor 10.00 USDT" in text
+    assert "XRP: 4 · comprado fuera de WallyBot" in text
+    assert "No se ejecuta nada automáticamente." in text

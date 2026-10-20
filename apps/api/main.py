@@ -313,6 +313,7 @@ async def _telegram_command_loop(
                     if state is not None and admin_id is not None
                     else None
                 ),
+                market=getattr(state, "portfolio_market_provider", None),
             )
             TELEGRAM_COMMAND_TICKS.labels("success").inc()
         except asyncio.CancelledError:

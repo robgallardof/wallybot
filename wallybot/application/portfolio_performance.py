@@ -7,6 +7,7 @@ unrealised value when no trustworthy current quote is available.
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 
 from wallybot.infrastructure.models import FillRow
@@ -80,3 +81,43 @@ def compute_fifo_performance(fills: Iterable[FillRow]) -> tuple[QuotePerformance
         )
         for quote in currencies
     )
+
+
+@dataclass(frozen=True)
+class OpenPosition:
+    """What is still held of one asset: FIFO average entry price and the oldest open buy."""
+
+    quantity: Decimal
+    average_price: Decimal
+    held_since: datetime
+
+
+def open_positions(fills: Iterable[FillRow]) -> dict[str, OpenPosition]:
+    """Open FIFO lots per base asset, oldest fills first.
+
+    Unlike `compute_fifo_performance` this tolerates sells beyond the known lots (coins that were
+    already in the account before the bot): those holdings have no known entry and are omitted.
+    """
+    lots: dict[str, list[tuple[Decimal, Decimal, datetime]]] = defaultdict(list)
+    for fill in fills:
+        if fill.side == "BUY":
+            lots[fill.base].append((fill.quantity, fill.price, fill.filled_at))
+            continue
+        remaining = fill.quantity
+        kept = []
+        for quantity, price, filled_at in lots[fill.base]:
+            matched = min(quantity, remaining)
+            remaining -= matched
+            if quantity > matched:
+                kept.append((quantity - matched, price, filled_at))
+        lots[fill.base] = kept
+    positions = {}
+    for base, open_lots in lots.items():
+        quantity = sum((lot[0] for lot in open_lots), Decimal(0))
+        if quantity > 0:
+            positions[base] = OpenPosition(
+                quantity=quantity,
+                average_price=sum((lot[0] * lot[1] for lot in open_lots), Decimal(0)) / quantity,
+                held_since=open_lots[0][2],
+            )
+    return positions

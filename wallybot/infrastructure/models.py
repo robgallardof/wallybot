@@ -54,6 +54,8 @@ class AiAutonomyControlRow(Base):
     require_consensus: Mapped[bool] = mapped_column(Boolean, default=True)
     check_requested: Mapped[bool] = mapped_column(Boolean, default=False)
     starter_requested: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Operator asked (Telegram /analyze) to review the open positions now.
+    review_requested: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class AiProposalDigestRow(Base):

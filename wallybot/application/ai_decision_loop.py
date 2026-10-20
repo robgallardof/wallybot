@@ -6,6 +6,7 @@ capability. A different approval workflow must validate a human decision, the ma
 deterministic controls before a PAPER order can exist (ADR-017).
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -56,6 +57,8 @@ async def run_ai_decision_tick(
     portfolio_holdings: tuple[tuple[str, Decimal], ...] = (),
     portfolio_as_of: datetime | None = None,
     starter_position: bool = False,
+    portfolio_positions: Mapping[str, tuple[Decimal, datetime]] | None = None,
+    holdings_review: bool = False,
 ) -> AiDecisionTickResult:
     """Analyze eligible instruments and save explained proposals for one operator only."""
     step = TIMEFRAME_DURATIONS[TIMEFRAME]
@@ -110,13 +113,15 @@ async def run_ai_decision_tick(
     ordered = (*dips, *core, *scan.finalists) if starter_position else (*scan.finalists, *dips)
     seen = {score.inputs.instrument.id for score in reviews}
     entries = []
-    for score in ordered:
+    # A holdings review (/analyze) only asks about what is already held.
+    for score in () if holdings_review else ordered:
         if score.inputs.instrument.id not in seen:
             seen.add(score.inputs.instrument.id)
             entries.append(score)
     for score in (*reviews, *entries):
         vector = score.inputs
         instrument = vector.instrument
+        average_price, held_since = (portfolio_positions or {}).get(instrument.base, (None, None))
         context = AIAnalysisContext(
             instrument=instrument,
             features=vector,
@@ -139,6 +144,9 @@ async def run_ai_decision_tick(
             starter_position=starter_position,
             bid=snapshots_by_id[instrument.id].bid,
             ask=snapshots_by_id[instrument.id].ask,
+            position_average_price=average_price,
+            position_held_since=held_since,
+            holdings_review=holdings_review,
         )
         proposal = await ai_provider.analyze(context)
         if proposal is None:

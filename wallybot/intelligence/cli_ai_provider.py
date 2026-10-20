@@ -48,6 +48,14 @@ from wallybot.domain.trade_proposal import AIAnalysisContext, TradeDirection, Tr
 
 CliName = Literal["claude", "codex"]
 
+_REVIEW_INSTRUCTIONS = (
+    "Holdings review: the operator explicitly asked whether to keep or exit this open position "
+    "now. Weigh the entry price, how long it has been held and the current trend: answer SELL "
+    "(full or partial via suggested_allocation_pct) to take profit or cut a loss whose thesis "
+    "is invalidated; answer BUY only to add to a winner with room in the limits; otherwise "
+    "HOLD. Never SELL more than is held.\n"
+)
+
 _STARTER_INSTRUCTIONS = (
     "Starter request: the operator holds no position yet and explicitly instructed you to open "
     "ONE small first position now, like a desk trader told to get exposure today rather than "
@@ -298,6 +306,8 @@ class CliAiProvider:
             f"holdings={context.portfolio_holdings or 'unavailable/empty'}; "
             f"portfolio as of={context.portfolio_as_of or 'unavailable'}. "
             "Never recommend SELL when no confirmed holding is available.\n"
+            f"{_position_line(context)}"
+            f"{_REVIEW_INSTRUCTIONS if context.holdings_review else ''}"
             f"{_STARTER_INSTRUCTIONS if context.starter_position else ''}"
             f"As of: {context.as_of.isoformat()}\n\n"
             f"{_SCHEMA_INSTRUCTIONS}"
@@ -374,3 +384,21 @@ class CliAiProvider:
             return json.loads(stripped)
         except json.JSONDecodeError:
             return None
+
+
+def _position_line(context: AIAnalysisContext) -> str:
+    """Entry facts of this instrument's open position, when WallyBot bought it."""
+    if context.position_average_price is None or context.position_held_since is None:
+        return ""
+    held = context.as_of - context.position_held_since
+    change = (
+        f"; change vs bid {(context.bid / context.position_average_price - 1):+.2%}"
+        if context.bid
+        else ""
+    )
+    return (
+        f"Open position in {context.instrument.base}: average entry "
+        f"{context.position_average_price} {context.instrument.quote}, held since "
+        f"{context.position_held_since.isoformat()} ({held.days} d {held.seconds // 3600} h)"
+        f"{change}.\n"
+    )

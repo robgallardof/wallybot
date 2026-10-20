@@ -24,6 +24,7 @@ from wallybot.application.live_venues import (
     KrakenVenue,
     LiveVenue,
 )
+from wallybot.application.portfolio_performance import open_positions
 from wallybot.application.position_monitoring import trustworthy_mark
 from wallybot.application.proposal_execution import (
     ProposalExecutionResult,
@@ -327,6 +328,10 @@ class LiveTradingService:
             await EquitySnapshotRepository(db).save(
                 EquitySnapshot(account_id(config), "LIVE", equity, high, now)
             )
+            # Read before a new context row exists, or autoflush would insert it half-filled.
+            fills = await PortfolioRepository(db).list_recent_fills(
+                account_id(config), limit=50_000, environment="LIVE"
+            )
             context = await db.get(AnalystPortfolioRow, config.owner_id)
             if context is None:
                 context = AnalystPortfolioRow(owner_id=config.owner_id)
@@ -336,6 +341,14 @@ class LiveTradingService:
                 asset: str(total) for asset, total in actual.items() if asset != venue.cash
             }
             context.venue = venue.name
+            context.positions = {
+                asset: {
+                    "average_price": str(position.average_price),
+                    "held_since": position.held_since.isoformat(),
+                }
+                for asset, position in open_positions(reversed(fills)).items()
+                if asset in context.holdings
+            }
             context.as_of = now
         # Daily absolute budget uses the actual UTC-day baseline, not current-equity * ratio.
         daily_usd = equity * daily / (1 - daily) if daily < 1 else equity

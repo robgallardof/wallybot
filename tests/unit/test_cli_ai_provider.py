@@ -424,3 +424,23 @@ def test_prompt_includes_the_live_quote():
     context = replace(make_context(), bid=Decimal("100.5"), ask=Decimal("100.6"))
     prompt = make_provider(FakeCliTransport())._build_prompt(context)
     assert "Current quote: bid=100.5 ask=100.6" in prompt
+
+
+def test_holdings_review_adds_the_position_facts_and_review_instructions():
+    from dataclasses import replace
+    from datetime import timedelta
+
+    base = make_context()
+    context = replace(
+        base,
+        bid=Decimal("110"),
+        position_average_price=Decimal("100"),
+        position_held_since=base.as_of - timedelta(days=3, hours=5),
+        holdings_review=True,
+    )
+    plain = make_provider(FakeCliTransport())._build_prompt(base)
+    prompt = make_provider(FakeCliTransport())._build_prompt(context)
+    assert "Holdings review" not in plain and "Open position" not in plain
+    assert "average entry 100" in prompt
+    assert "(3 d 5 h); change vs bid +10.00%" in prompt
+    assert "Holdings review" in prompt

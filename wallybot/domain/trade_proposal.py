@@ -57,13 +57,22 @@ class AIAnalysisContext:
     # Live top of book, so analysts anchor entry/stop/take-profit to a real quote, not a guess.
     bid: Decimal | None = None
     ask: Decimal | None = None
+    # This instrument's open position (FIFO), known only for coins bought through WallyBot.
+    position_average_price: Decimal | None = None
+    position_held_since: datetime | None = None
+    # Operator asked (Telegram /analyze) for an explicit hold-or-sell review of open positions.
+    holdings_review: bool = False
 
     def __post_init__(self) -> None:
         require_aware_datetime(self.as_of, "as_of")
+        if self.position_held_since is not None:
+            require_aware_datetime(self.position_held_since, "position_held_since")
         if self.portfolio_as_of is not None:
             require_aware_datetime(self.portfolio_as_of, "portfolio_as_of")
         values = [self.portfolio_cash_usd] if self.portfolio_cash_usd is not None else []
         values += [quantity for _, quantity in self.portfolio_holdings]
+        if self.position_average_price is not None:
+            values.append(self.position_average_price)
         if any(not value.is_finite() or value < 0 for value in values):
             raise ValueError("Portfolio context values must be finite and nonnegative")
         for tier, target in self.allocation_guidance:

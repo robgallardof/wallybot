@@ -11,7 +11,7 @@ import logging
 import signal
 import tempfile
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -259,13 +259,26 @@ async def _tick(
         if holdings:
             logger.info("AI_STARTER_SKIPPED_HOLDINGS_PRESENT")
             starter = False
+    review = bool(control.review_requested)
+    if review:
+        async with sessions.begin() as db:
+            row = await db.get(AiAutonomyControlRow, 1, with_for_update=True)
+            if row is not None:
+                row.review_requested = False
+        if not holdings:
+            logger.info("AI_REVIEW_SKIPPED_NO_HOLDINGS")
+            review = False
     # Flat accounts are scanned often; once something was bought, re-evaluate every few hours.
     interval = (
         settings.ai_holding_analysis_interval_seconds
         if holdings
         else settings.ai_flat_analysis_interval_seconds
     )
-    if not starter and time.monotonic() - last_analysis.get("at", float("-inf")) < interval:
+    if (
+        not starter
+        and not review
+        and time.monotonic() - last_analysis.get("at", float("-inf")) < interval
+    ):
         # Idle ticks still refresh availability (rate-limited) so the UI never goes stale.
         await _report_analyst_status(sessions, analysts, status_recorded_at, logger)
         return
@@ -285,6 +298,7 @@ async def _tick(
             logger,
             holdings,
             starter,
+            review,
         )
     finally:
         await _report_analyst_status(sessions, analysts, status_recorded_at, logger)
@@ -330,6 +344,7 @@ async def _analyze(
     logger: logging.LoggerAdapter,
     holdings: tuple[tuple[str, Decimal], ...],
     starter: bool,
+    review: bool = False,
 ) -> None:
     result = await run_ai_decision_tick(
         sessions=sessions,
@@ -350,6 +365,11 @@ async def _analyze(
         portfolio_holdings=holdings,
         portfolio_as_of=portfolio.as_of if portfolio else None,
         starter_position=starter,
+        portfolio_positions={
+            asset: (Decimal(facts["average_price"]), datetime.fromisoformat(facts["held_since"]))
+            for asset, facts in ((portfolio.positions or {}) if portfolio else {}).items()
+        },
+        holdings_review=review,
     )
     logger.info(
         "AI_WORKER_TICK_COMPLETED",
@@ -358,5 +378,6 @@ async def _analyze(
             "proposals_received": result.proposals_received,
             "proposals_persisted": result.proposals_persisted,
             "starter": starter,
+            "review": review,
         },
     )

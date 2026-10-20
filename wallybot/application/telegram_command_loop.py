@@ -31,6 +31,7 @@ import json
 import re
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
+from decimal import Decimal
 from urllib.parse import urlencode
 
 from sqlalchemy import select
@@ -46,9 +47,11 @@ from wallybot.application.proposal_presentation import (
 from wallybot.application.telegram_commands import TelegramCommand, parse_command
 from wallybot.domain.control import Status
 from wallybot.domain.id_generator import IdGenerator
+from wallybot.domain.market import MarketDataProvider
 from wallybot.domain.telegram_confirmation import CONFIRMATION_TTL, TelegramAction
 from wallybot.infrastructure.breaker_repository import BreakerRepository
 from wallybot.infrastructure.equity_snapshot_repository import EquitySnapshotRepository
+from wallybot.infrastructure.live_models import AnalystPortfolioRow, LiveControlRow
 from wallybot.infrastructure.models import AiAutonomyControlRow, ControlRow, TradeProposalRow
 from wallybot.infrastructure.portfolio_repository import PortfolioRepository
 from wallybot.infrastructure.telegram_config_repository import TelegramConfigRepository
@@ -74,6 +77,7 @@ async def run_telegram_command_tick(
     owner_id: str | None = None,
     web_origin: str | None = None,
     decide: ProposalDecider | None = None,
+    market: MarketDataProvider | None = None,
 ) -> None:
     async with sessions() as db:
         config = await TelegramConfigRepository(db).get()
@@ -132,6 +136,7 @@ async def run_telegram_command_tick(
                 language,
                 web_origin,
                 decide if _private_operator(message, config.chat_id) else None,
+                market,
             )
             if reply is not None:
                 replies = reply if isinstance(reply, list) else [reply]
@@ -278,6 +283,7 @@ async def _handle_command(
     language: Language,
     web_origin: str | None = None,
     decide: ProposalDecider | None = None,
+    market: MarketDataProvider | None = None,
 ) -> str | list[Notification] | None:
     command = parse_command(text)
     if command is None:
@@ -308,6 +314,8 @@ async def _handle_command(
         return _help_reply(language)
     if command is TelegramCommand.INIT:
         return await _init_reply(sessions, language)
+    if command is TelegramCommand.ANALYZE:
+        return await _analyze_reply(sessions, owner_id, now, language, market)
     action = TelegramAction.PAUSE if command is TelegramCommand.PAUSE else TelegramAction.RESUME
     return await _confirmation_reply(sessions, id_generator, now, action, language)
 
@@ -405,6 +413,111 @@ async def _init_reply(sessions: async_sessionmaker[AsyncSession], language: Lang
     )
 
 
+async def _analyze_reply(
+    sessions: async_sessionmaker[AsyncSession],
+    owner_id: str | None,
+    now: datetime,
+    language: Language,
+    market: MarketDataProvider | None,
+) -> str:
+    """Show what is held (entry, time held, result) and ask the analysts to review it now.
+
+    Any resulting SELL/BUY is an ordinary proposal, sent with its approve/reject buttons."""
+    en = language == "en"
+    async with sessions.begin() as db:
+        portfolio = await db.get(AnalystPortfolioRow, owner_id) if owner_id else None
+        live = await db.get(LiveControlRow, 1)
+        control = await db.get(AiAutonomyControlRow, 1, with_for_update=True)
+        holdings = (
+            {asset: Decimal(quantity) for asset, quantity in (portfolio.holdings or {}).items()}
+            if portfolio
+            else {}
+        )
+        ai_enabled = control is not None and control.status == "ENABLED"
+        if ai_enabled and holdings:
+            control.review_requested = True
+    if portfolio is None:
+        return (
+            "No real-account snapshot yet. Activate LIVE in WallyBot first."
+            if en
+            else "Todavía no hay datos de la cuenta real. Activa LIVE primero en WallyBot."
+        )
+    quote = "USDT" if portfolio.venue == "binance" else "USD"
+    prices = await _current_prices(market, portfolio.venue, quote, holdings)
+    lines = [
+        ("Your positions" if en else "Tus posiciones")
+        + f" ({portfolio.venue.title()} · {portfolio.as_of:%Y-%m-%d %H:%M} UTC):"
+    ]
+    for asset, quantity in sorted(holdings.items()):
+        price = prices.get(asset)
+        facts = (portfolio.positions or {}).get(asset)
+        parts = [f"• {asset}: {quantity.normalize():f}"]
+        if facts:
+            entry = Decimal(facts["average_price"])
+            held = now - datetime.fromisoformat(facts["held_since"])
+            parts.append(("avg entry " if en else "entrada media ") + f"{entry:.6g} {quote}")
+            parts.append(f"{held.days} d {held.seconds // 3600} h")
+            if price:
+                parts.append(f"{price / entry - 1:+.2%}")
+        else:
+            parts.append(
+                "bought outside WallyBot (entry unknown)"
+                if en
+                else "comprado fuera de WallyBot (entrada desconocida)"
+            )
+        if price:
+            parts.append(("now " if en else "ahora ") + f"{price:.6g}")
+            parts.append(("value " if en else "valor ") + f"{quantity * price:.2f} {quote}")
+        lines.append(" · ".join(parts))
+    if not holdings:
+        lines.append("No open positions." if en else "Sin posiciones abiertas.")
+    lines.append(("Cash" if en else "Efectivo") + f": {portfolio.cash_usd:.2f} {quote}")
+    if now - portfolio.as_of > timedelta(minutes=2):
+        state = f"{live.state}: {live.reason}" if live is not None else "OFF"
+        lines.append(
+            f"⚠️ Data is stale; LIVE is {state}"
+            if en
+            else f"⚠️ Datos desactualizados; LIVE está {state}"
+        )
+    if not ai_enabled:
+        lines.append(
+            "AI analysis is disabled; enable it in WallyBot for a recommendation."
+            if en
+            else "El análisis IA está desactivado; actívalo en WallyBot para tener recomendación."
+        )
+    elif holdings:
+        lines.append(
+            "Codex and Claude are reviewing each position now. If they recommend selling or "
+            "adding, you will get a proposal here with buttons to approve; no proposal means "
+            "they recommend holding. Nothing is executed automatically."
+            if en
+            else "Codex y Claude están revisando cada posición ahora. Si recomiendan vender o "
+            "aumentar, te llega aquí la propuesta con botones para aprobar; si no llega "
+            "ninguna, recomiendan mantener. No se ejecuta nada automáticamente."
+        )
+    return "\n".join(lines)
+
+
+async def _current_prices(
+    market: MarketDataProvider | None, venue: str, quote: str, holdings: dict[str, Decimal]
+) -> dict[str, Decimal]:
+    """Best-effort bid per held asset; a missing quote only hides that asset's value."""
+    if market is None or not holdings:
+        return {}
+    prices = {}
+    try:
+        instruments = await market.discover_instruments()
+    except Exception:  # noqa: BLE001 -- prices are optional in this reply
+        return {}
+    for instrument in instruments:
+        if instrument.venue == venue and instrument.quote == quote and instrument.base in holdings:
+            try:
+                prices[instrument.base] = (await market.fetch_snapshot(instrument)).bid
+            except Exception:  # noqa: BLE001
+                continue
+    return prices
+
+
 def _help_reply(language: Language) -> str:
     if language == "en":
         return (
@@ -416,6 +529,7 @@ def _help_reply(language: Language) -> str:
             "/approve ID /reject ID -- decide in your linked private chat, no MFA\n"
             "/simulate ID -- open a web simulation review\n"
             "/init -- ask the analysts for a first conservative buy (approve here)\n"
+            "/analyze -- review what you hold: entry, time held, result; hold or sell proposals\n"
             "/withdrawal -- informational realized-result review (read-only)\n"
             "/pause -- request a pause (confirm on the web with MFA)\n"
             "/resume -- request a resume (confirm on the web with MFA)\n"
@@ -430,6 +544,7 @@ def _help_reply(language: Language) -> str:
         "/approve ID /reject ID -- decidir en tu chat privado vinculado, sin MFA\n"
         "/simulate ID -- abrir revisión de simulación web\n"
         "/init -- pide a los analistas una primera compra conservadora (apruebas aquí)\n"
+        "/analyze -- revisa lo que tienes: entrada, tiempo, resultado; propone vender o mantener\n"
         "/withdrawal -- revisión informativa de resultado realizado (solo lectura)\n"
         "/pause -- solicita pausar (confirmás en la web con MFA)\n"
         "/resume -- solicita reanudar (confirmás en la web con MFA)\n"

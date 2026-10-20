@@ -38,5 +38,7 @@ class AnalystPortfolioRow(Base):
     owner_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), primary_key=True)
     cash_usd: Mapped[Decimal] = mapped_column(Numeric)
     holdings: Mapped[dict] = mapped_column(JSONB)
+    # {asset: {"average_price": str, "held_since": ISO-8601}} for coins bought through WallyBot.
+    positions: Mapped[dict] = mapped_column(JSONB, default=dict)
     venue: Mapped[str] = mapped_column(String(16), default="kraken")
     as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))
