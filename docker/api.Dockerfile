@@ -1,4 +1,4 @@
-FROM ghcr.io/astral-sh/uv:0.12.11 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.1 AS uv
 
 FROM python:3.12.14-alpine AS builder
 RUN apk upgrade --no-cache
