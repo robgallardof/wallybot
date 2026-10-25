@@ -32,6 +32,7 @@ import re
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from decimal import Decimal
+from html import escape
 from urllib.parse import urlencode
 
 from sqlalchemy import select
@@ -145,6 +146,8 @@ async def run_telegram_command_tick(
                         "chat_id": str(chat_id),
                         "text": item.text if isinstance(item, Notification) else item,
                     }
+                    if isinstance(item, HtmlReply):
+                        form["parse_mode"] = "HTML"
                     if isinstance(item, Notification) and item.reply_markup is not None:
                         form["reply_markup"] = json.dumps(item.reply_markup)
                     await transport.post_form(f"{base_url}/sendMessage", form)
@@ -316,6 +319,8 @@ async def _handle_command(
         return await _init_reply(sessions, language)
     if command is TelegramCommand.ANALYZE:
         return await _analyze_reply(sessions, owner_id, now, language, market)
+    if command is TelegramCommand.STATS:
+        return await _stats_reply(sessions, owner_id, now, language, market)
     action = TelegramAction.PAUSE if command is TelegramCommand.PAUSE else TelegramAction.RESUME
     return await _confirmation_reply(sessions, id_generator, now, action, language)
 
@@ -502,6 +507,140 @@ async def _analyze_reply(
     return "\n".join(lines)
 
 
+class HtmlReply(str):
+    """A reply already escaped for Telegram's HTML parse mode (used for monospaced tables)."""
+
+
+def _table(rows: list[list[str]]) -> str:
+    widths = [max(len(row[i]) for row in rows) for i in range(len(rows[0]))]
+    return "\n".join(
+        "  ".join(
+            cell.ljust(width) if i == 0 else cell.rjust(width)
+            for i, (cell, width) in enumerate(zip(row, widths, strict=True))
+        )
+        for row in rows
+    )
+
+
+async def _stats_reply(
+    sessions: async_sessionmaker[AsyncSession],
+    owner_id: str | None,
+    now: datetime,
+    language: Language,
+    market: MarketDataProvider | None,
+) -> str:
+    """Read-only per-coin statistics: purchase date, entry, current price and result."""
+    en = language == "en"
+    async with sessions() as db:
+        portfolio = await db.get(AnalystPortfolioRow, owner_id) if owner_id else None
+    if portfolio is None:
+        return (
+            "No real-account snapshot yet. Activate LIVE in WallyBot first."
+            if en
+            else "Todavía no hay datos de la cuenta real. Activa LIVE primero en WallyBot."
+        )
+    quote = "USDT" if portfolio.venue == "binance" else "USD"
+    holdings = {asset: Decimal(amount) for asset, amount in (portfolio.holdings or {}).items()}
+    prices = await _current_prices(market, portfolio.venue, quote, holdings)
+    rows, dates, invested, result, value = [], [], Decimal(0), Decimal(0), Decimal(0)
+    ranked = []
+    for asset, quantity in holdings.items():
+        facts = (portfolio.positions or {}).get(asset, {})
+        price = prices.get(asset) or (Decimal(facts["price"]) if facts.get("price") else None)
+        entry = Decimal(facts["average_price"]) if facts.get("average_price") else None
+        worth = quantity * price if price else None
+        value += worth or 0
+        pnl = (price - entry) * quantity if price and entry else None
+        if pnl is not None:
+            invested += entry * quantity
+            result += pnl
+            ranked.append((price / entry - 1, asset))
+        rows.append(
+            (
+                worth or Decimal(0),
+                [
+                    asset,
+                    f"{entry:.4g}" if entry else "?",
+                    f"{price:.4g}" if price else "?",
+                    f"{price / entry - 1:+.1%}" if pnl is not None else "?",
+                    f"{pnl:+.2f}" if pnl is not None else "?",
+                ],
+            )
+        )
+        if facts.get("held_since"):
+            since = datetime.fromisoformat(facts["held_since"])
+            held = now - since
+            dates.append(
+                [
+                    asset,
+                    f"{since:%Y-%m-%d}",
+                    f"{held.days}d {held.seconds // 3600}h",
+                    f"{worth:.2f}" if worth else "?",
+                ]
+            )
+    header = ["Coin" if en else "Moneda", "Entry" if en else "Compra", "Now" if en else "Ahora"]
+    header += ["%", quote]
+    body = [row for _, row in sorted(rows, key=lambda item: item[0], reverse=True)]
+    lines = [
+        "<b>"
+        + ("Your coins" if en else "Tus monedas")
+        + f"</b> ({escape(portfolio.venue.title())} · {portfolio.as_of:%Y-%m-%d %H:%M} UTC)",
+        "<pre>" + escape(_table([header, *body])) + "</pre>" if body else "",
+    ]
+    if dates:
+        date_header = ["Coin" if en else "Moneda", "Bought" if en else "Compra"]
+        date_header += ["Held" if en else "Tiempo", ("Value " if en else "Valor ") + quote]
+        lines.append("<pre>" + escape(_table([date_header, *dates])) + "</pre>")
+    if not holdings:
+        lines.append("No open positions." if en else "Sin posiciones abiertas.")
+    cash = portfolio.cash_usd
+    total = value + cash
+    summary = [
+        ("Invested" if en else "Invertido") + f": {invested:.2f} {quote}",
+        ("Coins value" if en else "Valor en monedas") + f": {value:.2f} {quote}",
+        ("Cash" if en else "Efectivo") + f": {cash:.2f} {quote}",
+        ("Account value" if en else "Valor de la cuenta") + f": {total:.2f} {quote}",
+    ]
+    if invested:
+        summary.append(
+            f"<b>{'Unrealized result' if en else 'Resultado no realizado'}: {result:+.2f} {quote}"
+            f" ({result / invested:+.2%})</b>"
+        )
+    if ranked:
+        best, worst = max(ranked), min(ranked)
+        summary.append(
+            ("Best" if en else "Mejor")
+            + f": {escape(best[1])} {best[0]:+.1%} · "
+            + ("Worst" if en else "Peor")
+            + f": {escape(worst[1])} {worst[0]:+.1%}"
+        )
+    if total:
+        weights = sorted(
+            ((holdings[a] * prices[a] / total, a) for a in holdings if prices.get(a)),
+            reverse=True,
+        )
+        if weights:
+            summary.append(
+                ("Weights" if en else "Peso")
+                + ": "
+                + ", ".join(f"{escape(asset)} {weight:.0%}" for weight, asset in weights)
+            )
+    lines.append("\n".join(summary))
+    if now - portfolio.as_of > timedelta(minutes=5):
+        lines.append(
+            "⚠️ Account data is stale; prices are live but balances may have changed."
+            if en
+            else "⚠️ Datos de la cuenta desactualizados; los precios son actuales pero los "
+            "saldos pueden haber cambiado."
+        )
+    lines.append(
+        "/analyze to ask the analysts whether to hold, sell or add."
+        if en
+        else "/analyze para que los analistas digan si mantener, vender o aumentar."
+    )
+    return HtmlReply("\n".join(line for line in lines if line))
+
+
 async def _current_prices(
     market: MarketDataProvider | None, venue: str, quote: str, holdings: dict[str, Decimal]
 ) -> dict[str, Decimal]:
@@ -534,6 +673,7 @@ def _help_reply(language: Language) -> str:
             "/simulate ID -- open a web simulation review\n"
             "/init -- ask the analysts for a first conservative buy (approve here)\n"
             "/analyze -- review what you hold: entry, time held, result; hold or sell proposals\n"
+            "/stats -- table per coin: purchase date, entry, price now, result\n"
             "/withdrawal -- informational realized-result review (read-only)\n"
             "/pause -- request a pause (confirm on the web with MFA)\n"
             "/resume -- request a resume (confirm on the web with MFA)\n"
@@ -549,6 +689,7 @@ def _help_reply(language: Language) -> str:
         "/simulate ID -- abrir revisión de simulación web\n"
         "/init -- pide a los analistas una primera compra conservadora (apruebas aquí)\n"
         "/analyze -- revisa lo que tienes: entrada, tiempo, resultado; propone vender o mantener\n"
+        "/stats -- tabla por moneda: fecha de compra, entrada, precio actual, resultado\n"
         "/withdrawal -- revisión informativa de resultado realizado (solo lectura)\n"
         "/pause -- solicita pausar (confirmás en la web con MFA)\n"
         "/resume -- solicita reanudar (confirmás en la web con MFA)\n"

@@ -531,3 +531,78 @@ async def test_analyze_command_reviews_holdings_and_requests_an_analysis(
     assert "DOT: 2 · entrada media 4 USDT · 2 d 0 h · +25.00% · ahora 5 · valor 10.00 USDT" in text
     assert "XRP: 4 · comprado fuera de WallyBot" in text
     assert "No se ejecuta nada automáticamente." in text
+
+
+async def test_stats_command_tabulates_each_coin_without_requesting_a_review(
+    sessions, crypto, dependencies
+) -> None:
+    from types import SimpleNamespace
+
+    from wallybot.infrastructure.live_models import AnalystPortfolioRow
+
+    class FakeMarket:
+        async def discover_instruments(self):
+            return [SimpleNamespace(venue="binance", base="DOT", quote="USDT")]
+
+        async def fetch_snapshot(self, instrument):
+            return SimpleNamespace(bid=Decimal("5"))
+
+    await _configure(sessions, crypto)
+    owner_id = "telegram-stats-owner"
+    async with sessions.begin() as db:
+        await TelegramConfigRepository(db).set_last_update_id(99)
+        db.add(
+            UserRow(
+                id=owner_id,
+                username="telegram-stats-admin",
+                password_hash="test",
+                totp_encrypted="test",
+                last_totp_step=-1,
+                role="ADMIN",
+                created_at=0,
+            )
+        )
+        await db.flush()
+        db.add(
+            AnalystPortfolioRow(
+                owner_id=owner_id,
+                cash_usd=Decimal("10"),
+                holdings={"DOT": "2", "XRP": "4"},
+                positions={
+                    "DOT": {"average_price": "4", "held_since": "2025-12-30T00:00:00+00:00"}
+                },
+                venue="binance",
+                as_of=NOW,
+            )
+        )
+    with psycopg.connect(dependencies[0].replace("+psycopg", ""), autocommit=True) as connection:
+        connection.execute("UPDATE ai_autonomy_control SET review_requested = false")
+        try:
+            transport = FakeCommandTransport([_message(100, ALLOWED_CHAT_ID, "/stats")])
+            await run_telegram_command_tick(
+                sessions,
+                crypto,
+                transport,
+                SequentialIds(),
+                None,
+                NOW,
+                owner_id=owner_id,
+                market=FakeMarket(),
+            )
+            requested = connection.execute(
+                "SELECT review_requested FROM ai_autonomy_control WHERE id = 1"
+            ).fetchone()[0]
+        finally:
+            connection.execute(
+                "DELETE FROM analyst_portfolio_context WHERE owner_id = %s", (owner_id,)
+            )
+            connection.execute("DELETE FROM users WHERE id = %s", (owner_id,))
+
+    form = transport.sent[0][1]
+    text = form["text"]
+    assert form["parse_mode"] == "HTML" and requested is False
+    assert "DOT          4      5  +25.0%  +2.00" in text
+    assert "XRP          ?      ?       ?      ?" in text
+    assert "DOT     2025-12-30   2d 0h       10.00" in text
+    assert "Resultado no realizado: +2.00 USDT (+25.00%)" in text
+    assert "Valor de la cuenta: 20.00 USDT" in text
