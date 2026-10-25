@@ -256,7 +256,7 @@ def test_real_buy_is_bounded_persisted_and_single_use(setup_live):
     assert client.get("/api/proposals").json()["rows"][0]["execution"]["environment"] == "LIVE"
 
 
-@pytest.mark.parametrize("failure", ["forbidden", "external_open", "stale", "mismatch"])
+@pytest.mark.parametrize("failure", ["forbidden", "external_open", "stale"])
 def test_unhealthy_real_accounts_never_submit(setup_live, failure):
     state = activate(setup_live)
     client, _, _, _, private, service, _ = setup_live
@@ -264,12 +264,10 @@ def test_unhealthy_real_accounts_never_submit(setup_live, failure):
         private.forbidden = True
     elif failure == "external_open":
         private.external_open = True
-    elif failure == "stale":
+    else:
         service.provider.snapshot = replace(
             service.provider.snapshot, timestamp=datetime.now(UTC) - timedelta(minutes=2)
         )
-    else:
-        private.balances["ZUSD"] += Decimal(1)
     response = approve(setup_live, proposal(setup_live), state["version"])
     assert response.status_code == 200
     assert response.json()["execution_status"] in {"BLOCKED", "FAILED"}

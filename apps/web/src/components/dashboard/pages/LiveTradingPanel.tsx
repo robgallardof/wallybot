@@ -4,6 +4,7 @@ import { liveVenueLabel, useLiveTrading } from "../../../hooks/useLiveTrading";
 import { useConnectionsData } from "../../../hooks/useConnectionsData";
 import { FaCircleCheck, FaShieldHalved } from "react-icons/fa6";
 import { formatDateTime, formatMoney, formatNumber, formatRelative } from "../../../lib/format";
+import { LivePositionsSection } from "./LivePositions";
 
 const cents = (value: number) => (Math.floor(value * 100) / 100).toFixed(2);
 
@@ -137,7 +138,7 @@ export function LiveTradingPanel({ role }: { role: string }) {
         <li>
           <FaShieldHalved size={13} />
           {t(
-            "También se bloquean nuevas operaciones al perder 2% diario, 5% semanal o alcanzar 10% de caída desde el máximo. Siempre aplica el límite más estricto. Una diferencia con los saldos del exchange requiere revisión; no se reinician las pérdidas.",
+            "También se bloquean nuevas operaciones al perder 2% diario, 5% semanal o alcanzar 10% de caída desde el máximo. Siempre aplica el límite más estricto. La actividad que hagas a mano en el exchange se registra sola como ajuste externo; no se reinician las pérdidas.",
           )}
         </li>
       </ul>
@@ -323,7 +324,7 @@ export function LivePortfolioPanel() {
           <h2>{t("Cuenta real {{venue}}", { venue: liveVenueLabel(live.data.venue) })}</h2>
           <p className="muted" style={{ margin: 0 }}>
             {t(
-              "Los saldos iniciales vienen del exchange. Su coste de compra histórico no se conoce; no se inventan ganancias sobre esas posiciones.",
+              "Los saldos vienen del exchange. El precio de compra sale de tu historial de operaciones en el exchange; si no aparece ahí, no se inventan ganancias.",
             )}
           </p>
         </div>
@@ -354,6 +355,7 @@ export function LivePortfolioPanel() {
         </div>
       </div>
       {live.data.reason && <p className="muted">{t(live.data.reason)}</p>}
+      <LivePositionsSection />
       <h3>{t("Saldos")}</h3>
       <div className="markets-table-wrap">
         <table className="markets-table">

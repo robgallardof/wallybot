@@ -64,3 +64,52 @@ export function useLiveTrading(enabled = true) {
   });
   return { live, configure };
 }
+
+const livePositionsSchema = z.object({
+  cash_currency: z.string().nullable(),
+  as_of: z.string().nullable(),
+  positions: z.array(
+    z.object({
+      asset: z.string(),
+      quantity: z.string(),
+      price: z.string().nullable(),
+      value: z.string().nullable(),
+      average_price: z.string().nullable(),
+      held_since: z.string().nullable(),
+      pnl: z.string().nullable(),
+      pnl_pct: z.string().nullable(),
+      source: z.string().nullable(),
+    }),
+  ),
+});
+
+const priceHistorySchema = z.object({
+  asset: z.string(),
+  timeframe: z.string(),
+  average_price: z.string().nullable(),
+  held_since: z.string().nullable(),
+  points: z.array(z.object({ t: z.string(), close: z.string() })),
+});
+
+export type LivePosition = z.infer<typeof livePositionsSchema>["positions"][number];
+export type PriceHistory = z.infer<typeof priceHistorySchema>;
+
+/** Per-coin entry, value and result of the real account (refreshed with each verified sync). */
+export function useLivePositions(enabled = true) {
+  return useQuery({
+    queryKey: ["live-positions"],
+    enabled,
+    queryFn: () => api("/live/positions", livePositionsSchema),
+    refetchInterval: 30000,
+  });
+}
+
+/** Closing prices of one held coin since it was bought. */
+export function useLivePriceHistory(asset: string) {
+  return useQuery({
+    queryKey: ["live-price-history", asset],
+    queryFn: () => api(`/live/positions/${encodeURIComponent(asset)}/history`, priceHistorySchema),
+    staleTime: 5 * 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+}

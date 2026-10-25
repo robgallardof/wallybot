@@ -267,7 +267,7 @@ def test_untradeable_pairs_are_refused_without_freezing_live(setup_binance, base
     assert not any(method == "POST" for method, _, _ in account.calls)
 
 
-@pytest.mark.parametrize("failure", ["withdrawals_enabled", "external_open", "bnb", "mismatch"])
+@pytest.mark.parametrize("failure", ["withdrawals_enabled", "external_open", "bnb"])
 def test_unhealthy_binance_accounts_never_submit(setup_binance, failure):
     state = activate(setup_binance)
     _, _, _, _, account, _ = setup_binance
@@ -275,13 +275,88 @@ def test_unhealthy_binance_accounts_never_submit(setup_binance, failure):
         account.restrictions["enableWithdrawals"] = True
     elif failure == "external_open":
         account.external_open = True
-    elif failure == "bnb":
-        account.balances["BNB"] = Decimal("0.01")
     else:
-        account.balances["USDT"] += Decimal(1)
+        account.balances["BNB"] = Decimal("0.01")
     response = approve_live(setup_binance, binance_proposal(setup_binance), state["version"])
     assert response.json()["execution_status"] in {"BLOCKED", "FAILED"}
     assert not any(method == "POST" for method, _, _ in account.calls)
+
+
+def test_external_binance_activity_is_adopted_instead_of_blocking(setup_binance):
+    from wallybot.application.live_trading import BALANCE_DRIFT
+
+    activate(setup_binance)
+    client, db, _, _, account, service = setup_binance
+    adjustments = "SELECT count(*) FROM ledger_transactions WHERE reason='LIVE_EXTERNAL_ADJUSTMENT'"
+    # A manual deposit/buy on Binance, plus a block left by the code that used to latch on it.
+    account.balances["USDT"] += Decimal(1)
+    client.portal.call(service.latch, BALANCE_DRIFT)
+    client.portal.call(service.refresh)
+    live = client.get("/api/live").json()
+    assert live["state"] == "READY" and live["reason"] == ""
+    assert db.execute(adjustments).fetchone()[0] == 1
+    # The ledger now matches, so the next sync adopts nothing more.
+    client.portal.call(service.refresh)
+    assert db.execute(adjustments).fetchone()[0] == 1
+
+
+def test_failed_reactivation_keeps_a_live_account_enabled(setup_binance):
+    state = activate(setup_binance)
+    client, db, csrf, _, account, _ = setup_binance
+    account.external_open = True
+    # Saving limits / re-activating while the account cannot be verified must not turn LIVE off.
+    response = client.post(
+        "/api/live/control",
+        headers={"X-CSRF-Token": csrf},
+        json={
+            "connection_id": state["connection_id"],
+            "enabled": True,
+            "confirmation": "LIVE",
+            "max_order_usd": "100",
+            "max_daily_loss_usd": "10",
+            "max_total_usd": "200",
+            "slippage_pct": "0.005",
+        },
+    )
+    assert response.status_code == 409, response.text
+    live = client.get("/api/live").json()
+    assert live["enabled"] and live["state"] == "BLOCKED"
+    assert db.execute("SELECT environment FROM control").fetchone()[0] == "LIVE"
+
+
+def test_positions_report_entry_of_coins_bought_outside_wallybot(setup_binance):
+    activate(setup_binance)
+    client, _, _, _, account, service = setup_binance
+    bought = datetime.now(UTC) - timedelta(days=3)
+    account.balances["BTC"] = Decimal("0.5")
+    account.manual_trades.append(
+        {
+            "symbol": "BTCUSDT",
+            "price": "2000",
+            "qty": "0.5",
+            "commission": "0.5",
+            "commissionAsset": "USDT",
+            "time": int(bought.timestamp() * 1000),
+            "isBuyer": True,
+        }
+    )
+    client.portal.call(service.refresh)
+    view = client.get("/api/live/positions").json()
+    btc = next(row for row in view["positions"] if row["asset"] == "BTC")
+    assert Decimal(btc["average_price"]) == 2000 and btc["source"] == "exchange"
+    assert datetime.fromisoformat(btc["held_since"]) == bought.replace(
+        microsecond=bought.microsecond // 1000 * 1000
+    )
+    price = Decimal(btc["price"])
+    assert Decimal(btc["pnl"]) == (price - 2000) * Decimal("0.5")
+    history = client.get("/api/live/positions/BTC/history").json()
+    assert history["timeframe"] == "1h" and history["average_price"] == btc["average_price"]
+    assert history["points"]
+    assert client.get("/api/live/positions/DOGE/history").status_code == 404
+    # Unchanged holdings are not re-read from Binance on every sync.
+    calls = sum(path == "/api/v3/myTrades" for _, path, _ in account.calls)
+    client.portal.call(service.refresh)
+    assert sum(path == "/api/v3/myTrades" for _, path, _ in account.calls) == calls
 
 
 def test_lost_binance_response_reconciles_without_resubmission(setup_binance):
@@ -450,10 +525,24 @@ def test_transient_binance_failures_only_block_after_repeating(setup_binance, mo
     assert live["state"] == "READY" and live["reason"] == ""
 
 
+def test_rejected_key_rearms_once_binance_accepts_it_again(setup_binance):
+    from wallybot.exchanges.binance_private import explain_binance_error
+
+    activate(setup_binance)
+    client, _, _, _, _, service = setup_binance
+    # e.g. the public IP changed and the operator then allowed the new one on Binance.
+    client.portal.call(service.latch, str(explain_binance_error(401, {"code": -2015})))
+    client.portal.call(service.refresh)
+    live = client.get("/api/live").json()
+    assert live["state"] == "READY" and live["reason"] == ""
+
+
 def test_non_transient_blocks_stay_until_the_operator_rearms(setup_binance, monkeypatch):
     activate(setup_binance)
     client, _, _, _, _, service = setup_binance
-    client.portal.call(service.latch, "Exchange balances differ from the ledger")
+    client.portal.call(
+        service.latch, "Real account synchronization failed; no new trades are allowed"
+    )
     client.portal.call(service.refresh)
     # The healthy sync must not clear a block that needs a human to review the account.
     assert client.get("/api/live").json()["state"] == "BLOCKED"

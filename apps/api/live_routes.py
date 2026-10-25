@@ -1,5 +1,6 @@
 """Explicit MFA-protected real-account configuration and read-only verified portfolio."""
 
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
 
@@ -13,7 +14,7 @@ from wallybot.application.live_trading import LiveBlocked, account_id
 from wallybot.domain.control import Environment
 from wallybot.exchanges.private_errors import ExchangePrivateError
 from wallybot.infrastructure.equity_snapshot_repository import EquitySnapshotRepository
-from wallybot.infrastructure.live_models import LiveControlRow
+from wallybot.infrastructure.live_models import AnalystPortfolioRow, LiveControlRow
 from wallybot.infrastructure.models import (
     ControlRow,
     FillRow,
@@ -148,6 +149,121 @@ async def get_live(request: Request, user: SignedIn):
         raise HTTPException(404, str(exc)) from None
 
 
+class LivePosition(BaseModel):
+    asset: str
+    quantity: str
+    price: str | None = None
+    value: str | None = None
+    average_price: str | None = None
+    held_since: str | None = None
+    pnl: str | None = None
+    pnl_pct: str | None = None
+    source: str | None = None
+
+
+class LivePositionsView(BaseModel):
+    cash_currency: str | None = None
+    as_of: str | None = None
+    positions: list[LivePosition] = []
+
+
+class PricePoint(BaseModel):
+    t: str
+    close: str
+
+
+class PriceHistoryView(BaseModel):
+    asset: str
+    timeframe: str
+    average_price: str | None = None
+    held_since: str | None = None
+    points: list[PricePoint] = []
+
+
+@router.get("/positions", response_model=LivePositionsView)
+async def live_positions(request: Request, user: SignedIn):
+    """Per-coin entry, current value and result from the last verified real-account sync."""
+    async with request.app.state.live_trading.sessions() as db:
+        context = await db.get(AnalystPortfolioRow, user.id)
+    if context is None:
+        return LivePositionsView()
+    cash = "USDT" if context.venue == "binance" else "USD"
+    rows = []
+    for asset, amount in sorted((context.holdings or {}).items()):
+        facts = (context.positions or {}).get(asset, {})
+        quantity = Decimal(amount)
+        price = Decimal(facts["price"]) if facts.get("price") else None
+        entry = Decimal(facts["average_price"]) if facts.get("average_price") else None
+        row = LivePosition(
+            asset=asset,
+            quantity=amount,
+            price=str(price) if price is not None else None,
+            value=str(quantity * price) if price is not None else None,
+            average_price=str(entry) if entry is not None else None,
+            held_since=facts.get("held_since"),
+            source=facts.get("source"),
+        )
+        if price is not None and entry:
+            row.pnl = str((price - entry) * quantity)
+            row.pnl_pct = str((price / entry - 1) * 100)
+        rows.append(row)
+    rows.sort(key=lambda row: Decimal(row.value or 0), reverse=True)
+    return LivePositionsView(cash_currency=cash, as_of=context.as_of.isoformat(), positions=rows)
+
+
+@router.get("/positions/{asset}/history", response_model=PriceHistoryView)
+async def live_position_history(asset: str, request: Request, user: SignedIn):
+    """Closing prices since the coin was bought (30 days when the entry is unknown)."""
+    service = request.app.state.live_trading
+    config = await service.configuration(user.id)
+    async with service.sessions() as db:
+        context = await db.get(AnalystPortfolioRow, user.id)
+        connection = await db.get(ProviderConnectionRow, config.connection_id) if config else None
+    if context is None or connection is None or asset not in (context.holdings or {}):
+        raise HTTPException(404, "This coin is not held in the real account")
+    venue = service.venue(connection.provider)
+    facts = (context.positions or {}).get(asset, {})
+    now = datetime.now(UTC)
+    since = (
+        datetime.fromisoformat(facts["held_since"])
+        if facts.get("held_since")
+        else now - timedelta(days=30)
+    )
+    # Pad the start so the entry is visible, then pick the finest interval that fits.
+    since = min(since, now - timedelta(days=1))
+    since -= (now - since) * 0.05
+    span = now - since
+    timeframe = "5m" if span <= timedelta(days=3) else "1h" if span <= timedelta(days=40) else "1d"
+    instrument = next(
+        (
+            i
+            for i in await venue.market.discover_instruments()
+            if i.base == asset and i.quote == venue.cash
+        ),
+        None,
+    )
+    if instrument is None:
+        raise HTTPException(404, "This coin has no price history on the exchange")
+    candles = await venue.market.fetch_candles(instrument, timeframe, since, 1000)
+    return PriceHistoryView(
+        asset=asset,
+        timeframe=timeframe,
+        average_price=facts.get("average_price"),
+        held_since=facts.get("held_since"),
+        points=[PricePoint(t=c.close_time.isoformat(), close=str(c.close)) for c in candles],
+    )
+
+
+async def _keep_enabled(service, was_enabled):
+    if not was_enabled:
+        return
+    async with service.sessions.begin() as db:
+        stored = await db.get(LiveControlRow, 1, with_for_update=True)
+        stored.enabled = True
+        control = await db.get(ControlRow, 1, with_for_update=True)
+        control.environment = Environment.LIVE
+
+
 @router.post("/control", response_model=LiveView)
 async def configure_live(body: LiveChange, request: Request, user: Admin):
     if body.enabled and not request.app.state.settings.live_capable:
@@ -165,6 +281,9 @@ async def configure_live(body: LiveChange, request: Request, user: Admin):
                 or connection.mode != "TRADE_ONLY"
             ):
                 raise LiveBlocked("Select your own verified spot trading connection")
+            # A failed re-activation must not switch off an account that was already live: it
+            # stays enabled but BLOCKED, so the monitor re-arms it once the cause is gone.
+            was_enabled = existing is not None and existing.enabled
             if existing is not None and existing.connection_id != body.connection_id:
                 raise LiveBlocked(
                     "Changing the initialized real account requires separate reconciliation"
@@ -197,9 +316,11 @@ async def configure_live(body: LiveChange, request: Request, user: Admin):
                     await service._sync(config, initialize=True)
                 except (LiveBlocked, ExchangePrivateError) as exc:
                     await service.latch(str(exc))
+                    await _keep_enabled(service, was_enabled)
                     raise LiveBlocked(str(exc)) from None
                 except Exception:
                     await service.latch("Cannot verify the real account; no new trades are allowed")
+                    await _keep_enabled(service, was_enabled)
                     raise LiveBlocked(
                         "Cannot verify real permissions, balances, prices and reconciliation"
                     ) from None

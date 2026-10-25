@@ -779,3 +779,30 @@
 }
 :root.dark .danger-outline { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
 :root.dark .nav-badge { color: #2a0d0b; }
+
+/* Real-account coins: one card per holding with entry, result and price since purchase. */
+:root .live-positions { margin: 24px 0 8px; }
+:root .position-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+:root .position-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); min-width: 0; }
+:root .position-card.open { grid-column: 1 / -1; }
+:root .position-card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+:root .position-card-head .asset-cell > span:last-child { display: flex; flex-direction: column; }
+:root .position-card-value { display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
+:root .position-card small.positive { color: var(--positive); }
+:root .position-card small.danger { color: var(--danger); }
+:root .position-card-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0; }
+:root .position-card-facts dt { font-size: 11px; color: var(--muted); }
+:root .position-card-facts dd { margin: 0; font-size: 13px; font-variant-numeric: tabular-nums; }
+:root .position-card-note { margin: 0; font-size: 12px; }
+:root .position-chart { display: block; width: 100%; height: 96px; }
+:root .position-card.open .position-chart { height: 240px; }
+:root .position-chart-placeholder { height: 96px; border-radius: 8px; background: var(--surface-raised); }
+:root .position-chart-placeholder.large { height: 240px; }
+:root .position-chart-line { fill: none; stroke-width: 2; }
+:root .position-chart.rising .position-chart-line { stroke: var(--positive); }
+:root .position-chart.falling .position-chart-line { stroke: var(--danger); }
+:root .position-chart-area { stroke: none; opacity: .12; }
+:root .position-chart.rising .position-chart-area { fill: var(--positive); }
+:root .position-chart.falling .position-chart-area { fill: var(--danger); }
+:root .position-chart-entry { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 5 4; }
+:root .position-chart-since { stroke: var(--border-strong); stroke-width: 1; }

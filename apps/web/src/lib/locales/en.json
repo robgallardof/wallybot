@@ -775,7 +775,7 @@
   "Conectar cuenta para trading spot real": "Connect an account for real spot trading",
   "Conecta tu cuenta en Conexiones y define tus límites. Cada propuesta sigue necesitando tu aprobación con MFA. La IA no recibe tus claves.": "Connect your account under Connections and set your limits. Every proposal still requires your approval with MFA. The AI never receives your keys.",
   "Kraken spot: USD, BTC y ETH. Sin deuda ni apalancamiento. Las órdenes usan precio límite y cancelan la cantidad que no se llena inmediatamente. Los stops y objetivos son avisos de revisión.": "Kraken spot: USD, BTC and ETH. No borrowing or leverage. Orders use a limit price and cancel any quantity not filled immediately. Stops and targets are review notices.",
-  "También se bloquean nuevas operaciones al perder 2% diario, 5% semanal o alcanzar 10% de caída desde el máximo. Siempre aplica el límite más estricto. Una diferencia con los saldos del exchange requiere revisión; no se reinician las pérdidas.": "New trades are also blocked at a 2% daily loss, 5% weekly loss or 10% drawdown. The stricter limit always applies. Differences against exchange balances require review; losses are never reset.",
+  "También se bloquean nuevas operaciones al perder 2% diario, 5% semanal o alcanzar 10% de caída desde el máximo. Siempre aplica el límite más estricto. La actividad que hagas a mano en el exchange se registra sola como ajuste externo; no se reinician las pérdidas.": "New trades are also blocked at a 2% daily loss, 5% weekly loss or 10% drawdown. The stricter limit always applies. Activity you do by hand on the exchange is recorded automatically as an external adjustment; losses are never reset.",
   "Selecciona una conexión Kraken de trading": "Select a Kraken trading connection",
   "Máximo por operación (USD)": "Maximum per trade (USD)",
   "Pérdida diaria máxima (USD)": "Maximum daily loss (USD)",
@@ -904,5 +904,14 @@
   "LIVE está en pausa ({{state}})": "LIVE is paused ({{state}})",
   "Rearmar LIVE con los límites actuales": "Rearm LIVE with the current limits",
   "Verificando cuenta…": "Verifying account…",
-  "Verificar y rearmar LIVE": "Verify and rearm LIVE"
+  "Verificar y rearmar LIVE": "Verify and rearm LIVE",
+  "Tus monedas": "Your coins",
+  "Precio de compra": "Purchase price",
+  "En cartera": "Held for",
+  "Precio de compra desconocido": "Purchase price unknown",
+  "Sin historial de precios suficiente.": "Not enough price history.",
+  "No se pudo cargar el historial de precios.": "Could not load the price history.",
+  "Precio de {{asset}} desde la compra": "{{asset}} price since purchase",
+  "Comprado desde {{date}}. La línea punteada es tu precio medio de compra.": "Held since {{date}}. The dashed line is your average purchase price.",
+  "Los saldos vienen del exchange. El precio de compra sale de tu historial de operaciones en el exchange; si no aparece ahí, no se inventan ganancias.": "Balances come from the exchange. The purchase price comes from your exchange trade history; if it is not there, no gains are invented."
 }

@@ -82,6 +82,25 @@ def mandate_version(row):
     return int.from_bytes(digest[:4], "big")
 
 
+# Reason older code latched LIVE with when balances drifted; drift is now adopted, so a
+# healthy sync clears it.
+BALANCE_DRIFT = "Exchange balances differ from the ledger; review external account activity"
+
+
+def external_postings(account, cash, amounts):
+    """Balanced postings that move ``amounts`` per asset between clearing and the real account."""
+    postings = []
+    for asset, amount in amounts.items():
+        purpose = AccountPurpose.CASH if asset == cash else AccountPurpose.POSITION
+        postings.extend(
+            (
+                LedgerPosting(LedgerAccount(account, asset, purpose), amount),
+                LedgerPosting(LedgerAccount("clearing", asset, AccountPurpose.CLEARING), -amount),
+            )
+        )
+    return tuple(postings)
+
+
 class LiveTradingService:
     def __init__(
         self,
@@ -106,6 +125,9 @@ class LiveTradingService:
         self.clock = clock
         self.capable = capable
         self._transient_failures = 0
+        # Held quantity per coin whose exchange history had no usable entry (e.g. converted
+        # funds), so it is not re-read every sync while nothing changes.
+        self._no_history: dict[str, str] = {}
 
     def venue(self, connection_provider: str) -> LiveVenue:
         if connection_provider == "KRAKEN":
@@ -257,17 +279,7 @@ class LiveTradingService:
         if not config.initialized:
             if not initialize or expected:
                 raise LiveBlocked("Real opening balances require explicit activation")
-            postings = []
-            for asset, total in actual.items():
-                purpose = AccountPurpose.CASH if asset == venue.cash else AccountPurpose.POSITION
-                postings.extend(
-                    (
-                        LedgerPosting(LedgerAccount(account_id(config), asset, purpose), total),
-                        LedgerPosting(
-                            LedgerAccount("clearing", asset, AccountPurpose.CLEARING), -total
-                        ),
-                    )
-                )
+            postings = external_postings(account_id(config), venue.cash, actual)
             if not postings:
                 raise LiveBlocked("Real account has no funds")
             transaction = LedgerTransaction(
@@ -285,16 +297,28 @@ class LiveTradingService:
                     raise LiveBlocked("Real account configuration disappeared")
                 stored.initialized = True
             config.initialized = True
-        elif any(
-            abs(expected.get(asset, Decimal(0)) - actual.get(asset, Decimal(0)))
-            > Decimal("0.00000001")
+        elif drift := {
+            asset: delta
             for asset in set(expected) | set(actual)
-        ):
-            raise LiveBlocked(
-                "Exchange balances differ from the ledger; review external account activity"
+            if abs(delta := actual.get(asset, Decimal(0)) - expected.get(asset, Decimal(0)))
+            > Decimal("0.00000001")
+        }:
+            # Operator-requested: activity done by hand on the exchange (manual buys, deposits,
+            # fees) is adopted into the ledger instead of blocking LIVE. The key still cannot
+            # withdraw or transfer (verify_key), so a drift can only come from spot activity.
+            transaction = LedgerTransaction(
+                str(uuid4()),
+                account_id(config),
+                "LIVE_EXTERNAL_ADJUSTMENT",
+                f"live-external:{config.connection_id}:{now.isoformat()}",
+                external_postings(account_id(config), venue.cash, drift),
+                now,
             )
+            async with unit_of_work(self.sessions) as uow:
+                await uow.save_ledger_transaction(transaction)
+                audit(uow.session, "LIVE_EXTERNAL_ACTIVITY_ADOPTED", config.owner_id)
         instruments = await venue.market.discover_instruments()
-        exposures = {}
+        exposures, marks = {}, {}
         for asset, total in actual.items():
             if asset == venue.cash:
                 continue
@@ -313,6 +337,7 @@ class LiveTradingService:
             if not trustworthy_mark(quote, instrument, self.clock.now()):
                 raise LiveBlocked("A held asset has no trustworthy current valuation")
             exposures[instrument.id] = total * quote.bid
+            marks[asset] = quote.bid
         equity = actual.get(venue.cash, Decimal(0)) + sum(exposures.values(), Decimal(0))
         if equity <= 0:
             raise LiveBlocked("Real equity is not positive")
@@ -324,6 +349,7 @@ class LiveTradingService:
         daily = compute_daily_loss(history, equity, now)
         weekly = compute_weekly_loss(history, equity, now)
         drawdown = compute_drawdown(equity, high)
+        entries = await self._exchange_entries(config, venue, transport, marks, actual)
         async with self.sessions.begin() as db:
             await EquitySnapshotRepository(db).save(
                 EquitySnapshot(account_id(config), "LIVE", equity, high, now)
@@ -341,13 +367,20 @@ class LiveTradingService:
                 asset: str(total) for asset, total in actual.items() if asset != venue.cash
             }
             context.venue = venue.name
-            context.positions = {
+            # The exchange's own trade history also covers coins bought by hand; WallyBot's
+            # ledger fills are the fallback for venues that cannot report it.
+            ledger = {
                 asset: {
                     "average_price": str(position.average_price),
                     "held_since": position.held_since.isoformat(),
+                    "source": "ledger",
                 }
                 for asset, position in open_positions(reversed(fills)).items()
                 if asset in context.holdings
+            }
+            context.positions = {
+                asset: {**entry, "quantity": context.holdings[asset], "price": str(marks[asset])}
+                for asset, entry in {**ledger, **entries}.items()
             }
             context.as_of = now
         # Daily absolute budget uses the actual UTC-day baseline, not current-equity * ratio.
@@ -370,6 +403,44 @@ class LiveTradingService:
         )
         return venue, execution, balances, EquityAssessment(state, daily, weekly, drawdown)
 
+    async def _exchange_entries(self, config, venue, transport, marks, actual):
+        """Average entry and holding start per held coin from the exchange's trade history.
+
+        A coin's history is only re-read when its held quantity changed since the last sync, and
+        a failed read never blocks LIVE: the previous answer (or none) is kept instead.
+        """
+        async with self.sessions() as db:
+            context = await db.get(AnalystPortfolioRow, config.owner_id)
+        previous = dict(context.positions or {}) if context is not None else {}
+        entries = {}
+        for asset in marks:
+            held = str(actual[asset])
+            cached = previous.get(asset) or {}
+            known = (
+                {key: cached[key] for key in ("average_price", "held_since", "source")}
+                if cached.get("source") == "exchange"
+                else None
+            )
+            if (known and cached.get("quantity") == held) or self._no_history.get(asset) == held:
+                if known:
+                    entries[asset] = known
+                continue
+            try:
+                position = open_positions(await venue.trades(transport, asset)).get(asset)
+            except ExchangePrivateError:
+                if known:
+                    entries[asset] = known
+                continue
+            if position is None:
+                self._no_history[asset] = held
+                continue
+            entries[asset] = {
+                "average_price": str(position.average_price),
+                "held_since": position.held_since.isoformat(),
+                "source": "exchange",
+            }
+        return entries
+
     async def latch(self, reason):
         async with self.sessions.begin() as db:
             config = await db.get(LiveControlRow, 1, with_for_update=True)
@@ -380,14 +451,15 @@ class LiveTradingService:
                     audit(db, "LIVE_EXECUTION_BLOCKED", config.owner_id)
 
     async def _recover(self, venue):
-        """Re-arm LIVE after a healthy sync if it was only blocked by a passing venue hiccup."""
+        """Re-arm LIVE after a healthy sync if it was only blocked by a venue hiccup or a key/IP
+        rejection that the operator has since fixed on the exchange."""
         async with self.sessions.begin() as db:
             config = await db.get(LiveControlRow, 1, with_for_update=True)
             if (
                 config is not None
                 and config.enabled
                 and config.state == "BLOCKED"
-                and config.reason in venue.transient_reasons
+                and (config.reason in venue.transient_reasons or config.reason == BALANCE_DRIFT)
             ):
                 config.state, config.reason = "READY", ""
                 audit(db, "LIVE_EXECUTION_RECOVERED", config.owner_id)

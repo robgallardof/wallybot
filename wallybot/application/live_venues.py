@@ -16,10 +16,10 @@ from wallybot.domain.order import OrderIntent
 from wallybot.exchanges.binance import BinanceExchange
 from wallybot.exchanges.binance_gateway import BinanceSpotGateway
 from wallybot.exchanges.binance_private import (
-    SUPPORTED_ASSETS as BINANCE_ASSETS,
+    RECOVERABLE_REASONS as BINANCE_RECOVERABLE_REASONS,
 )
 from wallybot.exchanges.binance_private import (
-    TRANSIENT_REASONS as BINANCE_TRANSIENT_REASONS,
+    SUPPORTED_ASSETS as BINANCE_ASSETS,
 )
 from wallybot.exchanges.binance_private import (
     BinancePrivateError,
@@ -28,6 +28,9 @@ from wallybot.exchanges.binance_private import (
 )
 from wallybot.exchanges.binance_private import (
     spot_balances as binance_balances,
+)
+from wallybot.exchanges.binance_private import (
+    spot_trades as binance_trades,
 )
 from wallybot.exchanges.kraken_gateway import KrakenSpotGateway
 from wallybot.exchanges.kraken_private import spot_balances as kraken_balances
@@ -60,6 +63,9 @@ class LiveVenue(Protocol):
     async def verify_key(self, transport: Any) -> None: ...
     async def has_open_orders(self, transport: Any) -> bool: ...
     async def balances(self, transport: Any) -> dict[str, tuple[Decimal, Decimal]]: ...
+    # The account's own executed trades of `asset` against cash (oldest first), including ones
+    # made outside WallyBot; [] when the venue cannot tell.
+    async def trades(self, transport: Any, asset: str) -> list[Any]: ...
     async def minimum_notional(self, instrument: Instrument) -> Decimal: ...
     async def fee_rate(self, transport: Any, instrument: Instrument) -> Decimal: ...
     async def book(
@@ -105,6 +111,9 @@ class KrakenVenue:
     async def balances(self, transport) -> dict[str, tuple[Decimal, Decimal]]:
         return kraken_balances(await transport.call("BalanceEx", {}))
 
+    async def trades(self, transport, asset: str) -> list[Any]:
+        return []
+
     async def minimum_notional(self, instrument: Instrument) -> Decimal:
         raw = await self.market.transport.get(
             "/0/public/AssetPairs", {"pair": instrument.base + instrument.quote}
@@ -139,7 +148,7 @@ class BinanceVenue:
         "This Binance adapter supports USDT and the curated spot pairs only; move or convert "
         "other assets (including BNB) before activating"
     )
-    transient_reasons = BINANCE_TRANSIENT_REASONS
+    transient_reasons = BINANCE_RECOVERABLE_REASONS
 
     def __init__(self, market: BinanceExchange) -> None:
         self.market = market
@@ -159,6 +168,14 @@ class BinanceVenue:
     async def balances(self, transport) -> dict[str, tuple[Decimal, Decimal]]:
         return binance_balances(
             await transport.call("GET", "/api/v3/account", {"omitZeroBalances": "true"})
+        )
+
+    async def trades(self, transport, asset: str) -> list[Any]:
+        return binance_trades(
+            await transport.call(
+                "GET", "/api/v3/myTrades", {"symbol": asset + self.cash, "limit": "1000"}
+            ),
+            asset,
         )
 
     async def minimum_notional(self, instrument: Instrument) -> Decimal:

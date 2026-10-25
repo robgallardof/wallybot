@@ -9,6 +9,8 @@ import hashlib
 import hmac
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any, Protocol
 from urllib.parse import urlencode
@@ -119,6 +121,10 @@ TRANSIENT_REASONS = frozenset(
         "synchronization in Windows and retry",
     }
 )
+# Reasons the monitor may clear by itself after a fully healthy sync. A rejected key/IP (-2015)
+# blocks at once, but once Binance accepts the key again (and verify_key confirmed its
+# restrictions, the ledger matches and no order is open) there is nothing left to review.
+RECOVERABLE_REASONS = TRANSIENT_REASONS | {_ERROR_EXPLANATIONS[-2015]}
 
 _SERVER_OFFSET: dict[str, float] = {}
 
@@ -245,6 +251,40 @@ def spot_balances(account: Any) -> dict[str, tuple[Decimal, Decimal]]:
             raise BinancePrivateError("Ambiguous asset balance")
         balances[item["asset"]] = (free + locked, free)
     return balances
+
+
+@dataclass(frozen=True)
+class SpotTrade:
+    """One executed spot trade, shaped like a ledger fill so open_positions() can lot it."""
+
+    base: str
+    side: str
+    quantity: Decimal
+    price: Decimal
+    filled_at: datetime
+
+
+def spot_trades(trades: Any, base: str) -> list[SpotTrade]:
+    """Account trades of one pair, oldest first; a base-asset commission shrinks what a buy got."""
+    if not isinstance(trades, list):
+        raise BinancePrivateError("Invalid trade history response")
+    parsed = []
+    for item in trades:
+        if not isinstance(item, dict) or not isinstance(item.get("isBuyer"), bool):
+            raise BinancePrivateError("Invalid trade history response")
+        quantity = _amount(item.get("qty"))
+        if item["isBuyer"] and item.get("commissionAsset") == base:
+            quantity -= _amount(item.get("commission"))
+        parsed.append(
+            SpotTrade(
+                base,
+                "BUY" if item["isBuyer"] else "SELL",
+                quantity,
+                _amount(item.get("price")),
+                datetime.fromtimestamp(int(item.get("time", 0)) / 1000, tz=UTC),
+            )
+        )
+    return sorted(parsed, key=lambda trade: trade.filled_at)
 
 
 def taker_fee_rate(commission: Any) -> Decimal:

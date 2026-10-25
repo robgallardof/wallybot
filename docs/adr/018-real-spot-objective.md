@@ -43,9 +43,14 @@ without per-order MFA; explicit LIVE activation and deterministic controls remai
 
 This release uses the existing CORE allocation/risk pipeline and one open-position ceiling.
 Daily loss stops at the stricter operator USD budget or 2%; weekly loss is 5% and drawdown 10%.
-Stops/targets remain review levels and do not create automatic protective orders. Arbitrary
-external deposits, withdrawals, manual trades, unsupported assets and account switching are not
-silently folded into the ledger: a mismatch requires separate reviewed reconciliation. Kraken
+Stops/targets remain review levels and do not create automatic protective orders. Unsupported
+assets and account switching still block. Amended 2026-10-25 at the operator's request: a balance
+drift caused by external activity (manual trades, deposits, fees) no longer blocks LIVE; the next
+healthy sync posts it as an audited `LIVE_EXTERNAL_ADJUSTMENT` (`LIVE_EXTERNAL_ACTIVITY_ADOPTED`)
+and trading continues. This is bounded by the key itself: verify_key rejects any key able to
+withdraw or transfer, so a drift can only come from spot activity, and loss limits are never reset.
+A key/IP rejection (-2015) re-arms on its own once Binance accepts the key again, and a failed
+re-activation leaves an enabled account enabled (BLOCKED) instead of switching it off. Kraken
 keys requiring API-specific OTP are not supported. Broker/equity, futures and other real venues
 remain separate work; read-only connections do not imply their trading support.
 

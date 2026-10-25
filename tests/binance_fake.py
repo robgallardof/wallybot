@@ -27,6 +27,7 @@ class FakeBinanceAccount:
         self.balances = {"USDT": Decimal("1000")}
         self.orders: dict[str, dict] = {}
         self.trades: dict[int, list[dict]] = {}
+        self.manual_trades: list[dict] = []  # executed outside WallyBot (Binance app/web)
         self.calls: list[tuple[str, str, dict]] = []
         self.restrictions = dict(SAFE_RESTRICTIONS)
         self.external_open = False
@@ -66,8 +67,11 @@ class FakeBinanceAccount:
             return dict(order)
         if path == "/api/v3/order" and method == "DELETE":
             raise BinancePrivateError("Binance rejected the private request")
-        if path == "/api/v3/myTrades":
+        if path == "/api/v3/myTrades" and "orderId" in params:
             return list(self.trades.get(int(params["orderId"]), []))
+        if path == "/api/v3/myTrades":
+            every = [t for trades in self.trades.values() for t in trades] + self.manual_trades
+            return [t for t in every if t["symbol"] == params["symbol"]]
         raise AssertionError((method, path))
 
     def _place(self, params: dict[str, str]) -> dict:
