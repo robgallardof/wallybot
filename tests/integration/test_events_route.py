@@ -128,9 +128,7 @@ def test_export_requires_auth(client) -> None:
     assert client.get("/api/events/export").status_code == 401
 
 
-def test_export_defaults_to_csv_and_includes_actor_and_correlation_id(
-    client, settings, db
-) -> None:
+def test_export_defaults_to_csv_and_includes_actor_and_correlation_id(client, settings, db) -> None:
     enroll(client, settings)
     db.execute(
         "INSERT INTO events (id, timestamp, actor, event, message, correlation_id) "

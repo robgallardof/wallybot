@@ -52,11 +52,7 @@ class WeightedSignalAggregator:
 
         total_weight = sum((self.weights[s.strategy_id] for s in signals), Decimal(0))
         buy_weight = sum(
-            (
-                self.weights[s.strategy_id] * s.confidence
-                for s in signals
-                if s.action == Action.BUY
-            ),
+            (self.weights[s.strategy_id] * s.confidence for s in signals if s.action == Action.BUY),
             Decimal(0),
         )
         sell_weight = sum(

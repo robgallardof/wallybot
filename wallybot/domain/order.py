@@ -140,9 +140,7 @@ class OrderIntent:
 
     def transition_to(self, next_status: OrderStatus) -> "OrderIntent":
         if not can_transition(self.status, next_status):
-            raise InvalidOrderTransition(
-                f"cannot transition from {self.status} to {next_status}"
-            )
+            raise InvalidOrderTransition(f"cannot transition from {self.status} to {next_status}")
         return replace(self, status=next_status)
 
     @property

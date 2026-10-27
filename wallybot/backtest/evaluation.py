@@ -84,7 +84,8 @@ def bootstrap_trade_pnls(
     if len(trades) < 2:
         return None
 
-    rng = random.Random(seed)
+    # Reproducible bootstrap samples, never credentials.
+    rng = random.Random(seed)  # nosec B311
     pnls = [trade.pnl for trade in trades]
     totals = [sum(rng.choices(pnls, k=len(pnls)), Decimal(0)) for _ in range(num_samples)]
     totals.sort()

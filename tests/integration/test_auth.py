@@ -296,9 +296,7 @@ def test_password_change_updates_login_and_revokes_only_other_sessions(
     assert changed.status_code == 200, changed.text
 
     # The old password no longer authenticates.
-    old_login = client.post(
-        "/api/auth/login", json={"username": "admin", "password": PASSWORD}
-    )
+    old_login = client.post("/api/auth/login", json={"username": "admin", "password": PASSWORD})
     assert old_login.status_code == 401
 
     # The new password does.
@@ -308,13 +306,9 @@ def test_password_change_updates_login_and_revokes_only_other_sessions(
     assert new_login.status_code == 200
 
     # Session A (not the one that made the change) was revoked...
-    assert (
-        client.get("/api/auth/me", cookies={settings.cookie_name: session_a}).status_code == 401
-    )
+    assert client.get("/api/auth/me", cookies={settings.cookie_name: session_a}).status_code == 401
     # ...session B (the one that made the change) was not.
-    assert (
-        client.get("/api/auth/me", cookies={settings.cookie_name: session_b}).status_code == 200
-    )
+    assert client.get("/api/auth/me", cookies={settings.cookie_name: session_b}).status_code == 200
 
 
 def test_totp_replace_requires_fresh_mfa(client, settings, db) -> None:
@@ -381,12 +375,8 @@ def test_totp_replace_happy_path_switches_the_active_secret(client, settings, db
     assert new_mfa.status_code == 200
 
     # Session A (not the one that made the change) was revoked; session B was not.
-    assert (
-        client.get("/api/auth/me", cookies={settings.cookie_name: session_a}).status_code == 401
-    )
-    assert (
-        client.get("/api/auth/me", cookies={settings.cookie_name: session_b}).status_code == 200
-    )
+    assert client.get("/api/auth/me", cookies={settings.cookie_name: session_a}).status_code == 401
+    assert client.get("/api/auth/me", cookies={settings.cookie_name: session_b}).status_code == 200
 
 
 def test_sessions_requires_auth(client) -> None:
@@ -409,9 +399,7 @@ def test_sessions_lists_every_session_and_marks_the_current_one(client, settings
 
 
 def test_revoke_session_requires_auth(client) -> None:
-    assert (
-        client.request("DELETE", "/api/auth/sessions/not-a-real-id", json={}).status_code == 401
-    )
+    assert client.request("DELETE", "/api/auth/sessions/not-a-real-id", json={}).status_code == 401
 
 
 def test_revoke_session_rejects_an_unknown_session(client, settings, db) -> None:
@@ -438,9 +426,5 @@ def test_revoke_session_removes_the_target_and_leaves_the_caller_signed_in(
     )
     assert response.status_code == 200, response.text
 
-    assert (
-        client.get("/api/auth/me", cookies={settings.cookie_name: session_a}).status_code == 401
-    )
-    assert (
-        client.get("/api/auth/me", cookies={settings.cookie_name: session_b}).status_code == 200
-    )
+    assert client.get("/api/auth/me", cookies={settings.cookie_name: session_a}).status_code == 401
+    assert client.get("/api/auth/me", cookies={settings.cookie_name: session_b}).status_code == 200

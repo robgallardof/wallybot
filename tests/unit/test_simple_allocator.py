@@ -78,9 +78,7 @@ def test_sell_signal_with_no_position_is_rejected():
 
 def test_sell_signal_proposes_a_reduction_scaled_by_confidence():
     state = make_state(asset_exposure={INSTRUMENT.id: Decimal("1000")})
-    proposal = ALLOCATOR.propose(
-        make_signal(Action.SELL, "0.5"), Bucket.CORE, state, POLICY, AS_OF
-    )
+    proposal = ALLOCATOR.propose(make_signal(Action.SELL, "0.5"), Bucket.CORE, state, POLICY, AS_OF)
     assert proposal.approved is True
     assert proposal.side == Side.SELL
     assert proposal.proposed_notional == Decimal("500")
@@ -88,9 +86,7 @@ def test_sell_signal_proposes_a_reduction_scaled_by_confidence():
 
 def test_sell_signal_at_full_confidence_proposes_the_full_position_never_more():
     state = make_state(asset_exposure={INSTRUMENT.id: Decimal("1000")})
-    proposal = ALLOCATOR.propose(
-        make_signal(Action.SELL, "1"), Bucket.CORE, state, POLICY, AS_OF
-    )
+    proposal = ALLOCATOR.propose(make_signal(Action.SELL, "1"), Bucket.CORE, state, POLICY, AS_OF)
     assert proposal.approved is True
     assert proposal.proposed_notional == Decimal("1000")
 
@@ -102,9 +98,7 @@ def test_sell_signal_ignores_bucket_ceiling_already_reached():
         bucket_exposure={Bucket.CORE: Decimal("7000")},
         asset_exposure={INSTRUMENT.id: Decimal("500")},
     )
-    proposal = ALLOCATOR.propose(
-        make_signal(Action.SELL, "1"), Bucket.CORE, state, POLICY, AS_OF
-    )
+    proposal = ALLOCATOR.propose(make_signal(Action.SELL, "1"), Bucket.CORE, state, POLICY, AS_OF)
     assert proposal.approved is True
     assert proposal.proposed_notional == Decimal("500")
 

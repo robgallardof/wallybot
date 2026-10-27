@@ -55,9 +55,7 @@ def _start_of_utc_week(as_of: datetime) -> datetime:
     return start_of_day - timedelta(days=start_of_day.weekday())
 
 
-def _starting_equity(
-    history: tuple[EquitySnapshot, ...], boundary: datetime
-) -> Decimal | None:
+def _starting_equity(history: tuple[EquitySnapshot, ...], boundary: datetime) -> Decimal | None:
     at_or_before = [snapshot for snapshot in history if snapshot.recorded_at <= boundary]
     if at_or_before:
         return max(at_or_before, key=lambda snapshot: snapshot.recorded_at).equity

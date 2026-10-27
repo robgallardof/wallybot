@@ -332,9 +332,11 @@ def test_real_sell_cannot_exceed_confirmed_spot_inventory(setup_live):
     )
     held = setup_live[4].balances["XXBT"]
     result = approve(setup_live, proposal(setup_live, "SHORT"), state["version"])
-    assert result.json()["execution_status"] == "FILLED", setup_live[1].execute(
-        "SELECT execution_reasons FROM trade_proposals ORDER BY as_of DESC"
-    ).fetchall()
+    assert result.json()["execution_status"] == "FILLED", (
+        setup_live[1]
+        .execute("SELECT execution_reasons FROM trade_proposals ORDER BY as_of DESC")
+        .fetchall()
+    )
     sales = [
         body
         for method, body in setup_live[4].calls

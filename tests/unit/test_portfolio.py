@@ -84,9 +84,7 @@ def test_rejects_nonpositive_max_open_positions():
 
 def test_state_rejects_nonpositive_equity():
     with pytest.raises(ValueError):
-        PortfolioState(
-            equity=Decimal("0"), bucket_exposure={}, asset_exposure={}, open_positions=0
-        )
+        PortfolioState(equity=Decimal("0"), bucket_exposure={}, asset_exposure={}, open_positions=0)
 
 
 def test_state_rejects_negative_exposure():

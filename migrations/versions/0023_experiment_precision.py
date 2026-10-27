@@ -31,12 +31,8 @@ def upgrade():
         "experiment_records",
         sa.Column("instrument_market_type", sa.String(16), nullable=False),
     )
-    op.add_column(
-        "experiment_records", sa.Column("price_increment", sa.Numeric, nullable=False)
-    )
-    op.add_column(
-        "experiment_records", sa.Column("quantity_increment", sa.Numeric, nullable=False)
-    )
+    op.add_column("experiment_records", sa.Column("price_increment", sa.Numeric, nullable=False))
+    op.add_column("experiment_records", sa.Column("quantity_increment", sa.Numeric, nullable=False))
     op.add_column("experiment_records", sa.Column("min_quantity", sa.Numeric, nullable=False))
     op.execute("""DO $$ BEGIN
       IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'wally_research') THEN

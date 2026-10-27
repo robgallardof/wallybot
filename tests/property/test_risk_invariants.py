@@ -43,6 +43,7 @@ PORTFOLIO_POLICY = PortfolioPolicy(
 )
 ENGINE = DeterministicRiskEngine()
 
+
 def _decimal(lo: str, hi: str, places: int) -> st.SearchStrategy[Decimal]:
     return st.decimals(
         min_value=lo, max_value=hi, places=places, allow_nan=False, allow_infinity=False

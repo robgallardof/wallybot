@@ -35,9 +35,7 @@ def upgrade():
         sa.CheckConstraint("id = 1"),
         sa.CheckConstraint("status IN ('DISABLED', 'ENABLED')"),
     )
-    op.execute(
-        "INSERT INTO ai_autonomy_control VALUES (1, 'DISABLED', 0.70, 0.20, 0.10, 6)"
-    )
+    op.execute("INSERT INTO ai_autonomy_control VALUES (1, 'DISABLED', 0.70, 0.20, 0.10, 6)")
     op.execute("""DO $$ BEGIN
       IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'wally_api') THEN
         GRANT SELECT, UPDATE ON ai_autonomy_control TO wally_api;

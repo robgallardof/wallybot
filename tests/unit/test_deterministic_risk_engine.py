@@ -154,17 +154,13 @@ def test_active_breaker_is_rejected():
 
 def test_daily_loss_at_exact_limit_is_rejected():
     # "Equality at a limit triggers the breaker" -- RISK.md.
-    assessment = ENGINE.evaluate(
-        make_proposal(), make_context(daily_loss=Decimal("0.02")), POLICY
-    )
+    assessment = ENGINE.evaluate(make_proposal(), make_context(daily_loss=Decimal("0.02")), POLICY)
     assert assessment.decision == RiskDecision.REJECTED
     assert "daily loss" in assessment.reasons[0]
 
 
 def test_weekly_loss_at_exact_limit_is_rejected():
-    assessment = ENGINE.evaluate(
-        make_proposal(), make_context(weekly_loss=Decimal("0.05")), POLICY
-    )
+    assessment = ENGINE.evaluate(make_proposal(), make_context(weekly_loss=Decimal("0.05")), POLICY)
     assert assessment.decision == RiskDecision.REJECTED
 
 

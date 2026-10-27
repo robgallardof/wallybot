@@ -96,10 +96,16 @@ def _seed_balance(db, account_id: str, currency: str, purpose: str, amount: str)
 
 async def test_cash_only_account_has_equity_equal_to_cash(sessions, db) -> None:
     _seed_balance(db, ACCOUNT_ID, "USD", "CASH", "10000")
-    provider = FakeProvider([BTC_USD], MarketSnapshot(
-        instrument=BTC_USD, bid=Decimal("50000"), ask=Decimal("50010"), timestamp=NOW,
-        source="test",
-    ))
+    provider = FakeProvider(
+        [BTC_USD],
+        MarketSnapshot(
+            instrument=BTC_USD,
+            bid=Decimal("50000"),
+            ask=Decimal("50010"),
+            timestamp=NOW,
+            source="test",
+        ),
+    )
 
     assessment = await assess_equity(
         sessions, provider, ACCOUNT_ID, "PAPER", "USD", Bucket.CORE, NOW
@@ -116,10 +122,16 @@ async def test_cash_only_account_has_equity_equal_to_cash(sessions, db) -> None:
 async def test_a_held_position_is_marked_to_market_and_added_to_equity(sessions, db) -> None:
     _seed_balance(db, ACCOUNT_ID, "USD", "CASH", "5000")
     _seed_balance(db, ACCOUNT_ID, "BTC", "POSITION", "0.1")
-    provider = FakeProvider([BTC_USD], MarketSnapshot(
-        instrument=BTC_USD, bid=Decimal("49990"), ask=Decimal("50010"), timestamp=NOW,
-        source="test",
-    ))
+    provider = FakeProvider(
+        [BTC_USD],
+        MarketSnapshot(
+            instrument=BTC_USD,
+            bid=Decimal("49990"),
+            ask=Decimal("50010"),
+            timestamp=NOW,
+            source="test",
+        ),
+    )
 
     assessment = await assess_equity(
         sessions, provider, ACCOUNT_ID, "PAPER", "USD", Bucket.CORE, NOW
@@ -135,23 +147,33 @@ async def test_a_held_position_is_marked_to_market_and_added_to_equity(sessions,
 async def test_an_unpriceable_held_position_fails_closed(sessions, db) -> None:
     _seed_balance(db, ACCOUNT_ID, "USD", "CASH", "1000")
     _seed_balance(db, ACCOUNT_ID, "XYZ", "POSITION", "5")
-    provider = FakeProvider([BTC_USD], MarketSnapshot(
-        instrument=BTC_USD, bid=Decimal("50000"), ask=Decimal("50010"), timestamp=NOW,
-        source="test",
-    ))
+    provider = FakeProvider(
+        [BTC_USD],
+        MarketSnapshot(
+            instrument=BTC_USD,
+            bid=Decimal("50000"),
+            ask=Decimal("50010"),
+            timestamp=NOW,
+            source="test",
+        ),
+    )
 
     with pytest.raises(UnpricedPositionError):
         await assess_equity(sessions, provider, ACCOUNT_ID, "PAPER", "USD", Bucket.CORE, NOW)
 
 
-async def test_repeated_calls_track_a_persistent_high_water_mark_and_drawdown(
-    sessions, db
-) -> None:
+async def test_repeated_calls_track_a_persistent_high_water_mark_and_drawdown(sessions, db) -> None:
     _seed_balance(db, ACCOUNT_ID, "USD", "CASH", "10000")
-    provider = FakeProvider([BTC_USD], MarketSnapshot(
-        instrument=BTC_USD, bid=Decimal("50000"), ask=Decimal("50010"), timestamp=NOW,
-        source="test",
-    ))
+    provider = FakeProvider(
+        [BTC_USD],
+        MarketSnapshot(
+            instrument=BTC_USD,
+            bid=Decimal("50000"),
+            ask=Decimal("50010"),
+            timestamp=NOW,
+            source="test",
+        ),
+    )
     first = await assess_equity(sessions, provider, ACCOUNT_ID, "PAPER", "USD", Bucket.CORE, NOW)
     assert first.drawdown == Decimal("0")
 
@@ -161,9 +183,7 @@ async def test_repeated_calls_track_a_persistent_high_water_mark_and_drawdown(
     # losses").
     db.execute("UPDATE ledger_postings SET amount = amount - 1000 WHERE amount > 0")
     later = NOW.replace(hour=13)
-    second = await assess_equity(
-        sessions, provider, ACCOUNT_ID, "PAPER", "USD", Bucket.CORE, later
-    )
+    second = await assess_equity(sessions, provider, ACCOUNT_ID, "PAPER", "USD", Bucket.CORE, later)
 
     assert second.portfolio_state.equity == Decimal("9000")
     assert second.drawdown == Decimal("1000") / Decimal("10000")

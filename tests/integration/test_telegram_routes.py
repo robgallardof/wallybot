@@ -90,9 +90,7 @@ def test_admin_can_set_bot_token_which_is_never_returned(client, settings, db) -
         "pairing_code": None,
     }
     assert "bot_token" not in body
-    row = db.execute(
-        "SELECT encrypted_bot_token FROM telegram_config WHERE id = 1"
-    ).fetchone()
+    row = db.execute("SELECT encrypted_bot_token FROM telegram_config WHERE id = 1").fetchone()
     assert row[0] not in (None, "123456:my-secret-token")
 
 
@@ -297,9 +295,7 @@ def test_expired_confirmations_are_not_listed_as_pending(client, settings, db) -
     assert response.json()["rows"] == []
 
 
-def test_confirming_a_pause_request_pauses_the_bot_and_requires_admin(
-    client, settings, db
-) -> None:
+def test_confirming_a_pause_request_pauses_the_bot_and_requires_admin(client, settings, db) -> None:
     enroll(client, settings)
     csrf = client.get("/api/auth/me").json()["csrf"]
     now = datetime.now(UTC)

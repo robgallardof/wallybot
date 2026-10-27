@@ -22,9 +22,7 @@ NOW = datetime(2026, 1, 10, tzinfo=UTC)
 @pytest.fixture(autouse=True)
 def _reset_wallet_activity_tables(settings, dependencies):
     with psycopg.connect(dependencies[0].replace("+psycopg", ""), autocommit=True) as connection:
-        connection.execute(
-            "TRUNCATE wallet_activity_events, wallet_attributions, wallets CASCADE"
-        )
+        connection.execute("TRUNCATE wallet_activity_events, wallet_attributions, wallets CASCADE")
     yield
 
 

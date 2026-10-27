@@ -79,8 +79,10 @@ async def _ingest_instrument(
 ) -> InstrumentIngestionOutcome:
     now = clock.now()
     cursor = await cursor_store.get(instrument.id, timeframe)
-    since = cursor if cursor is not None else now - TIMEFRAME_DURATIONS[timeframe] * (
-        bootstrap_lookback_candles
+    since = (
+        cursor
+        if cursor is not None
+        else now - TIMEFRAME_DURATIONS[timeframe] * (bootstrap_lookback_candles)
     )
 
     try:

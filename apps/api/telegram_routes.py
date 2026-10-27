@@ -115,9 +115,7 @@ async def confirm_telegram_confirmation(
         if control_row is None:
             raise AuthError("System not initialized", 503)
         current = Control(Environment(control_row.environment), Status(control_row.status))
-        target_status = (
-            Status.PAUSED if pending.action == TelegramAction.PAUSE else Status.RUNNING
-        )
+        target_status = Status.PAUSED if pending.action == TelegramAction.PAUSE else Status.RUNNING
         changed = current.change(target_status, Role(user.role))
         changed_state = control_row.status != changed.status
         if changed_state:

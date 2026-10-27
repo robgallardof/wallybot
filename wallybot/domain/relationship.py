@@ -27,7 +27,8 @@ from wallybot.domain.validation import require_aware_datetime
 class NodeReferenceType(StrEnum):
     WALLET = "WALLET"
     ENTITY = "ENTITY"
-    TOKEN = "TOKEN"
+    # Public graph-node kind, not an authentication token.
+    TOKEN = "TOKEN"  # nosec B105
     EVENT = "EVENT"
     TRANSACTION = "TRANSACTION"
 

@@ -21,8 +21,6 @@ def test_untrusted_or_mutating_input_is_rejected() -> None:
         ("/status", 100, 201),
     ):
         assert (
-            parse_authorized_telegram_command(
-                text, chat_id, user_id, ALLOWED_CHATS, ALLOWED_USERS
-            )
+            parse_authorized_telegram_command(text, chat_id, user_id, ALLOWED_CHATS, ALLOWED_USERS)
             is None
         )

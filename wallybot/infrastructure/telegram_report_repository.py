@@ -22,9 +22,7 @@ class TelegramReportRepository:
     async def mark_sent(self, period: str, key: str, now: datetime) -> None:
         row = await self.session.get(TelegramReportRow, period)
         if row is None:
-            self.session.add(
-                TelegramReportRow(period=period, last_sent_key=key, last_sent_at=now)
-            )
+            self.session.add(TelegramReportRow(period=period, last_sent_key=key, last_sent_at=now))
         else:
             row.last_sent_key = key
             row.last_sent_at = now

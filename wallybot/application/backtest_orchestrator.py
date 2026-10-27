@@ -164,7 +164,10 @@ class BacktestOrchestrator:
         if request.walk_forward_windows is not None:
             try:
                 walk_forward = run_walk_forward(
-                    engine, candles, request.starting_equity, request.allocation_pct,
+                    engine,
+                    candles,
+                    request.starting_equity,
+                    request.allocation_pct,
                     request.walk_forward_windows,
                 )
             except ValueError as exc:

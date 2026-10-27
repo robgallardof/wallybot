@@ -25,9 +25,7 @@ class BreakerRepository:
             return
         if existing is None:
             self.session.add(
-                BreakerRow(
-                    breaker_type=breaker_type.value, reason=reason, tripped_at=now
-                )
+                BreakerRow(breaker_type=breaker_type.value, reason=reason, tripped_at=now)
             )
         else:
             existing.reason = reason
@@ -45,11 +43,7 @@ class BreakerRepository:
 
     async def list_active(self) -> tuple[Breaker, ...]:
         rows = (
-            (
-                await self.session.execute(
-                    select(BreakerRow).where(BreakerRow.cleared_at.is_(None))
-                )
-            )
+            (await self.session.execute(select(BreakerRow).where(BreakerRow.cleared_at.is_(None))))
             .scalars()
             .all()
         )

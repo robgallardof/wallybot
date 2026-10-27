@@ -427,9 +427,7 @@ class _FillWonRaceGateway:
         )
 
     async def lookup_order(self, client_order_id):
-        return OrderLookup(
-            VenueOrderStatus.FILLED, self.fill.quantity, self.fill.price, "venue-1"
-        )
+        return OrderLookup(VenueOrderStatus.FILLED, self.fill.quantity, self.fill.price, "venue-1")
 
     async def list_fills(self, client_order_id):
         return (self.fill,)

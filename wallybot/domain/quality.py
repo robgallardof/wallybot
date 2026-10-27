@@ -26,7 +26,8 @@ _WARNING_REASONS = frozenset({"clock_drift", "abnormal_return"})
 
 
 class QualityStatus(StrEnum):
-    PASS = "PASS"
+    # Public quality-status label, not a password.
+    PASS = "PASS"  # nosec B105
     WARNING = "WARNING"
     FAILURE = "FAILURE"
 

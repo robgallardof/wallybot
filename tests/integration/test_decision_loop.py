@@ -151,7 +151,10 @@ def make_provider() -> ControlledProvider:
     closes = [Decimal(50000 + i * 1000) for i in range(20)]
     candles = _uptrend_candles(20, closes)
     snapshot = MarketSnapshot(
-        instrument=INSTRUMENT, bid=Decimal("68990"), ask=Decimal("69010"), timestamp=NOW,
+        instrument=INSTRUMENT,
+        bid=Decimal("68990"),
+        ask=Decimal("69010"),
+        timestamp=NOW,
         source="test",
     )
     return ControlledProvider(candles, snapshot)
