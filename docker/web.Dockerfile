@@ -1,5 +1,6 @@
 FROM node:26-alpine AS build
-RUN corepack enable && corepack prepare pnpm@10.11.0 --activate
+# Node 25+ no longer bundles Corepack, so install the pinned pnpm through the bundled npm.
+RUN npm install -g pnpm@10.11.0
 WORKDIR /web
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY apps/web/package.json apps/web/pnpm-lock.yaml ./
