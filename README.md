@@ -3,8 +3,8 @@
 <div align="center">
 
 <p>
-  <a href="README.md"><img alt="Español" src="https://img.shields.io/badge/Idioma-Español-c60b1e?style=for-the-badge"></a>
-  <a href="README.en.md"><img alt="English" src="https://img.shields.io/badge/Language-English-1f6feb?style=for-the-badge"></a>
+  <a href="README.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/btn-espanol-primary-sm-dark.svg" /><img src="assets/readme-builder/kit/btn-espanol-primary-sm-light.svg" alt="Español" height="34" /></picture></a>
+  <a href="README.en.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/btn-english-outline-sm-dark.svg" /><img src="assets/readme-builder/kit/btn-english-outline-sm-light.svg" alt="English" height="34" /></picture></a>
 </p>
 
 <h1><img src="assets/readme-builder/icons/bot.svg" width="20" height="20" alt="" /> WallyBot</h1>
@@ -72,6 +72,8 @@ WallyBot reúne mercados, análisis asistido por IA, seguimiento de cartera y ej
 
 Más detalle en la [guía completa de trading real](docs/runbooks/real-spot-trading.md): permisos, errores frecuentes, recuperación y causas de bloqueo.
 
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
+
 <a id="-qué-puedes-hacer"></a>
 
 ## <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Qué puedes hacer
@@ -129,6 +131,8 @@ Más detalle en la [guía completa de trading real](docs/runbooks/real-spot-trad
   </tr>
 </table>
 
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
+
 <a id="-inicio-rápido"></a>
 
 ## <img src="assets/readme-builder/icons/rocket.svg" width="20" height="20" alt="" /> Inicio rápido
@@ -164,6 +168,8 @@ Inicia los servicios Docker y el analista nativo. Consulta la [guía del analist
 
 </details>
 
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
+
 <a id="-alcance-actual"></a>
 
 ## <img src="assets/readme-builder/icons/target.svg" width="20" height="20" alt="" /> Alcance actual
@@ -174,6 +180,8 @@ Inicia los servicios Docker y el analista nativo. Consulta la [guía del analist
 - Las pruebas locales no sustituyen una validación con una cuenta financiada ni demuestran rentabilidad.
 
 Restricciones y evolución prevista: [RISK.md](RISK.md), [mandato del producto](docs/PRODUCT-MANDATE.md) y [trabajo pendiente](docs/PENDING.md).
+
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
 
 <a id="-cómo-funciona"></a>
 
@@ -209,6 +217,8 @@ flowchart LR
 | <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Persistencia | PostgreSQL, SQLAlchemy async, Alembic | `migrations/` |
 | <img src="assets/readme-builder/icons/repeat.svg" width="20" height="20" alt="" /> Coordinación | Redis; bloqueos y nonces persistentes | — |
 
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
+
 <a id="-copias-de-seguridad"></a>
 
 ## <img src="assets/readme-builder/icons/database.svg" width="20" height="20" alt="" /> Copias de seguridad
@@ -219,6 +229,8 @@ uv run python scripts/backup.py verify
 ```
 
 Las copias se cifran en `backups/` (excluido del repositorio) y `verify` las restaura en un PostgreSQL aislado. Guarda la clave de respaldo fuera del equipo y sigue la [guía de recuperación](docs/runbooks/recovery.md).
+
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
 
 <a id="️-desarrollo-y-verificación"></a>
 
@@ -259,6 +271,8 @@ Las pruebas de integración requieren Docker. En Windows, si el cliente no detec
 > [!NOTE]
 > **Verificación local del 12 de octubre de 2026:** 971 pruebas de backend (PostgreSQL/Redis reales y desechables) y 19 pruebas de navegador en modo producción aprobadas; comprobación de tipos sin errores. Las pruebas del exchange usan respuestas controladas. Consulta [la evidencia y sus límites](docs/stats/testing.md).
 
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
+
 <a id="-documentación"></a>
 
 ## <img src="assets/readme-builder/icons/book.svg" width="20" height="20" alt="" /> Documentación
@@ -291,7 +305,7 @@ Las pruebas de integración requieren Docker. En Windows, si el cliente no detec
 
 </div>
 
-<p align="center"><a href="#top">Volver al inicio</a></p>
+<p align="center"><a href="#top"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/btn-volver-al-inicio-outline-sm-dark.svg" /><img src="assets/readme-builder/kit/btn-volver-al-inicio-outline-sm-light.svg" alt="Volver al inicio" height="34" /></picture></a></p>
 
 <!-- readme-builder:signature:start -->
 <p align="center"><a href="https://github.com/robgallardof"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/brand/signature-es-dark.svg" /><img src="assets/readme/brand/signature-es-light.svg" alt="WallyBot / Roberto Gallardo" width="100%" /></picture></a></p>
