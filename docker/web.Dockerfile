@@ -1,4 +1,4 @@
-FROM node:22-alpine AS build
+FROM node:26-alpine AS build
 RUN corepack enable && corepack prepare pnpm@10.11.0 --activate
 WORKDIR /web
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -6,7 +6,7 @@ COPY apps/web/package.json apps/web/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY apps/web ./
 RUN pnpm build
-FROM node:22-alpine AS runtime
+FROM node:26-alpine AS runtime
 # The standalone server only needs Node. Bundled package managers bring unused vulnerable
 # dependencies into the shipped image; retain them only in the build stage above.
 RUN apk upgrade --no-cache \
