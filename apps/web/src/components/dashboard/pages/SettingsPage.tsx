@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Bot, FlaskConical, KeyRound, Lock, MessageCircle, Send, ShieldCheck } from "lucide-react";
 import i18n from "../../../lib/i18n";
+import { useNow } from "../../../hooks/useNow";
 import type {
   aiAutonomyControlSchema,
   dashboardSchema,
@@ -103,6 +104,7 @@ export function SettingsPage({
   >;
 }) {
   useTranslation();
+  const now = useNow();
   const environment = dashboard.data?.environment;
   const [botToken, setBotToken] = useState("");
   const [telegramEnabled, setTelegramEnabled] = useState(
@@ -132,23 +134,30 @@ export function SettingsPage({
   const savedClaude = saved?.claude_enabled;
   const savedConsensus = saved?.require_consensus;
 
-  useEffect(() => {
-    if (telegram.data) {
-      setTelegramEnabled(telegram.data.enabled);
-    }
-  }, [telegram.data]);
+  // Copy freshly loaded server values into the form while rendering (React's "adjust state when
+  // props change" pattern) instead of in an effect, which react-hooks/set-state-in-effect forbids.
+  const [syncedTelegram, setSyncedTelegram] = useState<typeof telegram.data>();
+  if (telegram.data && telegram.data !== syncedTelegram) {
+    setSyncedTelegram(telegram.data);
+    setTelegramEnabled(telegram.data.enabled);
+  }
 
-  useEffect(() => {
-    if (savedCore !== undefined && savedGrowth !== undefined && savedSpeculative !== undefined && savedHours !== undefined && savedCodex !== undefined && savedClaude !== undefined && savedConsensus !== undefined) {
-      setCorePct(savedCore);
-      setGrowthPct(savedGrowth);
-      setSpeculativePct(savedSpeculative);
-      setDigestHours(String(savedHours));
-      setCodexEnabled(savedCodex);
-      setClaudeEnabled(savedClaude);
-      setRequireConsensus(savedConsensus);
-    }
-  }, [savedCore, savedGrowth, savedSpeculative, savedHours, savedCodex, savedClaude, savedConsensus]);
+  const savedForm =
+    savedCore !== undefined && savedGrowth !== undefined && savedSpeculative !== undefined && savedHours !== undefined && savedCodex !== undefined && savedClaude !== undefined && savedConsensus !== undefined
+      ? { savedCore, savedGrowth, savedSpeculative, savedHours, savedCodex, savedClaude, savedConsensus }
+      : null;
+  const savedKey = savedForm && JSON.stringify(savedForm);
+  const [syncedKey, setSyncedKey] = useState<string | null>(null);
+  if (savedForm && savedKey !== syncedKey) {
+    setSyncedKey(savedKey);
+    setCorePct(savedForm.savedCore);
+    setGrowthPct(savedForm.savedGrowth);
+    setSpeculativePct(savedForm.savedSpeculative);
+    setDigestHours(String(savedForm.savedHours));
+    setCodexEnabled(savedForm.savedCodex);
+    setClaudeEnabled(savedForm.savedClaude);
+    setRequireConsensus(savedForm.savedConsensus);
+  }
 
   function submitTelegram(event: React.FormEvent) {
     event.preventDefault();
@@ -316,7 +325,7 @@ export function SettingsPage({
             const checkedAt = item.checked_at ? Date.parse(item.checked_at) : NaN;
             // The worker re-checks idle CLIs hourly; only flag results clearly older than that.
             const stale = !checkPending && Number.isFinite(checkedAt) &&
-              (Date.now() - checkedAt > 2 * 60 * 60 * 1000 || checkedAt > Date.now() + 60_000);
+              (now - checkedAt > 2 * 60 * 60 * 1000 || checkedAt > now + 60_000);
             return (
               <li key={item.analyst}>
                 <div className="analyst-status-title"><strong>{name}</strong>

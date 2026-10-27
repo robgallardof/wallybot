@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { liveVenueLabel, useLiveTrading } from "../../../hooks/useLiveTrading";
 import { useConnectionsData } from "../../../hooks/useConnectionsData";
@@ -32,25 +32,27 @@ export function LiveTradingPanel({ role }: { role: string }) {
   const [totalLimit, setTotalLimit] = useState("");
   const [slippage, setSlippage] = useState("");
   const [formError, setFormError] = useState("");
-  useEffect(() => {
-    if (!live.data?.configured) return;
-    setConnectionId(live.data.connection_id ?? "");
-    setOrderLimit(live.data.max_order_usd ?? "");
-    setDailyLoss(live.data.max_daily_loss_usd ?? "");
-    setTotalLimit(live.data.max_total_usd ?? "");
-    setSlippage(
-      live.data.slippage_pct
-        ? String(Number(live.data.slippage_pct) * 100)
-        : "",
-    );
-  }, [
-    live.data?.configured,
-    live.data?.connection_id,
-    live.data?.max_order_usd,
-    live.data?.max_daily_loss_usd,
-    live.data?.max_total_usd,
-    live.data?.slippage_pct,
-  ]);
+  // Copy the saved configuration into the form while rendering whenever it changes (React's
+  // "adjust state when props change" pattern); react-hooks/set-state-in-effect forbids an effect.
+  const savedConfig = live.data?.configured
+    ? {
+        connectionId: live.data.connection_id ?? "",
+        orderLimit: live.data.max_order_usd ?? "",
+        dailyLoss: live.data.max_daily_loss_usd ?? "",
+        totalLimit: live.data.max_total_usd ?? "",
+        slippage: live.data.slippage_pct ? String(Number(live.data.slippage_pct) * 100) : "",
+      }
+    : null;
+  const savedKey = savedConfig && JSON.stringify(savedConfig);
+  const [syncedKey, setSyncedKey] = useState<string | null>(null);
+  if (savedConfig && savedKey !== syncedKey) {
+    setSyncedKey(savedKey);
+    setConnectionId(savedConfig.connectionId);
+    setOrderLimit(savedConfig.orderLimit);
+    setDailyLoss(savedConfig.dailyLoss);
+    setTotalLimit(savedConfig.totalLimit);
+    setSlippage(savedConfig.slippage);
+  }
   const candidates =
     connections.data?.rows.filter(
       (row) =>

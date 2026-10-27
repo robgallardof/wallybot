@@ -19,6 +19,7 @@ import type { UseQueryResult } from "@tanstack/react-query";
 import type { z } from "zod";
 import { EventList } from "../EventList";
 import { liveVenueLabel, useLiveTrading } from "../../../hooks/useLiveTrading";
+import { useNow } from "../../../hooks/useNow";
 import type { useProposalsData } from "../../../hooks/useProposalsData";
 import { formatMoney, formatNumber, formatPercent, formatRelative } from "../../../lib/format";
 
@@ -47,6 +48,7 @@ export function Overview({
   useTranslation();
   const isLive = environment === "LIVE";
   const { live } = useLiveTrading(isLive);
+  const now = useNow();
   const services = system.data
     ? [
         ["API", system.data.api],
@@ -62,7 +64,6 @@ export function Overview({
   const cashBalances = balances.filter((balance) => balance.purpose === "CASH");
   const performance = portfolio.data?.performance ?? [];
   const cashCurrency = live.data?.cash_currency ?? "USDT";
-  const now = Date.now();
   const pending = (proposals.proposals.data?.rows ?? []).filter(
     (row) => row.decision_status === "PENDING" && Date.parse(row.expires_at) > now,
   );

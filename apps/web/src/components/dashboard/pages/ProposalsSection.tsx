@@ -14,20 +14,11 @@ import {
 } from "react-icons/fa6";
 import type { useProposalsData } from "../../../hooks/useProposalsData";
 import { liveVenueLabel, useLiveTrading } from "../../../hooks/useLiveTrading";
+import { useNow } from "../../../hooks/useNow";
 import { formatDateTime, formatNumber, formatPercent, formatRelative } from "../../../lib/format";
 
 type Proposal = NonNullable<ReturnType<typeof useProposalsData>["proposals"]["data"]>["rows"][number];
 type Filter = "all" | "pending" | "decided";
-
-/** Ticks every 30 s so countdowns and expiry states stay current without a refetch. */
-function useNow(intervalMs = 30000) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), intervalMs);
-    return () => window.clearInterval(timer);
-  }, [intervalMs]);
-  return now;
-}
 
 function distance(from: string, to: string | null): number | null {
   if (to === null) return null;
@@ -57,7 +48,9 @@ export function ProposalsSection({
   const panel = useRef<HTMLElement>(null);
   // Open state is decided once per proposal (actionable ones start expanded); afterwards the
   // operator's own toggling wins and a decision never collapses the card showing its outcome.
-  const initiallyOpen = useRef(new Map<string, boolean>());
+  const [initiallyOpen, setInitiallyOpen] = useState<ReadonlyMap<string, boolean>>(
+    () => new Map(),
+  );
   const now = useNow();
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -84,6 +77,14 @@ export function ProposalsSection({
           : true,
     )
     .sort((a, b) => Number(isActionable(b)) - Number(isActionable(a)));
+  // Record the open state of newly shown proposals during render (React's "adjust state when
+  // props change" pattern) instead of mutating a ref, which react-hooks/refs forbids in render.
+  const unseen = visible.filter((row) => !initiallyOpen.has(row.proposal_id));
+  if (unseen.length > 0) {
+    const next = new Map(initiallyOpen);
+    for (const row of unseen) next.set(row.proposal_id, isActionable(row));
+    setInitiallyOpen(next);
+  }
 
   const statusLabel: Record<string, string> = {
     PENDING: t("Pendiente"),
@@ -222,8 +223,6 @@ export function ProposalsSection({
               ? Math.min(100, Math.max(0, ((entry - stop) / (target - stop)) * 100))
               : null;
           const confidence = Number(row.confidence);
-          if (!initiallyOpen.current.has(row.proposal_id))
-            initiallyOpen.current.set(row.proposal_id, actionable);
           return (
             <details
               className={`proposal-card${actionable ? " is-actionable" : ""}${
@@ -231,7 +230,7 @@ export function ProposalsSection({
               }`}
               key={row.proposal_id}
               data-proposal={row.proposal_id}
-              open={initiallyOpen.current.get(row.proposal_id) || undefined}
+              open={initiallyOpen.get(row.proposal_id) || undefined}
             >
               <summary>
                 <span className="asset-icon" aria-hidden="true">

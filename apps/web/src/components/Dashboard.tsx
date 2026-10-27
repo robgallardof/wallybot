@@ -35,6 +35,7 @@ import { useAiAutonomyData } from "../hooks/useAiAutonomyData";
 import { useBreakersData, useRiskLimitsData } from "../hooks/useBreakersData";
 import { useSecurityData } from "../hooks/useSecurityData";
 import { useProposalsData } from "../hooks/useProposalsData";
+import { useNow } from "../hooks/useNow";
 
 export function Dashboard({
   user,
@@ -73,6 +74,7 @@ export function Dashboard({
   const walletActivity = useWalletActivityData(page === "intelligence");
   const entityGraph = useEntityGraphData(page === "intelligence");
   const proposals = useProposalsData(true);
+  const now = useNow();
   const { history: backtestHistory, run: runBacktest } = useBacktestsData(
     page === "research",
   );
@@ -120,7 +122,7 @@ export function Dashboard({
       environment={dashboard.data?.environment}
       pendingProposals={
         proposals.proposals.data?.rows.filter(
-          (row) => row.decision_status === "PENDING" && Date.parse(row.expires_at) > Date.now(),
+          (row) => row.decision_status === "PENDING" && Date.parse(row.expires_at) > now,
         ).length ?? 0
       }
     >
