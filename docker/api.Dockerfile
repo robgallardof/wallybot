@@ -16,7 +16,10 @@ COPY apps/research_worker ./apps/research_worker
 RUN uv sync --frozen --no-dev --no-group research
 
 FROM python:3.14.8-alpine AS runtime
-RUN apk upgrade --no-cache && addgroup -g 10001 wally && adduser -D -u 10001 -G wally wally
+# The app runs from the uv-built virtualenv. The base image's pip (and the packages it vendors)
+# is unused at runtime and only ships scanner findings, so strip it like the web image strips npm.
+RUN apk upgrade --no-cache && addgroup -g 10001 wally && adduser -D -u 10001 -G wally wally \
+  && rm -rf /usr/local/lib/python3.14/site-packages/pip* /usr/local/bin/pip*
 WORKDIR /app
 COPY --from=builder --chown=wally:wally /app /app
 COPY --chown=wally:wally migrations ./migrations
@@ -51,7 +54,8 @@ RUN uv sync --frozen --no-dev
 
 FROM python:3.14.8-slim AS runtime-research
 RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/* \
-  && groupadd -g 10001 wally && useradd -M -u 10001 -g wally wally
+  && groupadd -g 10001 wally && useradd -M -u 10001 -g wally wally \
+  && rm -rf /usr/local/lib/python3.14/site-packages/pip* /usr/local/bin/pip*
 WORKDIR /app
 COPY --from=research-builder --chown=wally:wally /app /app
 COPY --chown=wally:wally migrations ./migrations
