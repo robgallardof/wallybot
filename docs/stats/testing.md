@@ -1,3 +1,13 @@
+## Gateway image refresh — 2026-10-27
+
+A fresh local rebuild of the old gateway digest still contained Nginx 1.30.4 and three
+HIGH advisories. Update the pinned official nginx-unprivileged stable-alpine digest to
+`sha256:f5116ed4606f3eb015dd4a8e28cb9b351476dc0ad4bc6e9f93b19cec130cdf03`
+(Nginx 1.30.6). Its rebuilt image passes the blocking HIGH/CRITICAL scan and nginx config test.
+The rebuilt PostgreSQL image and freshly pulled Redis 7.4.11 image also pass this scan.
+All five original CI image targets have now passed local Trivy scans; hosted confirmation
+is pending. The separately documented Debian research findings persist after a fresh rebuild.
+
 ## Standalone web runtime verification — 2026-10-27
 
 Trivy v0.76.1 runs successfully. The local Alpine application image has no HIGH/CRITICAL
