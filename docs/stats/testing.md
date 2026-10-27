@@ -1,3 +1,18 @@
+## Hosted CI follow-up — 2026-10-27
+
+The initial repaired Foundation run and its retry timed out in Python integration startup.
+The log did not identify the blocked operation; do not treat that as an application failure
+or claim a confirmed root cause. CI now pulls the PostgreSQL and Redis images explicitly,
+prints each Python test and its live setup output, dumps a stack after 60 seconds, and bounds
+the Python step to eight minutes. The existing full suite and all later gates remain enabled.
+
+EXECUTED: 758 local unit/contract tests and four PostgreSQL/Redis integration tests passed.
+Hosted run 40543736500 passed 1,145 Python tests with coverage, frontend lint/build,
+22 development browser tests (one production-only skip), 23 production browser tests and Bandit.
+Its pip-audit gate then found CVE-2026-114613 in msgpack 1.2.2; the lockfile now selects
+msgpack 1.2.4. Compose readiness, backup verification and Trivy remain unverified on this head.
+Local pytest reported a non-fatal cache-directory permission warning.
+
 ## CI gate repair — 2026-10-27
 
 The failing Foundation checks stopped at Ruff formatting. Follow-up validation exposed
