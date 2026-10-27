@@ -105,8 +105,9 @@ MARKET_INGESTION_INTERVAL_SECONDS = 3600
 HEARTBEAT_METRICS_INTERVAL_SECONDS = 30
 
 
-async def _heartbeat_metrics_loop(sessions, logger) -> None:
-    while True:
+async def _heartbeat_metrics_loop(sessions, logger, stop: asyncio.Event) -> None:
+    """Refresh metrics until shutdown, even if a driver converts cancellation to an error."""
+    while not stop.is_set():
         try:
             now = int(time.time())
             async with sessions() as db:
@@ -117,7 +118,14 @@ async def _heartbeat_metrics_loop(sessions, logger) -> None:
             raise
         except Exception:
             logger.warning("HEARTBEAT_METRICS_TICK_FAILED")
-        await asyncio.sleep(HEARTBEAT_METRICS_INTERVAL_SECONDS)
+        # Cancellation can race with DB connection/cleanup. The explicit stop signal prevents
+        # a translated driver error from restarting an infinite loop during API shutdown.
+        if stop.is_set():
+            return
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=HEARTBEAT_METRICS_INTERVAL_SECONDS)
+        except TimeoutError:
+            pass
 
 
 async def _market_ingestion_loop(
@@ -476,7 +484,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             reconciliation=ReconciliationService(execution=ai_execution, sessions=sessions),
         )
         app.state.id_generator = UuidIdGenerator()
-        heartbeat_metrics_task = asyncio.create_task(_heartbeat_metrics_loop(sessions, logger))
+        heartbeat_metrics_stop = asyncio.Event()
+        heartbeat_metrics_task = asyncio.create_task(
+            _heartbeat_metrics_loop(sessions, logger, heartbeat_metrics_stop)
+        )
         # Integration tests invoke ingestion explicitly; startup must not contact markets.
         ingestion_task = (
             None
@@ -650,6 +661,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 await ingestion_task
             except asyncio.CancelledError:
                 pass
+        heartbeat_metrics_stop.set()
         heartbeat_metrics_task.cancel()
         try:
             await heartbeat_metrics_task

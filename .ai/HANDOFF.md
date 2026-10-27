@@ -1,3 +1,18 @@
+## Intermittent API shutdown repair — 2026-10-27
+
+Hosted run 40545572416 isolated the Python hang to TestClient shutdown in
+`test_shared_throttle_fails_closed`, immediately after a heartbeat metrics tick failed.
+The API awaited the infinite metrics task after a one-shot cancellation request.
+The metrics loop now observes an explicit shutdown event before restarting or sleeping;
+shutdown sets the event before requesting cancellation. This also wakes an idle metrics loop.
+No authentication, risk, execution or portfolio calculation behavior changed.
+
+A bounded real-child regression repeatedly opens and closes the API twenty times against the
+fixture PostgreSQL/Redis services; captured child output and disposable credentials are not
+printed. The preceding hosted run passed all 1,145 Python tests, development and production
+browser suites and Bandit; it exposed the separately repaired msgpack audit finding.
+Hosted Docker readiness, backup and Trivy still require a successful follow-up run.
+
 ## Hosted CI follow-up — 2026-10-27
 
 The initial repaired Foundation run and its retry timed out in Python integration startup.
