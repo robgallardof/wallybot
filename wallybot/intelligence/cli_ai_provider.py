@@ -36,7 +36,9 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import subprocess
+
+# Required argv-only local analyst CLI transport; no shell.
+import subprocess  # nosec B404
 import tempfile
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
@@ -140,13 +142,15 @@ class SubprocessCliTransport:
         environment = {k: v for k, v in os.environ.items() if k.upper() in allowed}
         try:
             with tempfile.TemporaryDirectory(prefix="wallybot-analyst-") as workspace:
-                process = subprocess.run(
+                # CliAiProvider supplies fixed CLI arguments; prompts are data in one argv item.
+                process = subprocess.run(  # nosec B603
                     argv,
                     capture_output=True,
                     timeout=timeout_seconds,
                     check=False,
                     cwd=workspace,
                     env=environment,
+                    shell=False,
                 )
         except (OSError, subprocess.TimeoutExpired):
             return None

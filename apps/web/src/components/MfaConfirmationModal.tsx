@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FaKey, FaXmark } from "react-icons/fa6";
-import { z } from "zod";
+import { z } from "../lib/validation";
 import { api } from "../lib/api-client";
 import i18n from "../lib/i18n";
 

@@ -32,7 +32,9 @@ test("setup, MFA, dashboard, controls, activity, logout and recovery login", asy
           recordPolicyViolation: (directive: string) => void;
         }
       ).recordPolicyViolation;
-      report(event.effectiveDirective);
+      report(
+        `${event.effectiveDirective}: ${event.blockedURI} at ${event.sourceFile}:${event.lineNumber}`,
+      );
     });
   });
   await page.goto("/setup");

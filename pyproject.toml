@@ -61,7 +61,8 @@ select = ["E", "F", "I", "UP", "B", "ASYNC"]
 pythonVersion = "3.12"
 typeCheckingMode = "standard"
 include = ["apps", "wallybot"]
-exclude = ["apps/web"]
+# The gitignored Discord bot is a separate local project with its own dependencies.
+exclude = ["apps/web", "apps/rust_discord_bot"]
 venvPath = "."
 venv = ".venv"
 

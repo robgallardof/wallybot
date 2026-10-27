@@ -6,7 +6,7 @@ import {
   QueryClientProvider,
   useQuery,
 } from "@tanstack/react-query";
-import { z } from "zod";
+import { z } from "./lib/validation";
 import { api, setCsrf } from "./lib/api-client";
 import { meSchema } from "./lib/dto";
 import { Auth } from "./components/Auth";

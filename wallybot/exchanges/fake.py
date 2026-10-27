@@ -143,7 +143,8 @@ class FakeExchange:
         pair = f"{instrument.base}/{instrument.quote}"
         base_price = self._base_price.get(pair, Decimal("100"))
         now = self.clock.now()
-        rng = random.Random(f"{self.seed}:{instrument.id}:{timeframe}:{since.isoformat()}")
+        # Reproducible fake market data, never security material.
+        rng = random.Random(f"{self.seed}:{instrument.id}:{timeframe}:{since.isoformat()}")  # nosec B311
         candles: list[Candle] = []
         price = base_price
         open_time = since
@@ -181,7 +182,8 @@ class FakeExchange:
         price_increment, _quantity_increment, _min_quantity = _require_precision(instrument)
         pair = f"{instrument.base}/{instrument.quote}"
         mid = self._base_price.get(pair, Decimal("100"))
-        rng = random.Random(f"{self.seed}:{instrument.id}:snapshot:{self.clock.now().isoformat()}")
+        # Reproducible fake quotes, never security material.
+        rng = random.Random(f"{self.seed}:{instrument.id}:snapshot:{self.clock.now().isoformat()}")  # nosec B311
         half_spread = mid * Decimal(rng.uniform(0.0001, 0.0015))
         return (
             (mid - half_spread).quantize(price_increment),
@@ -207,7 +209,8 @@ class FakeExchange:
             if intent.kind is OrderKind.LIMIT
             else await self._reference_price(intent.instrument, intent.side)
         )
-        assert price is not None
+        if price is None:
+            return "order price is required"
         if intent.side is Side.BUY:
             currency, required = intent.instrument.quote, intent.quantity * price
         else:

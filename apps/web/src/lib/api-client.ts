@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "./validation";
 
 let csrf = "";
 const MFA_RECENCY_ERROR = "Sign in again with MFA to confirm this action";

@@ -65,6 +65,8 @@ async def add_connection(
     crypto = request.app.state.auth.crypto
     status = "PENDING"
     if body.mode == "TRADE_ONLY":
+        if body.api_key is None or body.api_secret is None:
+            raise HTTPException(status_code=422, detail="Trade-only connections require both keys")
         await _verify_trading_key(request, body.provider, body.api_key, body.api_secret)
         status = "HEALTHY"
     connection = ProviderConnectionRow(

@@ -176,9 +176,12 @@ class BacktestEngine:
                 position_entry_price = fill_price
                 position_entry_time = fill_candle.open_time
             elif signal.action is Action.SELL and in_position:
-                assert position_quantity is not None
-                assert position_entry_price is not None
-                assert position_entry_time is not None
+                if (
+                    position_quantity is None
+                    or position_entry_price is None
+                    or position_entry_time is None
+                ):
+                    raise ValueError("Backtest position is incomplete")
                 fill_price = (
                     fill_candle.open * (Decimal(1) - self.cost_model.slippage_pct)
                 ).quantize(instrument.price_increment)

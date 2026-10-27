@@ -13,7 +13,7 @@ def main() -> None:
         raise SystemExit("Existing .secrets or .env detected; refusing to overwrite credentials.")
     directory.mkdir(mode=0o700)
     values: dict[str, str] = {}
-    for role in ("owner", "api", "worker", "scheduler", "research"):
+    for role in ("owner", "api", "worker", "scheduler", "research", "ai"):
         password = secrets.token_urlsafe(32)
         values[f"{role}_password"] = password
         values[f"{role}_database_url"] = (

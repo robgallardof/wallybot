@@ -28,6 +28,7 @@ ever replies.
 
 import hmac
 import json
+import logging
 import re
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
@@ -442,7 +443,7 @@ async def _analyze_reply(
         # The AI worker refuses LIVE context older than a minute, so a stale snapshot is not
         # worth a review request (it would only fire later, unexpectedly).
         fresh = portfolio is not None and now - portfolio.as_of <= timedelta(seconds=60)
-        if ai_enabled and holdings and fresh:
+        if control is not None and ai_enabled and holdings and fresh:
             control.review_requested = True
     if portfolio is None:
         return (
@@ -550,11 +551,14 @@ async def _stats_reply(
         entry = Decimal(facts["average_price"]) if facts.get("average_price") else None
         worth = quantity * price if price else None
         value += worth or 0
-        pnl = (price - entry) * quantity if price and entry else None
-        if pnl is not None:
+        pnl = None
+        change = None
+        if price and entry:
+            pnl = (price - entry) * quantity
+            change = price / entry - 1
             invested += entry * quantity
             result += pnl
-            ranked.append((price / entry - 1, asset))
+            ranked.append((change, asset))
         rows.append(
             (
                 worth or Decimal(0),
@@ -562,7 +566,7 @@ async def _stats_reply(
                     asset,
                     f"{entry:.4g}" if entry else "?",
                     f"{price:.4g}" if price else "?",
-                    f"{price / entry - 1:+.1%}" if pnl is not None else "?",
+                    f"{change:+.1%}" if change is not None else "?",
                     f"{pnl:+.2f}" if pnl is not None else "?",
                 ],
             )
@@ -657,7 +661,7 @@ async def _current_prices(
             try:
                 prices[instrument.base] = (await market.fetch_snapshot(instrument)).bid
             except Exception:  # noqa: BLE001
-                continue
+                logging.getLogger(__name__).warning("Portfolio statistics price lookup unavailable")
     return prices
 
 

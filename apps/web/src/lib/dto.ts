@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "./validation";
 
 export const meSchema = z.object({
   username: z.string(),
@@ -42,6 +42,7 @@ export const systemSchema = z.object({
   database: z.string(),
   redis: z.string(),
   services: z.record(
+    z.string(),
     z.object({ status: z.string(), age_seconds: z.number().nullable() }),
   ),
   exchange: z.string(),

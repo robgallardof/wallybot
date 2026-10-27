@@ -1281,6 +1281,11 @@ test("Binance spot connection explains safe key settings and shows the USDT real
       },
     }),
   );
+  await page.route("**/api/live/positions", (route) =>
+    route.fulfill({ json: {
+      cash_currency: "USDT", as_of: "2026-10-12T09:00:00Z", positions: [],
+    } }),
+  );
   await page.goto("/portfolio");
   await expect(page.getByRole("heading", { name: "Cuenta real Binance" })).toBeVisible();
   await expect(page.getByText(/1000\s+USDT/)).toBeVisible();

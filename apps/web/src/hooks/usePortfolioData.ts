@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api-client";
 import { portfolioSchema } from "../lib/dto";
-import { z } from "zod";
+import { z } from "../lib/validation";
 
 export function usePortfolioData(enabled: boolean) {
   const client = useQueryClient();

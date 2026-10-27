@@ -61,7 +61,8 @@ def _export_row(record: object) -> dict[str, str | int | None]:
     # HTTP boundary so CSV and JSON do not lose precision or timezone information.
     from wallybot.domain.experiment import ExperimentRecord
 
-    assert isinstance(record, ExperimentRecord)
+    if not isinstance(record, ExperimentRecord):
+        raise TypeError("Backtest exports require an ExperimentRecord")
     return {
         "experiment_id": record.experiment_id,
         "strategy_id": record.strategy_id,
@@ -170,9 +171,7 @@ async def run_backtest(body: BacktestRun, request: Request, user: Protected) -> 
                     total_return_pct=str(window.result.total_return_pct),
                     max_drawdown_pct=str(window.result.max_drawdown_pct),
                     win_rate=(
-                        str(window.result.win_rate)
-                        if window.result.win_rate is not None
-                        else None
+                        str(window.result.win_rate) if window.result.win_rate is not None else None
                     ),
                 )
                 for window in outcome.walk_forward

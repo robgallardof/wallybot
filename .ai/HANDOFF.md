@@ -1,3 +1,29 @@
+## CI gate repair — 2026-10-27
+
+The failing Foundation checks stopped at Ruff formatting. Follow-up validation exposed
+optional-value typing errors, a service-worker lint environment gap, stale vulnerable
+dependencies, incomplete disposable browser-test setup, and a missing LIVE positions fixture.
+
+- Normalize Python formatting; add explicit runtime guards where assertions or optional values
+  previously hid invalid states. No trading calculations, limits or approval rules were changed.
+- Keep the gitignored, separately managed Rust Discord bot out of WallyBot's Pyright scope.
+- Update certifi/filelock/urllib3, Next.js and Zod and refresh affected transitive lock entries.
+  Both pip-audit and pnpm audit now report no known vulnerabilities. No audit findings are ignored.
+- Preserve strict CSP: shared Zod interpreter configuration disables its dynamic-code probe;
+  production browser tests still reject unsafe-eval/unsafe-inline and every policy violation.
+- Create disposable DB roles before browser migrations and use the restricted API role afterward.
+  Fresh-install bootstrap now generates the AI credentials expected by Compose, and a real
+  child-process/file regression test verifies first creation and refusal to overwrite an install.
+- Review Bandit false positives only at seeded simulation, public enum-label and argv-only
+  transport sites, with local rationale; replace production assertions with explicit guards.
+
+EXECUTED: Ruff lint/format, Pyright (zero errors), Bandit, both dependency audits, frozen
+Python/frontend installs, frontend lint/build, full Python suite (1,152 passed), 92 focused
+regressions, the new bootstrap regression (1 passed), and production browser suite (23 passed).
+The development browser suite passed 22 tests; its production-only case was intentionally skipped. Hosted Docker image builds,
+readiness, backup verification and Trivy retain their existing mandatory CI gates; local
+production deployment, live exchange operations and model inference were NOT EXECUTED.
+
 ## Autorización de despliegue y bloqueo del entorno — 2026-10-15
 
 El operador autoriza explícitamente ejecutar las pruebas de integración y reiniciar producción

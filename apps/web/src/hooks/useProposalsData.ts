@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { z } from "zod";
+import { z } from "../lib/validation";
 import { api } from "../lib/api-client";
 import { tradeProposalListSchema } from "../lib/dto";
 

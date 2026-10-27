@@ -1,13 +1,16 @@
 """Disposable browser-test stack; never uses development DB or credentials."""
 
 import os
+import secrets
 import shutil
 import subprocess
 import sys
 import time
 from pathlib import Path
 
+import psycopg
 from cryptography.fernet import Fernet
+from sqlalchemy.engine import make_url
 from testcontainers.postgres import PostgresContainer
 from testcontainers.redis import RedisContainer
 
@@ -17,9 +20,20 @@ ROOT = Path(__file__).resolve().parents[1]
 def main() -> None:
     with PostgresContainer("postgres:17.11-alpine", driver="psycopg") as pg:
         with RedisContainer("redis:7.4.11-alpine") as redis:
+            database_url = pg.get_connection_url()
+            role_password = secrets.token_urlsafe(32)
+            # Match the real stack and integration fixtures before migrations grant roles.
+            with psycopg.connect(database_url.replace("+psycopg", ""), autocommit=True) as db:
+                for role in ("api", "worker", "scheduler", "research", "ai"):
+                    db.execute(
+                        psycopg.sql.SQL("CREATE ROLE {} LOGIN PASSWORD {}").format(
+                            psycopg.sql.Identifier("wally_" + role),
+                            psycopg.sql.Literal(role_password),
+                        )
+                    )
             env = os.environ.copy()
             env.update(
-                WALLY_DATABASE_URL=pg.get_connection_url(),
+                WALLY_DATABASE_URL=database_url,
                 WALLY_REDIS_URL=f"redis://{redis.get_container_host_ip()}:{redis.get_exposed_port(6379)}/0",
                 WALLY_ENCRYPTION_KEY=Fernet.generate_key().decode(),
                 WALLY_BOOTSTRAP_TOKEN="browser-test-only-bootstrap-token-0001",
@@ -31,6 +45,12 @@ def main() -> None:
             )
             subprocess.run(
                 [sys.executable, "-m", "alembic", "upgrade", "head"], cwd=ROOT, env=env, check=True
+            )
+            # Browser requests exercise the restricted API role, never the database owner.
+            env["WALLY_DATABASE_URL"] = (
+                make_url(database_url)
+                .set(username="wally_api", password=role_password)
+                .render_as_string(hide_password=False)
             )
             node = shutil.which("node")
             if not node:

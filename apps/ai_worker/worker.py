@@ -29,7 +29,7 @@ from wallybot.infrastructure.logging import configure_logging
 from wallybot.infrastructure.models import AiAutonomyControlRow, ControlRow, UserRow
 from wallybot.infrastructure.system_clock import SystemClock
 from wallybot.infrastructure.uuid_id_generator import UuidIdGenerator
-from wallybot.intelligence.cli_ai_provider import CliAiProvider
+from wallybot.intelligence.cli_ai_provider import CliAiProvider, CliName
 from wallybot.intelligence.consensus_ai_provider import ConsensusAiProvider
 from wallybot.market.universe import UniverseFilterConfig
 
@@ -142,6 +142,10 @@ def _configured_analysts(
     clock: SystemClock,
 ) -> list[CliAiProvider]:
     """The enabled analyst CLIs, in the fixed Codex-then-Claude order."""
+    choices: tuple[tuple[CliName, str, bool], ...] = (
+        ("codex", settings.codex_model_id, control.codex_enabled),
+        ("claude", settings.claude_model_id, control.claude_enabled),
+    )
     return [
         CliAiProvider(
             cli=cli,
@@ -151,10 +155,7 @@ def _configured_analysts(
             clock=clock,
             timeout_seconds=settings.ai_timeout_seconds,
         )
-        for cli, model_id, enabled in (
-            ("codex", settings.codex_model_id, control.codex_enabled),
-            ("claude", settings.claude_model_id, control.claude_enabled),
-        )
+        for cli, model_id, enabled in choices
         if enabled
     ]
 
