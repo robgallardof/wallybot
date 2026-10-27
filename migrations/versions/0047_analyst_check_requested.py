@@ -1,4 +1,4 @@
-"""Add check_requested flag so the operator can trigger a fresh CLI availability check from the UI."""
+"""Let the operator request a fresh CLI availability check from the UI."""
 
 from alembic import op
 
