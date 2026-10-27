@@ -7,7 +7,7 @@
   <a href="README.en.md"><img alt="English" src="https://img.shields.io/badge/Language-English-1f6feb?style=for-the-badge"></a>
 </p>
 
-<h1>🤖 WallyBot</h1>
+<h1><img src="assets/readme-builder/icons/bot.svg" width="20" height="20" alt="" /> WallyBot</h1>
 
 <h3>Your self-hosted hub for AI-assisted analysis, portfolio tracking and trading</h3>
 
@@ -32,7 +32,6 @@
   <img alt="Docker" src="https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white">
   <img alt="Kraken" src="https://img.shields.io/badge/Kraken-Spot-5741D9?logo=kraken&logoColor=white">
   <img alt="Binance" src="https://img.shields.io/badge/Binance-Spot-F0B90B?logo=binance&logoColor=black">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-971%20backend%20%C2%B7%2019%20browser-2ea44f">
 </p>
 
 <p>
@@ -54,62 +53,66 @@ WallyBot brings together markets, AI-assisted analysis, portfolio tracking and c
 > [!NOTE]
 > The application UI is available in Spanish and English. Some in-app labels referenced below are shown with their Spanish name in parentheses.
 
-## ✨ What you can do
+<a id="-what-you-can-do"></a>
+
+## <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> What you can do
 
 <table>
   <tr>
     <td width="50%" valign="top">
-      <h4>📈 Markets</h4>
+      <h4><img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Markets</h4>
       Public Binance quotes with source, age and spread validation.
     </td>
     <td width="50%" valign="top">
-      <h4>🧠 AI analysts</h4>
+      <h4><img src="assets/readme-builder/icons/cpu.svg" width="20" height="20" alt="" /> AI analysts</h4>
       Local Codex and Claude, configurable consensus and per-analyst availability.
     </td>
   </tr>
   <tr>
     <td valign="top">
-      <h4>📝 Proposals</h4>
+      <h4><img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Proposals</h4>
       Reasoning, risks, expiry, MFA approval, rejection and simulation.
     </td>
     <td valign="top">
-      <h4>💼 Real account</h4>
+      <h4><img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Real account</h4>
       Encrypted credentials, verified balances and Kraken or Binance spot IOC orders.
     </td>
   </tr>
   <tr>
     <td valign="top">
-      <h4>🛡️ Risk</h4>
+      <h4><img src="assets/readme-builder/icons/shield.svg" width="20" height="20" alt="" /> Risk</h4>
       Per-trade, exposure and daily-loss limits; reconciliation and blocking on mismatches.
     </td>
     <td valign="top">
-      <h4>📊 Portfolio</h4>
+      <h4><img src="assets/readme-builder/icons/chart.svg" width="20" height="20" alt="" /> Portfolio</h4>
       Real tracking, FIFO accounting and simulated trade results.
     </td>
   </tr>
   <tr>
     <td valign="top">
-      <h4>💬 Telegram</h4>
+      <h4><img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Telegram</h4>
       Owner-scoped digests and review links; they never execute anything.
     </td>
     <td valign="top">
-      <h4>🔬 Research</h4>
+      <h4><img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Research</h4>
       Backtests and research jobs isolated from execution.
     </td>
   </tr>
   <tr>
     <td valign="top">
-      <h4>⚙️ Operations</h4>
+      <h4><img src="assets/readme-builder/icons/settings.svg" width="20" height="20" alt="" /> Operations</h4>
       Audit trail, service heartbeats, encrypted backups and verified recovery.
     </td>
     <td valign="top">
-      <h4>🌐 Interface</h4>
+      <h4><img src="assets/readme-builder/icons/globe.svg" width="20" height="20" alt="" /> Interface</h4>
       Spanish and English, light/dark themes and a mobile-friendly layout.
     </td>
   </tr>
 </table>
 
-## 🚀 Quick start
+<a id="-quick-start"></a>
+
+## <img src="assets/readme-builder/icons/rocket.svg" width="20" height="20" alt="" /> Quick start
 
 You need **Docker with Compose** and **Python 3.12+**. For development and local analysts: **uv**, **Node.js 22+**, **pnpm 10.11** and whichever AI CLIs you want to use.
 
@@ -128,7 +131,7 @@ docker compose up -d --build
 There is no default account. The bootstrapper keeps existing secrets and configuration, and the system starts in **OBSERVE** until you enable features from the interface.
 
 <details>
-<summary><b>🪟 Windows: services + native analyst</b></summary>
+<summary><b><img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Windows: services + native analyst</b></summary>
 
 <br>
 
@@ -142,7 +145,9 @@ This starts the Docker services and the native analyst. See the [local analyst g
 
 </details>
 
-## 🔑 Set up your real account
+<a id="-set-up-your-real-account"></a>
+
+## <img src="assets/readme-builder/icons/lock.svg" width="20" height="20" alt="" /> Set up your real account
 
 | Step | Where | What to do |
 | :---: | --- | --- |
@@ -161,7 +166,34 @@ This starts the Docker services and the native analyst. See the [local analyst g
 
 More detail in the [complete real-trading guide](docs/runbooks/real-spot-trading.md): permissions, common errors, recovery and blocking causes.
 
-## 🧭 How it works
+<a id="-current-scope"></a>
+
+## <img src="assets/readme-builder/icons/target.svg" width="20" height="20" alt="" /> Current scope
+
+- Real execution supports **Kraken spot USD/BTC/ETH** and **Binance spot USDT/BTC/ETH** with IOC limit orders and per-trade approval. The analyst studies the market of your real account's exchange.
+- Stops and targets are **review notices**; they do not create automatic protective orders.
+- External account changes that do not match the ledger **block** execution until reviewed. The historical cost of imported holdings is never invented.
+- Local tests do not replace validation with a funded account and do not demonstrate profitability.
+
+Constraints and roadmap: [RISK.md](RISK.md), [product mandate](docs/PRODUCT-MANDATE.md) and [pending work](docs/PENDING.md).
+
+<a id="-backups"></a>
+
+## <img src="assets/readme-builder/icons/database.svg" width="20" height="20" alt="" /> Backups
+
+```sh
+uv run python scripts/backup.py create
+uv run python scripts/backup.py verify
+```
+
+Backups are encrypted into `backups/` (excluded from the repository), and `verify` restores them into an isolated PostgreSQL. Keep the backup key off this machine and follow the [recovery guide](docs/runbooks/recovery.md).
+
+<a id="-how-it-works"></a>
+
+## <img src="assets/readme-builder/icons/globe.svg" width="20" height="20" alt="" /> How it works
+
+<details>
+<summary>Implementation diagram</summary>
 
 ```mermaid
 flowchart LR
@@ -176,28 +208,23 @@ flowchart LR
     C --> D[Dashboard and audit]
 ```
 
+</details>
+
 **The AI proposes; authenticated approval and risk controls authorize.** Research processes and analysts have no access to trading credentials. Telegram leads to the web review: a link or command never sends a trade.
 
 | Layer | Technology | Location |
 | --- | --- | --- |
-| 🖥️ Interface | Next.js, React, TypeScript | `apps/web` |
-| 🔌 API | FastAPI, Pydantic | `apps/api` |
+| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Interface | Next.js, React, TypeScript | `apps/web` |
+| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> API | FastAPI, Pydantic | `apps/api` |
 | ⏱️ Processes | Worker, scheduler, research | `apps/` |
-| 🧠 Local analysts | Codex / Claude CLI | `apps/ai_worker` |
-| 🧩 Core | Domain, application, infrastructure | `wallybot/` |
-| 🗄️ Persistence | PostgreSQL, async SQLAlchemy, Alembic | `migrations/` |
-| 🔁 Coordination | Redis; persistent locks and nonces | — |
+| <img src="assets/readme-builder/icons/cpu.svg" width="20" height="20" alt="" /> Local analysts | Codex / Claude CLI | `apps/ai_worker` |
+| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Core | Domain, application, infrastructure | `wallybot/` |
+| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Persistence | PostgreSQL, async SQLAlchemy, Alembic | `migrations/` |
+| <img src="assets/readme-builder/icons/repeat.svg" width="20" height="20" alt="" /> Coordination | Redis; persistent locks and nonces | — |
 
-## 📌 Current scope
+<a id="️-development-and-verification"></a>
 
-- Real execution supports **Kraken spot USD/BTC/ETH** and **Binance spot USDT/BTC/ETH** with IOC limit orders and per-trade approval. The analyst studies the market of your real account's exchange.
-- Stops and targets are **review notices**; they do not create automatic protective orders.
-- External account changes that do not match the ledger **block** execution until reviewed. The historical cost of imported holdings is never invented.
-- Local tests do not replace validation with a funded account and do not demonstrate profitability.
-
-Constraints and roadmap: [RISK.md](RISK.md), [product mandate](docs/PRODUCT-MANDATE.md) and [pending work](docs/PENDING.md).
-
-## 🛠️ Development and verification
+## <img src="assets/readme-builder/icons/settings.svg" width="20" height="20" alt="" /> Development and verification
 
 <details>
 <summary><b>Hybrid development environment</b></summary>
@@ -234,30 +261,23 @@ Integration tests require Docker. On Windows, if the client cannot find Docker D
 > [!NOTE]
 > **Local verification on October 12, 2026:** 971 backend tests (real, disposable PostgreSQL/Redis) and 19 production-mode browser tests passed; type checking reports no errors. Exchange tests use controlled responses. See [the evidence and its limits](docs/stats/testing.md).
 
-## 💾 Backups
+<a id="-documentation"></a>
 
-```sh
-uv run python scripts/backup.py create
-uv run python scripts/backup.py verify
-```
-
-Backups are encrypted into `backups/` (excluded from the repository), and `verify` restores them into an isolated PostgreSQL. Keep the backup key off this machine and follow the [recovery guide](docs/runbooks/recovery.md).
-
-## 📚 Documentation
+## <img src="assets/readme-builder/icons/book.svg" width="20" height="20" alt="" /> Documentation
 
 | Guide | Contents |
 | --- | --- |
-| 💱 [Real trading](docs/runbooks/real-spot-trading.md) | Kraken, Binance, limits, approval, errors and reconciliation |
-| 🧠 [Local analysts](docs/runbooks/native-ai-worker.md) | CLIs, availability, startup and diagnostics (Spanish) |
-| 🎯 [Product mandate](docs/PRODUCT-MANDATE.md) | Goals, allocation and operator decisions |
-| 🏗️ [Architecture](ARCHITECTURE.md) | Process boundaries and contracts |
-| 🔐 [Security](SECURITY.md) | Authentication, permissions and secret isolation |
-| 🛡️ [Risk](RISK.md) | Capital and execution controls |
-| 🗃️ [Data](DATA.md) | Accounting, consistency and quality |
-| 🚢 [Deployment](DEPLOYMENT.md) | Installation, operations and remote access |
-| ✅ [Testing](TESTING.md) | Invariants and acceptance criteria |
-| 🧾 [Decisions](docs/adr/README.md) | Rationale and scope of technical decisions |
-| 🗺️ [Diagrams](docs/diagrams/README.md) | Data, order and recovery flows |
+| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> [Real trading](docs/runbooks/real-spot-trading.md) | Kraken, Binance, limits, approval, errors and reconciliation |
+| <img src="assets/readme-builder/icons/cpu.svg" width="20" height="20" alt="" /> [Local analysts](docs/runbooks/native-ai-worker.md) | CLIs, availability, startup and diagnostics (Spanish) |
+| <img src="assets/readme-builder/icons/target.svg" width="20" height="20" alt="" /> [Product mandate](docs/PRODUCT-MANDATE.md) | Goals, allocation and operator decisions |
+| <img src="assets/readme-builder/icons/layers.svg" width="20" height="20" alt="" /> [Architecture](ARCHITECTURE.md) | Process boundaries and contracts |
+| <img src="assets/readme-builder/icons/lock.svg" width="20" height="20" alt="" /> [Security](SECURITY.md) | Authentication, permissions and secret isolation |
+| <img src="assets/readme-builder/icons/shield.svg" width="20" height="20" alt="" /> [Risk](RISK.md) | Capital and execution controls |
+| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> [Data](DATA.md) | Accounting, consistency and quality |
+| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> [Deployment](DEPLOYMENT.md) | Installation, operations and remote access |
+| <img src="assets/readme-builder/icons/check.svg" width="20" height="20" alt="" /> [Testing](TESTING.md) | Invariants and acceptance criteria |
+| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> [Decisions](docs/adr/README.md) | Rationale and scope of technical decisions |
+| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> [Diagrams](docs/diagrams/README.md) | Data, order and recovery flows |
 
 ---
 
@@ -272,3 +292,9 @@ Backups are encrypted into `backups/` (excluded from the repository), and `verif
 <a href="#top">⬆️ Back to top</a>
 
 </div>
+
+<p align="center"><a href="#top">Back to top</a></p>
+
+<!-- readme-builder:signature:start -->
+<p align="center"><a href="https://github.com/robgallardof"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/brand/signature-en-dark.svg" /><img src="assets/readme/brand/signature-en-light.svg" alt="WallyBot / Roberto Gallardo" width="100%" /></picture></a></p>
+<!-- readme-builder:signature:end -->

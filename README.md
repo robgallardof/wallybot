@@ -7,7 +7,7 @@
   <a href="README.en.md"><img alt="English" src="https://img.shields.io/badge/Language-English-1f6feb?style=for-the-badge"></a>
 </p>
 
-<h1>🤖 WallyBot</h1>
+<h1><img src="assets/readme-builder/icons/bot.svg" width="20" height="20" alt="" /> WallyBot</h1>
 
 <h3>Tu centro autoalojado de análisis, cartera y trading con IA</h3>
 
@@ -51,95 +51,9 @@ WallyBot reúne mercados, análisis asistido por IA, seguimiento de cartera y ej
 > [!IMPORTANT]
 > **Trading real disponible: Kraken spot (USD, BTC/XBT, ETH) o Binance spot (USDT, BTC, ETH).** Cada operación requiere la aprobación del administrador con MFA. La IA nunca ejecuta órdenes, y no existen retiros, transferencias ni apalancamiento.
 
-## ✨ Qué puedes hacer
+<a id="-configura-tu-cuenta-real"></a>
 
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <h4>📈 Mercados</h4>
-      Cotizaciones públicas de Binance con validación de origen, antigüedad y diferencial.
-    </td>
-    <td width="50%" valign="top">
-      <h4>🧠 Analistas IA</h4>
-      Codex y Claude locales, consenso configurable y disponibilidad visible por analista.
-    </td>
-  </tr>
-  <tr>
-    <td valign="top">
-      <h4>📝 Propuestas</h4>
-      Explicación, riesgos, vencimiento, aprobación con MFA, rechazo y simulación.
-    </td>
-    <td valign="top">
-      <h4>💼 Cuenta real</h4>
-      Credenciales cifradas, saldos verificados y órdenes spot IOC en Kraken o Binance.
-    </td>
-  </tr>
-  <tr>
-    <td valign="top">
-      <h4>🛡️ Riesgo</h4>
-      Límites por operación, exposición y pérdida diaria; conciliación y bloqueo ante discrepancias.
-    </td>
-    <td valign="top">
-      <h4>📊 Cartera</h4>
-      Seguimiento real, contabilidad FIFO y resultados de operaciones simuladas.
-    </td>
-  </tr>
-  <tr>
-    <td valign="top">
-      <h4>💬 Telegram</h4>
-      Resúmenes y enlaces de revisión vinculados al propietario; nunca ejecutan nada.
-    </td>
-    <td valign="top">
-      <h4>🔬 Investigación</h4>
-      Backtests y procesos de investigación aislados de la ejecución.
-    </td>
-  </tr>
-  <tr>
-    <td valign="top">
-      <h4>⚙️ Operación</h4>
-      Auditoría, heartbeats de servicios, copias cifradas y recuperación verificada.
-    </td>
-    <td valign="top">
-      <h4>🌐 Interfaz</h4>
-      Español e inglés, tema claro/oscuro y diseño adaptable a móvil.
-    </td>
-  </tr>
-</table>
-
-## 🚀 Inicio rápido
-
-Necesitas **Docker con Compose** y **Python 3.12+**. Para desarrollo y analistas locales: **uv**, **Node.js 22+**, **pnpm 10.11** y las CLI de IA que quieras usar.
-
-```sh
-git clone https://github.com/robgallardof/wallybot.git
-cd wallybot
-python scripts/bootstrap.py
-docker compose up -d --build
-```
-
-1. Abre **[localhost:3333/setup](http://localhost:3333/setup)**.
-2. Consulta el token generado en `.secrets/bootstrap_token` directamente en tu equipo.
-3. Crea tu administrador, vincula tu autenticador y guarda los códigos de recuperación.
-4. Entra al panel y configura tus conexiones y preferencias.
-
-No hay cuenta predeterminada. El inicializador conserva los secretos y la configuración existentes, y el sistema arranca en **OBSERVE** hasta que actives funciones desde la interfaz.
-
-<details>
-<summary><b>🪟 Windows: servicios + analista nativo</b></summary>
-
-<br>
-
-Después de preparar las dependencias y las CLI locales:
-
-```powershell
-./scripts/start_wallybot.ps1
-```
-
-Inicia los servicios Docker y el analista nativo. Consulta la [guía del analista local](docs/runbooks/native-ai-worker.md). La instalación estándar escucha en `127.0.0.1:3333`; para acceso remoto usa la [guía de despliegue con HTTPS](DEPLOYMENT.md).
-
-</details>
-
-## 🔑 Configura tu cuenta real
+## <img src="assets/readme-builder/icons/lock.svg" width="20" height="20" alt="" /> Configura tu cuenta real
 
 | Paso | Dónde | Qué hacer |
 | :---: | --- | --- |
@@ -158,7 +72,115 @@ Inicia los servicios Docker y el analista nativo. Consulta la [guía del analist
 
 Más detalle en la [guía completa de trading real](docs/runbooks/real-spot-trading.md): permisos, errores frecuentes, recuperación y causas de bloqueo.
 
-## 🧭 Cómo funciona
+<a id="-qué-puedes-hacer"></a>
+
+## <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Qué puedes hacer
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h4><img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Mercados</h4>
+      Cotizaciones públicas de Binance con validación de origen, antigüedad y diferencial.
+    </td>
+    <td width="50%" valign="top">
+      <h4><img src="assets/readme-builder/icons/cpu.svg" width="20" height="20" alt="" /> Analistas IA</h4>
+      Codex y Claude locales, consenso configurable y disponibilidad visible por analista.
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <h4><img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Propuestas</h4>
+      Explicación, riesgos, vencimiento, aprobación con MFA, rechazo y simulación.
+    </td>
+    <td valign="top">
+      <h4><img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Cuenta real</h4>
+      Credenciales cifradas, saldos verificados y órdenes spot IOC en Kraken o Binance.
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <h4><img src="assets/readme-builder/icons/shield.svg" width="20" height="20" alt="" /> Riesgo</h4>
+      Límites por operación, exposición y pérdida diaria; conciliación y bloqueo ante discrepancias.
+    </td>
+    <td valign="top">
+      <h4><img src="assets/readme-builder/icons/chart.svg" width="20" height="20" alt="" /> Cartera</h4>
+      Seguimiento real, contabilidad FIFO y resultados de operaciones simuladas.
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <h4><img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Telegram</h4>
+      Resúmenes y enlaces de revisión vinculados al propietario; nunca ejecutan nada.
+    </td>
+    <td valign="top">
+      <h4><img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Investigación</h4>
+      Backtests y procesos de investigación aislados de la ejecución.
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <h4><img src="assets/readme-builder/icons/settings.svg" width="20" height="20" alt="" /> Operación</h4>
+      Auditoría, heartbeats de servicios, copias cifradas y recuperación verificada.
+    </td>
+    <td valign="top">
+      <h4><img src="assets/readme-builder/icons/globe.svg" width="20" height="20" alt="" /> Interfaz</h4>
+      Español e inglés, tema claro/oscuro y diseño adaptable a móvil.
+    </td>
+  </tr>
+</table>
+
+<a id="-inicio-rápido"></a>
+
+## <img src="assets/readme-builder/icons/rocket.svg" width="20" height="20" alt="" /> Inicio rápido
+
+Necesitas **Docker con Compose** y **Python 3.12+**. Para desarrollo y analistas locales: **uv**, **Node.js 22+**, **pnpm 10.11** y las CLI de IA que quieras usar.
+
+```sh
+git clone https://github.com/robgallardof/wallybot.git
+cd wallybot
+python scripts/bootstrap.py
+docker compose up -d --build
+```
+
+1. Abre **[localhost:3333/setup](http://localhost:3333/setup)**.
+2. Consulta el token generado en `.secrets/bootstrap_token` directamente en tu equipo.
+3. Crea tu administrador, vincula tu autenticador y guarda los códigos de recuperación.
+4. Entra al panel y configura tus conexiones y preferencias.
+
+No hay cuenta predeterminada. El inicializador conserva los secretos y la configuración existentes, y el sistema arranca en **OBSERVE** hasta que actives funciones desde la interfaz.
+
+<details>
+<summary><b><img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Windows: servicios + analista nativo</b></summary>
+
+<br>
+
+Después de preparar las dependencias y las CLI locales:
+
+```powershell
+./scripts/start_wallybot.ps1
+```
+
+Inicia los servicios Docker y el analista nativo. Consulta la [guía del analista local](docs/runbooks/native-ai-worker.md). La instalación estándar escucha en `127.0.0.1:3333`; para acceso remoto usa la [guía de despliegue con HTTPS](DEPLOYMENT.md).
+
+</details>
+
+<a id="-alcance-actual"></a>
+
+## <img src="assets/readme-builder/icons/target.svg" width="20" height="20" alt="" /> Alcance actual
+
+- La ejecución real admite **Kraken spot USD/BTC/ETH** y **Binance spot USDT/BTC/ETH** con órdenes límite IOC y aprobación por operación. El analista estudia el mercado del exchange de tu cuenta real.
+- Stops y objetivos son **avisos de revisión**; no generan órdenes protectoras automáticas.
+- Cambios externos en la cuenta que no cuadren con la contabilidad **bloquean** la ejecución hasta revisarlos. El coste histórico de posiciones importadas no se inventa.
+- Las pruebas locales no sustituyen una validación con una cuenta financiada ni demuestran rentabilidad.
+
+Restricciones y evolución prevista: [RISK.md](RISK.md), [mandato del producto](docs/PRODUCT-MANDATE.md) y [trabajo pendiente](docs/PENDING.md).
+
+<a id="-cómo-funciona"></a>
+
+## <img src="assets/readme-builder/icons/globe.svg" width="20" height="20" alt="" /> Cómo funciona
+
+<details>
+<summary>Diagrama técnico</summary>
 
 ```mermaid
 flowchart LR
@@ -173,28 +195,34 @@ flowchart LR
     C --> D[Panel y auditoría]
 ```
 
+</details>
+
 **La IA propone; la aprobación autenticada y los controles de riesgo autorizan.** Los procesos de investigación y los analistas no tienen acceso a las credenciales de trading. Telegram lleva a la revisión web: un enlace o comando nunca envía una operación.
 
 | Capa | Tecnología | Ubicación |
 | --- | --- | --- |
-| 🖥️ Interfaz | Next.js, React, TypeScript | `apps/web` |
-| 🔌 API | FastAPI, Pydantic | `apps/api` |
+| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Interfaz | Next.js, React, TypeScript | `apps/web` |
+| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> API | FastAPI, Pydantic | `apps/api` |
 | ⏱️ Procesos | Worker, scheduler, investigación | `apps/` |
-| 🧠 Analistas locales | CLI de Codex / Claude | `apps/ai_worker` |
-| 🧩 Núcleo | Dominio, aplicación, infraestructura | `wallybot/` |
-| 🗄️ Persistencia | PostgreSQL, SQLAlchemy async, Alembic | `migrations/` |
-| 🔁 Coordinación | Redis; bloqueos y nonces persistentes | — |
+| <img src="assets/readme-builder/icons/cpu.svg" width="20" height="20" alt="" /> Analistas locales | CLI de Codex / Claude | `apps/ai_worker` |
+| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Núcleo | Dominio, aplicación, infraestructura | `wallybot/` |
+| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Persistencia | PostgreSQL, SQLAlchemy async, Alembic | `migrations/` |
+| <img src="assets/readme-builder/icons/repeat.svg" width="20" height="20" alt="" /> Coordinación | Redis; bloqueos y nonces persistentes | — |
 
-## 📌 Alcance actual
+<a id="-copias-de-seguridad"></a>
 
-- La ejecución real admite **Kraken spot USD/BTC/ETH** y **Binance spot USDT/BTC/ETH** con órdenes límite IOC y aprobación por operación. El analista estudia el mercado del exchange de tu cuenta real.
-- Stops y objetivos son **avisos de revisión**; no generan órdenes protectoras automáticas.
-- Cambios externos en la cuenta que no cuadren con la contabilidad **bloquean** la ejecución hasta revisarlos. El coste histórico de posiciones importadas no se inventa.
-- Las pruebas locales no sustituyen una validación con una cuenta financiada ni demuestran rentabilidad.
+## <img src="assets/readme-builder/icons/database.svg" width="20" height="20" alt="" /> Copias de seguridad
 
-Restricciones y evolución prevista: [RISK.md](RISK.md), [mandato del producto](docs/PRODUCT-MANDATE.md) y [trabajo pendiente](docs/PENDING.md).
+```sh
+uv run python scripts/backup.py create
+uv run python scripts/backup.py verify
+```
 
-## 🛠️ Desarrollo y verificación
+Las copias se cifran en `backups/` (excluido del repositorio) y `verify` las restaura en un PostgreSQL aislado. Guarda la clave de respaldo fuera del equipo y sigue la [guía de recuperación](docs/runbooks/recovery.md).
+
+<a id="️-desarrollo-y-verificación"></a>
+
+## <img src="assets/readme-builder/icons/settings.svg" width="20" height="20" alt="" /> Desarrollo y verificación
 
 <details>
 <summary><b>Entorno híbrido de desarrollo</b></summary>
@@ -231,30 +259,23 @@ Las pruebas de integración requieren Docker. En Windows, si el cliente no detec
 > [!NOTE]
 > **Verificación local del 12 de octubre de 2026:** 971 pruebas de backend (PostgreSQL/Redis reales y desechables) y 19 pruebas de navegador en modo producción aprobadas; comprobación de tipos sin errores. Las pruebas del exchange usan respuestas controladas. Consulta [la evidencia y sus límites](docs/stats/testing.md).
 
-## 💾 Copias de seguridad
+<a id="-documentación"></a>
 
-```sh
-uv run python scripts/backup.py create
-uv run python scripts/backup.py verify
-```
-
-Las copias se cifran en `backups/` (excluido del repositorio) y `verify` las restaura en un PostgreSQL aislado. Guarda la clave de respaldo fuera del equipo y sigue la [guía de recuperación](docs/runbooks/recovery.md).
-
-## 📚 Documentación
+## <img src="assets/readme-builder/icons/book.svg" width="20" height="20" alt="" /> Documentación
 
 | Guía | Contenido |
 | --- | --- |
-| 💱 [Trading real](docs/runbooks/real-spot-trading.md) | Kraken, Binance, límites, aprobación, errores y conciliación |
-| 🧠 [Analistas locales](docs/runbooks/native-ai-worker.md) | CLI, disponibilidad, arranque y diagnóstico |
-| 🎯 [Mandato del producto](docs/PRODUCT-MANDATE.md) | Objetivos, asignación y decisiones del operador |
-| 🏗️ [Arquitectura](ARCHITECTURE.md) | Límites entre procesos y contratos |
-| 🔐 [Seguridad](SECURITY.md) | Autenticación, permisos y aislamiento de secretos |
-| 🛡️ [Riesgo](RISK.md) | Controles de capital y ejecución |
-| 🗃️ [Datos](DATA.md) | Contabilidad, consistencia y calidad |
-| 🚢 [Despliegue](DEPLOYMENT.md) | Instalación, operación y acceso remoto |
-| ✅ [Pruebas](TESTING.md) | Invariantes y criterios de aceptación |
-| 🧾 [Decisiones](docs/adr/README.md) | Motivos y alcance de las decisiones técnicas |
-| 🗺️ [Diagramas](docs/diagrams/README.md) | Flujos de datos, órdenes y recuperación |
+| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> [Trading real](docs/runbooks/real-spot-trading.md) | Kraken, Binance, límites, aprobación, errores y conciliación |
+| <img src="assets/readme-builder/icons/cpu.svg" width="20" height="20" alt="" /> [Analistas locales](docs/runbooks/native-ai-worker.md) | CLI, disponibilidad, arranque y diagnóstico |
+| <img src="assets/readme-builder/icons/target.svg" width="20" height="20" alt="" /> [Mandato del producto](docs/PRODUCT-MANDATE.md) | Objetivos, asignación y decisiones del operador |
+| <img src="assets/readme-builder/icons/layers.svg" width="20" height="20" alt="" /> [Arquitectura](ARCHITECTURE.md) | Límites entre procesos y contratos |
+| <img src="assets/readme-builder/icons/lock.svg" width="20" height="20" alt="" /> [Seguridad](SECURITY.md) | Autenticación, permisos y aislamiento de secretos |
+| <img src="assets/readme-builder/icons/shield.svg" width="20" height="20" alt="" /> [Riesgo](RISK.md) | Controles de capital y ejecución |
+| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> [Datos](DATA.md) | Contabilidad, consistencia y calidad |
+| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> [Despliegue](DEPLOYMENT.md) | Instalación, operación y acceso remoto |
+| <img src="assets/readme-builder/icons/check.svg" width="20" height="20" alt="" /> [Pruebas](TESTING.md) | Invariantes y criterios de aceptación |
+| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> [Decisiones](docs/adr/README.md) | Motivos y alcance de las decisiones técnicas |
+| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> [Diagramas](docs/diagrams/README.md) | Flujos de datos, órdenes y recuperación |
 
 ---
 
@@ -269,3 +290,9 @@ Las copias se cifran en `backups/` (excluido del repositorio) y `verify` las res
 <a href="#top">⬆️ Volver arriba</a>
 
 </div>
+
+<p align="center"><a href="#top">Volver al inicio</a></p>
+
+<!-- readme-builder:signature:start -->
+<p align="center"><a href="https://github.com/robgallardof"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/brand/signature-es-dark.svg" /><img src="assets/readme/brand/signature-es-light.svg" alt="WallyBot / Roberto Gallardo" width="100%" /></picture></a></p>
+<!-- readme-builder:signature:end -->
