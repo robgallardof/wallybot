@@ -1,3 +1,15 @@
+## Final CI result — 2026-10-27
+
+Foundation checks passed in full for code commit `307c4d83e3f686967a463da9f80ef013a9e4b3de`:
+https://github.com/robgallardof/wallybot/actions/runs/40550159429
+
+All steps succeeded: Python lint/format/types and real integration tests with coverage,
+frontend lint/build, development and production browser suites, Bandit and dependency audits,
+Compose builds/readiness, encrypted backup creation/restore, and all five existing blocking
+HIGH/CRITICAL image scans. The local full suite passed 1,154 tests with 91% coverage.
+This final update changes documentation only. The separate Debian research-image findings
+recorded below remain open under ADR-012 and are not covered by those five image scans.
+
 ## Gateway image refresh — 2026-10-27
 
 A fresh local rebuild of the old gateway digest still contained Nginx 1.30.4 and three
