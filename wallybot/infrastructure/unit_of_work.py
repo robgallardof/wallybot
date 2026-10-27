@@ -102,7 +102,7 @@ class UnitOfWork:
         if account_id is not None:
             query = query.where(OrderIntentRow.account_id == account_id)
         result = await self.session.execute(query)
-        return [tuple(row) for row in result.all()]
+        return [row.tuple() for row in result.all()]
 
     async def fill_exists(
         self, venue: str, account_id: str, environment: str, fill_id: str

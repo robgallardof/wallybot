@@ -22,7 +22,9 @@ class RedisLike(Protocol):
 
     def set(self, key: str, value: str, /, *, px: int | None = None) -> Awaitable[object]: ...
 
-    def get(self, key: str, /) -> Awaitable[bytes | None]: ...
+    # redis-py 8 types the async client's GET as `bytes | str | None` (str when
+    # decode_responses=True); json.loads accepts either, so mirror the stub exactly.
+    def get(self, key: str, /) -> Awaitable[bytes | str | None]: ...
 
 
 class MarketCache:
