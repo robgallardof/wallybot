@@ -20,7 +20,14 @@ jobs:
       - run: uv run ruff check apps wallybot migrations scripts tests
       - run: uv run ruff format --check apps/api apps/worker apps/scheduler apps/research_worker wallybot migrations scripts tests
       - run: uv run pyright
-      - run: uv run pytest tests --cov --cov-report=term --cov-report=xml
+      - name: Prepare integration dependency images
+        timeout-minutes: 3
+        run: |
+          docker pull postgres:17.11-alpine
+          docker pull redis:7.4.11-alpine
+      - name: Run Python tests with hang diagnostics
+        timeout-minutes: 8
+        run: uv run pytest tests -vv -s -o faulthandler_timeout=60 --cov --cov-report=term --cov-report=xml
       - run: pnpm --dir apps/web lint && pnpm --dir apps/web build
       - run: pnpm --dir apps/web exec playwright install --with-deps chromium
       - run: pnpm --dir apps/web test:e2e
