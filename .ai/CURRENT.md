@@ -1,3 +1,17 @@
+## Standalone web runtime verification — 2026-10-27
+
+Trivy v0.76.1 runs successfully. The local Alpine application image has no HIGH/CRITICAL
+findings. The web image initially reported eleven HIGH findings in bundled npm/Corepack/Yarn
+tooling. Remove those unused package managers only from the final standalone runtime; the
+build stage retains its frozen pnpm installation. Rebuilt web image: no HIGH/CRITICAL findings,
+Node starts, and a real HTTP request to its standalone server returns 200.
+
+An additional diagnostic scan of the existing Debian research image reported 44 HIGH OS
+findings. This is the Debian/glibc tradeoff documented in ADR-012; that research variant is
+outside the existing five CI image scans. Do not describe the entire Compose image set as
+vulnerability-free or suppress these findings. This repair preserves the original blocking
+image gates; research-base remediation remains a separately documented open security item.
+
 ## Container verification and scanner repair — 2026-10-27
 
 Hosted run 40547639825 passed 1,146 Python tests, both browser suites, typing, lint,
