@@ -1,3 +1,25 @@
+## Final CI result — 2026-10-27
+
+Foundation checks passed in full for code commit `307c4d83e3f686967a463da9f80ef013a9e4b3de`:
+https://github.com/robgallardof/wallybot/actions/runs/40550159429
+
+All steps succeeded: Python lint/format/types and real integration tests with coverage,
+frontend lint/build, development and production browser suites, Bandit and dependency audits,
+Compose builds/readiness, encrypted backup creation/restore, and all five existing blocking
+HIGH/CRITICAL image scans. The local full suite passed 1,154 tests with 91% coverage.
+This final update changes documentation only. The separate Debian research-image findings
+recorded below remain open under ADR-012 and are not covered by those five image scans.
+
+## Gateway image refresh — 2026-10-27
+
+A fresh local rebuild of the old gateway digest still contained Nginx 1.30.4 and three
+HIGH advisories. Update the pinned official nginx-unprivileged stable-alpine digest to
+`sha256:f5116ed4606f3eb015dd4a8e28cb9b351476dc0ad4bc6e9f93b19cec130cdf03`
+(Nginx 1.30.6). Its rebuilt image passes the blocking HIGH/CRITICAL scan and nginx config test.
+The rebuilt PostgreSQL image and freshly pulled Redis 7.4.11 image also pass this scan.
+All five original CI image targets have now passed local Trivy scans; hosted confirmation
+is pending. The separately documented Debian research findings persist after a fresh rebuild.
+
 ## Standalone web runtime verification — 2026-10-27
 
 Trivy v0.76.1 runs successfully. The local Alpine application image has no HIGH/CRITICAL
