@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "theme": "ocean",
+  "assets": "assets/readme-builder/kit",
+  "documents": {"README.md": "es", "README.en.md": "en"},
+  "blocks": [
+    {"id": "nav", "type": "buttons", "items": [
+      {"label": {"en": "Quick start", "es": "Inicio rápido"}, "href": {"en": "#-quick-start", "es": "#-inicio-rápido"}, "icon": "rocket", "variant": "primary"},
+      {"label": {"en": "Real trading", "es": "Trading real"}, "href": {"en": "#-set-up-your-real-account", "es": "#-configura-tu-cuenta-real"}, "icon": "lock", "small": true},
+      {"label": {"en": "Architecture", "es": "Arquitectura"}, "href": {"en": "#-how-it-works", "es": "#-cómo-funciona"}, "icon": "layers", "small": true},
+      {"label": {"en": "Documentation", "es": "Documentación"}, "href": {"en": "#-documentation", "es": "#-documentación"}, "icon": "book", "small": true}
+    ]},
+    {"id": "features", "type": "bento", "columns": 3, "cells": [
+      {"icon": "globe", "kicker": {"en": "Data", "es": "Datos"}, "title": {"en": "Markets", "es": "Mercados"},
+       "text": {"en": "Public Binance quotes, checked for origin, age and spread.", "es": "Cotizaciones públicas de Binance con origen, antigüedad y diferencial validados."}},
+      {"span": 2, "icon": "cpu", "kicker": {"en": "AI", "es": "IA"}, "title": {"en": "AI analysts", "es": "Analistas IA"},
+       "text": {"en": "Local Codex and Claude, configurable consensus and visible availability per analyst.", "es": "Codex y Claude locales, consenso configurable y disponibilidad visible por analista."}},
+      {"icon": "file", "kicker": {"en": "Proposals", "es": "Propuestas"}, "title": {"en": "Explained", "es": "Explicadas"},
+       "text": {"en": "Reasoning, risks, expiry, MFA approval, rejection and simulation.", "es": "Explicación, riesgos, vencimiento, aprobación con MFA, rechazo y simulación."}},
+      {"icon": "lock", "kicker": {"en": "Account", "es": "Cuenta"}, "title": {"en": "Real account", "es": "Cuenta real"},
+       "text": {"en": "Encrypted keys, verified balances, IOC spot orders on Kraken or Binance.", "es": "Credenciales cifradas, saldos verificados y órdenes spot IOC en Kraken o Binance."}},
+      {"icon": "shield", "kicker": {"en": "Limits", "es": "Límites"}, "title": {"en": "Risk", "es": "Riesgo"},
+       "text": {"en": "Per-trade, exposure and daily loss limits; it halts on mismatches.", "es": "Límites por operación, exposición y pérdida diaria; se bloquea ante discrepancias."}},
+      {"icon": "chart", "kicker": "FIFO", "title": {"en": "Portfolio", "es": "Cartera"},
+       "text": {"en": "Real tracking, FIFO accounting and simulated results.", "es": "Seguimiento real, contabilidad FIFO y resultados simulados."}},
+      {"icon": "bot", "kicker": {"en": "Alerts", "es": "Avisos"}, "title": "Telegram",
+       "text": {"en": "Summaries and review links for the owner; it never executes.", "es": "Resúmenes y enlaces de revisión para el dueño; nunca ejecuta."}},
+      {"icon": "search", "kicker": {"en": "Research", "es": "Investigación"}, "title": "Backtests",
+       "text": {"en": "Research runs kept apart from execution.", "es": "Investigación aislada de la ejecución."}},
+      {"span": 2, "icon": "settings", "kicker": {"en": "Operations", "es": "Operación"}, "title": {"en": "Built to run", "es": "Hecho para operar"},
+       "text": {"en": "Audit log, service heartbeats, encrypted backups and verified recovery.", "es": "Auditoría, heartbeats de servicios, copias cifradas y recuperación verificada."}},
+      {"icon": "palette", "kicker": "UI", "title": {"en": "Interface", "es": "Interfaz"},
+       "text": {"en": "Spanish and English, light and dark, mobile ready.", "es": "Español e inglés, claro y oscuro, lista para móvil."}}
+    ]},
+    {"id": "docs", "type": "buttons", "items": [
+      {"label": {"en": "Real trading", "es": "Trading real"}, "href": "docs/runbooks/real-spot-trading.md", "icon": "lock", "variant": "primary", "trailing": true},
+      {"label": {"en": "Local analysts", "es": "Analistas locales"}, "href": "docs/runbooks/native-ai-worker.md", "icon": "cpu", "small": true},
+      {"label": {"en": "Product mandate", "es": "Mandato"}, "href": "docs/PRODUCT-MANDATE.md", "icon": "target", "small": true},
+      {"label": {"en": "Architecture", "es": "Arquitectura"}, "href": "ARCHITECTURE.md", "icon": "layers", "small": true},
+      {"label": {"en": "Security", "es": "Seguridad"}, "href": "SECURITY.md", "icon": "shield", "small": true},
+      {"label": {"en": "Risk", "es": "Riesgo"}, "href": "RISK.md", "icon": "chart", "small": true},
+      {"label": {"en": "Data", "es": "Datos"}, "href": "DATA.md", "icon": "database", "small": true},
+      {"label": {"en": "Deployment", "es": "Despliegue"}, "href": "DEPLOYMENT.md", "icon": "rocket", "small": true},
+      {"label": {"en": "Testing", "es": "Pruebas"}, "href": "TESTING.md", "icon": "check", "small": true},
+      {"label": {"en": "Decisions", "es": "Decisiones"}, "href": "docs/adr/README.md", "icon": "file", "small": true},
+      {"label": {"en": "Diagrams", "es": "Diagramas"}, "href": "docs/diagrams/README.md", "icon": "workflow", "small": true}
+    ]}
+  ]
+}

@@ -35,12 +35,12 @@
   <img alt="Pruebas" src="https://img.shields.io/badge/pruebas-971%20backend%20%C2%B7%2019%20navegador-2ea44f">
 </p>
 
-<p>
-  <a href="#-inicio-rápido"><b>Inicio rápido</b></a> ·
-  <a href="#-configura-tu-cuenta-real"><b>Trading real</b></a> ·
-  <a href="#-cómo-funciona"><b>Arquitectura</b></a> ·
-  <a href="#-documentación"><b>Documentación</b></a>
-</p>
+<!-- kit:nav -->
+<p align="center"><a href="#-inicio-rápido"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/nav-es-01-dark.svg" /><img src="assets/readme-builder/kit/nav-es-01-light.svg" alt="Inicio rápido" height="44" /></picture></a>&nbsp;
+<a href="#-configura-tu-cuenta-real"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/nav-es-02-dark.svg" /><img src="assets/readme-builder/kit/nav-es-02-light.svg" alt="Trading real" height="34" /></picture></a>&nbsp;
+<a href="#-cómo-funciona"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/nav-es-03-dark.svg" /><img src="assets/readme-builder/kit/nav-es-03-light.svg" alt="Arquitectura" height="34" /></picture></a>&nbsp;
+<a href="#-documentación"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/nav-es-04-dark.svg" /><img src="assets/readme-builder/kit/nav-es-04-light.svg" alt="Documentación" height="34" /></picture></a></p>
+<!-- /kit:nav -->
 
 </div>
 
@@ -78,58 +78,9 @@ Más detalle en la [guía completa de trading real](docs/runbooks/real-spot-trad
 
 ## <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Qué puedes hacer
 
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <h4><img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Mercados</h4>
-      Cotizaciones públicas de Binance con validación de origen, antigüedad y diferencial.
-    </td>
-    <td width="50%" valign="top">
-      <h4><img src="assets/readme-builder/icons/cpu.svg" width="20" height="20" alt="" /> Analistas IA</h4>
-      Codex y Claude locales, consenso configurable y disponibilidad visible por analista.
-    </td>
-  </tr>
-  <tr>
-    <td valign="top">
-      <h4><img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Propuestas</h4>
-      Explicación, riesgos, vencimiento, aprobación con MFA, rechazo y simulación.
-    </td>
-    <td valign="top">
-      <h4><img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Cuenta real</h4>
-      Credenciales cifradas, saldos verificados y órdenes spot IOC en Kraken o Binance.
-    </td>
-  </tr>
-  <tr>
-    <td valign="top">
-      <h4><img src="assets/readme-builder/icons/shield.svg" width="20" height="20" alt="" /> Riesgo</h4>
-      Límites por operación, exposición y pérdida diaria; conciliación y bloqueo ante discrepancias.
-    </td>
-    <td valign="top">
-      <h4><img src="assets/readme-builder/icons/chart.svg" width="20" height="20" alt="" /> Cartera</h4>
-      Seguimiento real, contabilidad FIFO y resultados de operaciones simuladas.
-    </td>
-  </tr>
-  <tr>
-    <td valign="top">
-      <h4><img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Telegram</h4>
-      Resúmenes y enlaces de revisión vinculados al propietario; nunca ejecutan nada.
-    </td>
-    <td valign="top">
-      <h4><img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> Investigación</h4>
-      Backtests y procesos de investigación aislados de la ejecución.
-    </td>
-  </tr>
-  <tr>
-    <td valign="top">
-      <h4><img src="assets/readme-builder/icons/settings.svg" width="20" height="20" alt="" /> Operación</h4>
-      Auditoría, heartbeats de servicios, copias cifradas y recuperación verificada.
-    </td>
-    <td valign="top">
-      <h4><img src="assets/readme-builder/icons/globe.svg" width="20" height="20" alt="" /> Interfaz</h4>
-      Español e inglés, tema claro/oscuro y diseño adaptable a móvil.
-    </td>
-  </tr>
-</table>
+<!-- kit:features -->
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/features-es-dark.svg" /><img src="assets/readme-builder/kit/features-es-light.svg" alt="Mercados: Cotizaciones públicas de Binance con origen, antigüedad y diferencial validados. · Analistas IA: Codex y Claude locales, consenso configurable y disponibilidad visible por analista. · Explicadas: Explicación, riesgos, vencimiento, aprobación con MFA, rechazo y simulación. · Cuenta real: Credenciales cifradas, saldos verificados y órdenes spot IOC en Kraken o Binance. · Riesgo: Límites por operación, exposición y pérdida diaria; se bloquea ante discrepancias. · Cartera: Seguimiento real, contabilidad FIFO y resultados simulados. · Telegram: Resúmenes y enlaces de revisión para el dueño; nunca ejecuta. · Backtests: Investigación aislada de la ejecución. · Hecho para operar: Auditoría, heartbeats de servicios, copias cifradas y recuperación verificada. · Interfaz: Español e inglés, claro y oscuro, lista para móvil." width="100%" /></picture></p>
+<!-- /kit:features -->
 
 <p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
 
@@ -186,6 +137,8 @@ Restricciones y evolución prevista: [RISK.md](RISK.md), [mandato del producto](
 <a id="-cómo-funciona"></a>
 
 ## <img src="assets/readme-builder/icons/globe.svg" width="20" height="20" alt="" /> Cómo funciona
+
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/diagrams/how-it-works-es-dark.svg" /><img src="assets/readme/diagrams/how-it-works-es-light.svg" alt="Flujo de WallyBot: datos de mercado, analistas IA, propuesta explicada, tu aprobación con MFA y luego riesgo y exchange" width="100%" /></picture></p>
 
 <details>
 <summary>Diagrama técnico</summary>
@@ -277,19 +230,19 @@ Las pruebas de integración requieren Docker. En Windows, si el cliente no detec
 
 ## <img src="assets/readme-builder/icons/book.svg" width="20" height="20" alt="" /> Documentación
 
-| Guía | Contenido |
-| --- | --- |
-| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> [Trading real](docs/runbooks/real-spot-trading.md) | Kraken, Binance, límites, aprobación, errores y conciliación |
-| <img src="assets/readme-builder/icons/cpu.svg" width="20" height="20" alt="" /> [Analistas locales](docs/runbooks/native-ai-worker.md) | CLI, disponibilidad, arranque y diagnóstico |
-| <img src="assets/readme-builder/icons/target.svg" width="20" height="20" alt="" /> [Mandato del producto](docs/PRODUCT-MANDATE.md) | Objetivos, asignación y decisiones del operador |
-| <img src="assets/readme-builder/icons/layers.svg" width="20" height="20" alt="" /> [Arquitectura](ARCHITECTURE.md) | Límites entre procesos y contratos |
-| <img src="assets/readme-builder/icons/lock.svg" width="20" height="20" alt="" /> [Seguridad](SECURITY.md) | Autenticación, permisos y aislamiento de secretos |
-| <img src="assets/readme-builder/icons/shield.svg" width="20" height="20" alt="" /> [Riesgo](RISK.md) | Controles de capital y ejecución |
-| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> [Datos](DATA.md) | Contabilidad, consistencia y calidad |
-| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> [Despliegue](DEPLOYMENT.md) | Instalación, operación y acceso remoto |
-| <img src="assets/readme-builder/icons/check.svg" width="20" height="20" alt="" /> [Pruebas](TESTING.md) | Invariantes y criterios de aceptación |
-| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> [Decisiones](docs/adr/README.md) | Motivos y alcance de las decisiones técnicas |
-| <img src="assets/readme-builder/icons/spark.svg" width="20" height="20" alt="" /> [Diagramas](docs/diagrams/README.md) | Flujos de datos, órdenes y recuperación |
+<!-- kit:docs -->
+<p align="center"><a href="docs/runbooks/real-spot-trading.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/docs-es-01-dark.svg" /><img src="assets/readme-builder/kit/docs-es-01-light.svg" alt="Trading real" height="44" /></picture></a>&nbsp;
+<a href="docs/runbooks/native-ai-worker.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/docs-es-02-dark.svg" /><img src="assets/readme-builder/kit/docs-es-02-light.svg" alt="Analistas locales" height="34" /></picture></a>&nbsp;
+<a href="docs/PRODUCT-MANDATE.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/docs-es-03-dark.svg" /><img src="assets/readme-builder/kit/docs-es-03-light.svg" alt="Mandato" height="34" /></picture></a>&nbsp;
+<a href="ARCHITECTURE.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/docs-es-04-dark.svg" /><img src="assets/readme-builder/kit/docs-es-04-light.svg" alt="Arquitectura" height="34" /></picture></a>&nbsp;
+<a href="SECURITY.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/docs-es-05-dark.svg" /><img src="assets/readme-builder/kit/docs-es-05-light.svg" alt="Seguridad" height="34" /></picture></a>&nbsp;
+<a href="RISK.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/docs-es-06-dark.svg" /><img src="assets/readme-builder/kit/docs-es-06-light.svg" alt="Riesgo" height="34" /></picture></a>&nbsp;
+<a href="DATA.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/docs-es-07-dark.svg" /><img src="assets/readme-builder/kit/docs-es-07-light.svg" alt="Datos" height="34" /></picture></a>&nbsp;
+<a href="DEPLOYMENT.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/docs-es-08-dark.svg" /><img src="assets/readme-builder/kit/docs-es-08-light.svg" alt="Despliegue" height="34" /></picture></a>&nbsp;
+<a href="TESTING.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/docs-es-09-dark.svg" /><img src="assets/readme-builder/kit/docs-es-09-light.svg" alt="Pruebas" height="34" /></picture></a>&nbsp;
+<a href="docs/adr/README.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/docs-es-10-dark.svg" /><img src="assets/readme-builder/kit/docs-es-10-light.svg" alt="Decisiones" height="34" /></picture></a>&nbsp;
+<a href="docs/diagrams/README.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/docs-es-11-dark.svg" /><img src="assets/readme-builder/kit/docs-es-11-light.svg" alt="Diagramas" height="34" /></picture></a></p>
+<!-- /kit:docs -->
 
 ---
 
@@ -299,9 +252,6 @@ Las pruebas de integración requieren Docker. En Windows, si el cliente no detec
 
 <sub>Hecho para autoalojarse · Sin retiros · Sin órdenes directas de la IA</sub>
 
-<br><br>
-
-<a href="#top">⬆️ Volver arriba</a>
 
 </div>
 

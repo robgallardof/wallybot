@@ -34,3 +34,4 @@ graphify-out/
 /tests/rust_discord_bot/
 .env.*
 !.env.example
+.archify/

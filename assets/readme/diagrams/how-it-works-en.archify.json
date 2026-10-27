@@ -1,0 +1,120 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "From market data to an approved order",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/robgallardof/wallybot.git",
+      "revision": "687167d09fcb92cb74a0c735cdcf182b0abe6683"
+    },
+    "output": ".archify/how-it-works-en-20261027-171126/diagram.html"
+  },
+  "lanes": [
+    {
+      "id": "wally",
+      "label": "WallyBot on your server"
+    },
+    {
+      "id": "you",
+      "label": "You"
+    }
+  ],
+  "mainPath": [
+    "step0",
+    "step1",
+    "step2",
+    "step3",
+    "step4"
+  ],
+  "nodes": [
+    {
+      "id": "step0",
+      "lane": "wally",
+      "col": 0,
+      "type": "external",
+      "label": "Market data",
+      "sublabel": "validated quotes",
+      "sources": [
+        {
+          "path": "apps/api/market_routes.py"
+        }
+      ]
+    },
+    {
+      "id": "step1",
+      "lane": "wally",
+      "col": 1,
+      "type": "backend",
+      "label": "AI analysts",
+      "sublabel": "local Codex, Claude",
+      "sources": [
+        {
+          "path": "apps/ai_worker/worker.py"
+        }
+      ]
+    },
+    {
+      "id": "step2",
+      "lane": "wally",
+      "col": 2,
+      "type": "backend",
+      "label": "Explained proposal",
+      "sublabel": "BUY, HOLD, SELL, REDUCE",
+      "sources": [
+        {
+          "path": "apps/api/proposal_routes.py"
+        }
+      ]
+    },
+    {
+      "id": "step3",
+      "lane": "you",
+      "col": 3,
+      "type": "frontend",
+      "label": "Your approval",
+      "sublabel": "review + MFA",
+      "sources": [
+        {
+          "path": "wallybot/security/auth.py"
+        }
+      ]
+    },
+    {
+      "id": "step4",
+      "lane": "wally",
+      "col": 4,
+      "type": "backend",
+      "label": "Risk, then the exchange",
+      "sublabel": "Kraken, Binance or sim",
+      "sources": [
+        {
+          "path": "wallybot/risk/deterministic_risk_engine.py"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge0",
+      "from": "step0",
+      "to": "step1"
+    },
+    {
+      "id": "edge1",
+      "from": "step1",
+      "to": "step2"
+    },
+    {
+      "id": "edge2",
+      "from": "step2",
+      "to": "step3"
+    },
+    {
+      "id": "edge3",
+      "from": "step3",
+      "to": "step4"
+    }
+  ]
+}
