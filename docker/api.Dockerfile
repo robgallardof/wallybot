@@ -1,6 +1,6 @@
 FROM ghcr.io/astral-sh/uv:0.12.11 AS uv
 
-FROM python:3.12.14-alpine AS builder
+FROM python:3.14.8-alpine AS builder
 RUN apk upgrade --no-cache
 COPY --from=uv /uv /usr/local/bin/uv
 WORKDIR /app
@@ -15,8 +15,11 @@ COPY apps/scheduler ./apps/scheduler
 COPY apps/research_worker ./apps/research_worker
 RUN uv sync --frozen --no-dev --no-group research
 
-FROM python:3.12.14-alpine AS runtime
-RUN apk upgrade --no-cache && addgroup -g 10001 wally && adduser -D -u 10001 -G wally wally
+FROM python:3.14.8-alpine AS runtime
+# The app runs from the uv-built virtualenv. The base image's pip (and the packages it vendors)
+# is unused at runtime and only ships scanner findings, so strip it like the web image strips npm.
+RUN apk upgrade --no-cache && addgroup -g 10001 wally && adduser -D -u 10001 -G wally wally \
+  && rm -rf /usr/local/lib/python3.14/site-packages/pip* /usr/local/bin/pip*
 WORKDIR /app
 COPY --from=builder --chown=wally:wally /app /app
 COPY --chown=wally:wally migrations ./migrations
@@ -34,7 +37,7 @@ CMD ["uvicorn", "apps.api.main:create_app", "--factory", "--host", "0.0.0.0", "-
 # the two processes that actually touch DuckDB (api, since Phase 5 Slice 5's POST /api/backtests
 # calls it synchronously; research_worker, the process this dependency group is named for) keeps
 # that tradeoff scoped instead of reintroducing it everywhere.
-FROM python:3.12.14-slim AS research-builder
+FROM python:3.14.8-slim AS research-builder
 RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 COPY --from=uv /uv /usr/local/bin/uv
 WORKDIR /app
@@ -49,9 +52,10 @@ COPY apps/scheduler ./apps/scheduler
 COPY apps/research_worker ./apps/research_worker
 RUN uv sync --frozen --no-dev
 
-FROM python:3.12.14-slim AS runtime-research
+FROM python:3.14.8-slim AS runtime-research
 RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/* \
-  && groupadd -g 10001 wally && useradd -M -u 10001 -g wally wally
+  && groupadd -g 10001 wally && useradd -M -u 10001 -g wally wally \
+  && rm -rf /usr/local/lib/python3.14/site-packages/pip* /usr/local/bin/pip*
 WORKDIR /app
 COPY --from=research-builder --chown=wally:wally /app /app
 COPY --chown=wally:wally migrations ./migrations
