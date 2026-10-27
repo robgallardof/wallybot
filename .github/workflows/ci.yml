@@ -41,28 +41,33 @@ jobs:
       - run: docker compose up -d --wait --wait-timeout 120
       - run: curl --fail http://localhost:3333/health/ready
       - run: uv run python scripts/backup.py create && uv run python scripts/backup.py verify
-      - uses: aquasecurity/trivy-action@v0.33.1
+      - uses: aquasecurity/trivy-action@v0.36.0
         with:
+          version: v0.76.1
           image-ref: wallybot-api:0.1.0
           severity: HIGH,CRITICAL
           exit-code: "1"
-      - uses: aquasecurity/trivy-action@v0.33.1
+      - uses: aquasecurity/trivy-action@v0.36.0
         with:
+          version: v0.76.1
           image-ref: wallybot-postgres:0.1.0
           severity: HIGH,CRITICAL
           exit-code: "1"
-      - uses: aquasecurity/trivy-action@v0.33.1
+      - uses: aquasecurity/trivy-action@v0.36.0
         with:
+          version: v0.76.1
           image-ref: wallybot-gateway:0.1.0
           severity: HIGH,CRITICAL
           exit-code: "1"
-      - uses: aquasecurity/trivy-action@v0.33.1
+      - uses: aquasecurity/trivy-action@v0.36.0
         with:
+          version: v0.76.1
           image-ref: wallybot-web:latest
           severity: HIGH,CRITICAL
           exit-code: "1"
-      - uses: aquasecurity/trivy-action@v0.33.1
+      - uses: aquasecurity/trivy-action@v0.36.0
         with:
+          version: v0.76.1
           image-ref: redis:7.4.11-alpine
           severity: HIGH,CRITICAL
           exit-code: "1"

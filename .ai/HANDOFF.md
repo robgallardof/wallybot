@@ -1,3 +1,16 @@
+## Container verification and scanner repair — 2026-10-27
+
+Hosted run 40547639825 passed 1,146 Python tests, both browser suites, typing, lint,
+Bandit, Python/frontend dependency audits, all Compose image builds, service readiness,
+and encrypted backup creation/restore verification. The local full suite passed 1,154
+cases with 91% coverage after the shutdown fix; the real-child lifecycle regression passed.
+Graphify's local AST index was updated (5,111 nodes / 14,759 edges).
+
+The remaining hosted failure occurred before image analysis: trivy-action v0.33.1 could
+not install its default Trivy v0.65.0 binary. Update the action to v0.36.0 and explicitly
+select official Trivy v0.76.1. HIGH/CRITICAL failures and all five image gates remain enabled;
+no vulnerabilities are suppressed. Image scan results require the next hosted run.
+
 ## Intermittent API shutdown repair — 2026-10-27
 
 Hosted run 40545572416 isolated the Python hang to TestClient shutdown in
