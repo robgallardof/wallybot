@@ -120,3 +120,10 @@ Rules:
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+
+## Commit language
+
+All new Git commit subjects and bodies must be written in English, including merge
+and squash messages. Keep the repository's existing message conventions.
+This applies to all contributors and coding agents, and only to new commits.
+Do not rewrite existing history to translate commit messages.
