@@ -1,4 +1,4 @@
-FROM postgres:18.4-alpine
+FROM postgres:18.6-alpine
 # Use Alpine's small privilege-drop helper instead of the upstream static Go binary.
 # The official entrypoint calls `gosu postgres ...`; su-exec accepts the same invocation.
 RUN apk upgrade --no-cache && apk add --no-cache su-exec \
